@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(which node:*)",
+      "Bash(node:*)",
+      "Read(//usr/local/bin/**)",
+      "Read(//opt/homebrew/bin/**)",
+      "Read(//Users/woody/.nvm/versions/node/**)",
+      "Read(//Users/woody/.local/share/fnm/**)",
+      "Read(//usr/local/**)",
+      "WebSearch",
+      "Bash(claude mcp:*)",
+      "Bash(export:*)"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "sqlite",
+    "filesystem",
+    "fetch",
+    "git",
+    "puppeteer",
+    "github",
+    "memory"
+  ]
+}

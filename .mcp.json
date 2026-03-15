@@ -1,0 +1,77 @@
+{
+  "mcpServers": {
+    "sqlite": {
+      "type": "stdio",
+      "command": "/Users/woody/.nvm/versions/node/v24.14.0/bin/npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sqlite"
+      ],
+      "env": {}
+    },
+    "filesystem": {
+      "type": "stdio",
+      "command": "/Users/woody/.nvm/versions/node/v24.14.0/bin/npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/woody/workflow/trading_view"
+      ],
+      "env": {}
+    },
+    "fetch": {
+      "type": "stdio",
+      "command": "/Users/woody/.nvm/versions/node/v24.14.0/bin/npx",
+      "args": [
+        "-y",
+        "@anthropic-ai/mcp-fetch"
+      ],
+      "env": {}
+    },
+    "git": {
+      "type": "stdio",
+      "command": "/Users/woody/.nvm/versions/node/v24.14.0/bin/npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-git"
+      ],
+      "env": {}
+    },
+    "puppeteer": {
+      "type": "stdio",
+      "command": "/Users/woody/.nvm/versions/node/v24.14.0/bin/npx",
+      "args": [
+        "-y",
+        "@anthropic-ai/mcp-puppeteer"
+      ],
+      "env": {}
+    },
+    "github": {
+      "type": "stdio",
+      "command": "/Users/woody/.nvm/versions/node/v24.14.0/bin/npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {}
+    },
+    "memory": {
+      "type": "stdio",
+      "command": "/Users/woody/.nvm/versions/node/v24.14.0/bin/npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ],
+      "env": {}
+    },
+    "context7": {
+      "type": "stdio",
+      "command": "/Users/woody/.nvm/versions/node/v24.14.0/bin/npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp@latest"
+      ],
+      "env": {}
+    }
+  }
+}
