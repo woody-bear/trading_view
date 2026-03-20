@@ -1,0 +1,28 @@
+from fastapi import APIRouter
+
+from routes.charts import router as charts_router
+from routes.forex import router as forex_router
+from routes.prices import router as prices_router
+from routes.market_scan import router as market_scan_router
+from routes.quick_chart import router as quick_chart_router
+from routes.search import router as search_router
+from routes.financials import router as financials_router
+from routes.settings import router as settings_router
+from routes.signals import router as signals_router
+from routes.system import router as system_router
+from routes.watchlist import router as watchlist_router
+from routes.webhook import router as webhook_router
+
+api_router = APIRouter(prefix="/api")
+api_router.include_router(signals_router)
+api_router.include_router(watchlist_router)
+api_router.include_router(charts_router)
+api_router.include_router(system_router)
+api_router.include_router(webhook_router)
+api_router.include_router(market_scan_router)
+api_router.include_router(search_router)
+api_router.include_router(quick_chart_router)
+api_router.include_router(forex_router)
+api_router.include_router(settings_router)
+api_router.include_router(prices_router)
+api_router.include_router(financials_router)
