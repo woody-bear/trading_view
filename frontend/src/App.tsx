@@ -9,6 +9,7 @@ import Scan from './pages/Scan'
 import Settings from './pages/Settings'
 import SignalDetail from './pages/SignalDetail'
 import TopPicks from './pages/TopPicks'
+import Toast from './components/ui/Toast'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchInterval: 10000 } },
@@ -51,6 +52,7 @@ function AppInner() {
 
       {/* 모바일 하단 네비 */}
       <BottomNav />
+      <Toast />
     </div>
   )
 }
