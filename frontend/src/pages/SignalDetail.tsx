@@ -4,11 +4,17 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { addSymbol, fetchQuickChart, fetchSignalBySymbol, fetchSignals, getSensitivity, setSensitivity } from '../api/client'
 import { fmtPrice as _fmtPrice } from '../utils/format'
+import ChartEmptyState from '../components/charts/ChartEmptyState'
+import ChartErrorBoundary from '../components/charts/ChartErrorBoundary'
+import ChartSkeleton from '../components/charts/ChartSkeleton'
 import FinancialChart from '../components/charts/FinancialChart'
 import IndicatorChart from '../components/charts/IndicatorChart'
+import ConnectionIndicator from '../components/ui/ConnectionIndicator'
 import { usePriceFlash } from '../hooks/usePriceFlash'
 import { useRealtimePrice } from '../hooks/useRealtimePrice'
 import { useSignalStore } from '../stores/signalStore'
+import { useBuyPoint } from '../hooks/useBuyPoint'
+import { useToastStore } from '../stores/toastStore'
 
 const stateLabel: Record<string, string> = { BUY: '매수', SELL: '매도', NEUTRAL: '대기' }
 
@@ -116,10 +122,16 @@ export default function SignalDetail() {
   // 차트 데이터: 항상 quickChart를 사용 (확실한 데이터 보장)
   // 관심종목이어도 DB 캐시가 비어있을 수 있으므로 quickChart로 통일
   const guessMarket = signal?.market || marketHint || (lookupSymbol.match(/^\d{6}$/) ? 'KR' : 'US')
-  const { data: chartData, isLoading: chartLoading } = useQuery({
+  const { data: chartData, isLoading: chartLoading, isError: chartError, refetch: refetchChart } = useQuery({
     queryKey: ['chart-unified', urlSymbol, globalTf],
-    queryFn: () => fetchQuickChart(lookupSymbol, guessMarket, globalTf),
+    queryFn: ({ signal }) => {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 10000)
+      if (signal) signal.addEventListener('abort', () => controller.abort())
+      return fetchQuickChart(lookupSymbol, guessMarket, globalTf).finally(() => clearTimeout(timeout))
+    },
     enabled: !!urlSymbol,
+    retry: 1,
   })
 
   // chartData.current에서 지표 추출
@@ -147,7 +159,9 @@ export default function SignalDetail() {
   }
 
   // 실시간 가격 SSE (1초 간격)
-  const { livePrice, connected: realtimeConnected } = useRealtimePrice(lookupSymbol, s.market)
+  const { livePrice, connected: realtimeConnected, connectionStatus, reconnect } = useRealtimePrice(lookupSymbol, s.market)
+  const { addToast } = useToastStore()
+  const { buyPoint, toggleBuyPoint } = useBuyPoint(lookupSymbol)
   const currentPrice = livePrice?.price ?? s.price
   const currentChangePct = livePrice?.change_pct ?? s.change_pct
   const { flashClass } = usePriceFlash(currentPrice)
@@ -161,15 +175,17 @@ export default function SignalDetail() {
       const m = (guessMarket === 'KOSPI' || guessMarket === 'KOSDAQ') ? 'KR' : guessMarket
       await addSymbol({ market: m, symbol: lookupSymbol, timeframe: '1d' })
       setAddedNow(true)
-      // signal 데이터 리로드 → watchlist_id 획득 → 매수 패널 활성화
+      addToast('success', '관심종목에 추가되었습니다')
       await qc.invalidateQueries({ queryKey: ['signals'] })
       await qc.invalidateQueries({ queryKey: ['signal-by-symbol', urlSymbol] })
-      // 페이지 리로드로 확실하게 반영
       window.location.reload()
     } catch (e: any) {
-      if (e.response?.data?.detail?.includes('이미')) {
+      if (e.response?.status === 409 || e.response?.data?.detail?.includes('이미')) {
+        addToast('info', '이미 등록된 종목입니다')
         setAddedNow(true)
         window.location.reload()
+      } else {
+        addToast('error', '관심종목 추가에 실패했습니다')
       }
     } finally { setAdding(false) }
   }
@@ -178,9 +194,11 @@ export default function SignalDetail() {
   const [sensLoading, setSensLoading] = useState(false)
   useEffect(() => { getSensitivity().then(d => setSens(d.current)).catch(() => {}) }, [])
 
-  if (chartLoading || !chartData) return <div className="p-6 text-[var(--muted)]">로딩 중...</div>
-
   const stateColor = s.signal_state === 'BUY' ? 'text-green-400' : s.signal_state === 'SELL' ? 'text-red-400' : 'text-slate-400'
+
+  // 차트 상태 판별
+  const chartEmpty = chartData && (!chartData.candles || chartData.candles.length === 0)
+  const chartTimeout = chartError && !chartData
 
   const fmtPrice = (price: number) => _fmtPrice(price, s.market)
 
@@ -197,7 +215,10 @@ export default function SignalDetail() {
       await setSensitivity(level)
       setSens(level)
       qc.invalidateQueries({ queryKey: ['signals'] })
-    } catch {} finally { setSensLoading(false) }
+      addToast('success', '민감도가 변경되었습니다')
+    } catch {
+      addToast('error', '설정 변경에 실패했습니다')
+    } finally { setSensLoading(false) }
   }
 
 
@@ -297,12 +318,7 @@ export default function SignalDetail() {
           {currentChangePct >= 0 ? '+' : ''}{currentChangePct?.toFixed(2)}%
         </span>
         {s.confidence > 0 && <span className="text-xs text-[var(--muted)]">강도 {s.confidence.toFixed(0)}점</span>}
-        {realtimeConnected && (
-          <span className="text-[10px] md:text-[9px] text-green-400 flex items-center gap-1">
-            <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-            실시간
-          </span>
-        )}
+        <ConnectionIndicator status={connectionStatus || (realtimeConnected ? 'connected' : 'disconnected')} onReconnect={reconnect || (() => {})} />
       </div>
 
       {/* 차트 + 봉 단위 표시 */}
@@ -311,7 +327,28 @@ export default function SignalDetail() {
           {tfLabels[globalTf] || globalTf}
         </span>
       </div>
-      {chartData && <IndicatorChart data={chartData} watchlistId={wid} realtimePrice={livePrice} />}
+      {chartLoading && <ChartSkeleton />}
+      {chartEmpty && <ChartEmptyState status="empty" />}
+      {chartTimeout && <ChartEmptyState status="timeout" onRetry={() => refetchChart()} />}
+      {chartError && !chartTimeout && <ChartEmptyState status="error" onRetry={() => refetchChart()} />}
+      {chartData && !chartEmpty && !chartError && (
+        <ChartErrorBoundary onReset={() => refetchChart()}>
+          <IndicatorChart
+            data={chartData}
+            watchlistId={wid}
+            realtimePrice={livePrice}
+            buyPoint={buyPoint}
+            onBuyMarkerClick={({ price, markerTime }) => {
+              toggleBuyPoint({
+                symbol: lookupSymbol,
+                price,
+                date: new Date().toISOString().slice(0, 10),
+                markerTime,
+              })
+            }}
+          />
+        </ChartErrorBoundary>
+      )}
 
       {/* 실적 차트 */}
       <FinancialChart symbol={lookupSymbol} market={s.market} />

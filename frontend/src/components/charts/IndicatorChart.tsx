@@ -6,7 +6,7 @@ import {
   HistogramSeries,
   LineSeries,
 } from 'lightweight-charts'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { onPriceUpdate } from '../../hooks/useWebSocket'
 import type { PriceUpdate } from '../../stores/signalStore'
 import type { ChartData } from '../../types'
@@ -23,13 +23,22 @@ interface RealtimePrice {
   change_pct: number
 }
 
+interface BuyPoint {
+  symbol: string
+  price: number
+  date: string
+  markerTime: number
+}
+
 interface Props {
   data: ChartData
   watchlistId?: number
   realtimePrice?: RealtimePrice | null
+  buyPoint?: BuyPoint | null
+  onBuyMarkerClick?: (point: { price: number; markerTime: number }) => void
 }
 
-export default function IndicatorChart({ data, watchlistId, realtimePrice }: Props) {
+export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPoint, onBuyMarkerClick }: Props) {
   const mainRef = useRef<HTMLDivElement>(null)
   const rsiRef = useRef<HTMLDivElement>(null)
   const macdRef = useRef<HTMLDivElement>(null)
@@ -37,9 +46,16 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice }: Pro
   const candleSeriesRef = useRef<any>(null)
   const volSeriesRef = useRef<any>(null)
   const lastCandleRef = useRef<any>(null)
+  const todayCandleCreatedRef = useRef(false)
+  const priceLineRef = useRef<any>(null)
+  const onBuyMarkerClickRef = useRef(onBuyMarkerClick)
+  onBuyMarkerClickRef.current = onBuyMarkerClick
+  const [markerWarning, setMarkerWarning] = useState(false)
 
   useEffect(() => {
     if (!mainRef.current || !data.candles?.length) return
+    todayCandleCreatedRef.current = false
+    setMarkerWarning(false)
     const el = mainRef.current
     el.innerHTML = ''
     if (rsiRef.current) rsiRef.current.innerHTML = ''
@@ -96,17 +112,43 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice }: Pro
     // BUY/SELL 마커
     if (data.markers?.length) {
       try {
-        createSeriesMarkers(candleSeries,
-          data.markers.map(m => ({
-            time: m.time as any,
-            position: m.position as any,
-            color: m.color,
-            shape: m.shape as any,
-            text: m.text,
-            size: 2,
-          }))
-        )
-      } catch {}
+        const markersWithIds = data.markers.map(m => ({
+          time: m.time as any,
+          position: m.position as any,
+          color: m.color,
+          shape: m.shape as any,
+          text: m.text,
+          size: 2,
+          id: `${m.position}-${m.time}`,
+        }))
+        const markersPlugin = createSeriesMarkers(candleSeries, markersWithIds)
+
+        // 마커 호버 색상 강조 (PC 전용)
+        const hasHover = window.matchMedia('(hover: hover)').matches
+        if (hasHover) {
+          const originalColors = new Map(markersWithIds.map(m => [m.id, m.color]))
+          const highlightColors: Record<string, string> = { '#22c55e': '#4ade80', '#ef4444': '#f87171' }
+          mainChart.subscribeCrosshairMove((param: any) => {
+            if (!param.time) {
+              markersPlugin.setMarkers(markersWithIds.map(m => ({ ...m, color: originalColors.get(m.id) || m.color })))
+              return
+            }
+            const matched = markersWithIds.find(m => m.time === param.time)
+            if (matched) {
+              markersPlugin.setMarkers(markersWithIds.map(m =>
+                m.id === matched.id
+                  ? { ...m, color: highlightColors[originalColors.get(m.id) || ''] || m.color }
+                  : { ...m, color: originalColors.get(m.id) || m.color }
+              ))
+            } else {
+              markersPlugin.setMarkers(markersWithIds.map(m => ({ ...m, color: originalColors.get(m.id) || m.color })))
+            }
+          })
+        }
+      } catch (e) {
+        console.error('[IndicatorChart] 마커 렌더링 실패:', e)
+        setMarkerWarning(true)
+      }
     }
 
     // 스퀴즈 도트
@@ -129,6 +171,21 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice }: Pro
         s.setData(points)
       }
     }
+
+    // BUY 마커 클릭 → 매수지점 기록 (ref로 최신 콜백 참조)
+    mainChart.subscribeClick((param: any) => {
+      if (!param.time || !onBuyMarkerClickRef.current) return
+      // BUY 마커와 시간 매칭 (SQZ BUY 포함)
+      const clickedBuy = data.markers?.find(
+        (m: any) => m.time === param.time && (m.text === 'BUY' || m.text === 'SQZ BUY')
+      )
+      if (clickedBuy) {
+        const candle = data.candles.find((c: any) => c.time === param.time)
+        if (candle) {
+          onBuyMarkerClickRef.current({ price: candle.close, markerTime: clickedBuy.time })
+        }
+      }
+    })
 
     // 거래량 (하단 오버레이)
     const volSeries = mainChart.addSeries(HistogramSeries, {
@@ -225,26 +282,81 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice }: Pro
     }
   }, [data, watchlistId])
 
+  // 매수지점 가격선 — buyPoint 변경 시 priceLine 생성/제거
+  useEffect(() => {
+    const series = candleSeriesRef.current
+    if (!series) return
+
+    // 기존 priceLine 제거
+    if (priceLineRef.current) {
+      try { series.removePriceLine(priceLineRef.current) } catch {}
+      priceLineRef.current = null
+    }
+
+    // 새 priceLine 생성
+    if (buyPoint) {
+      priceLineRef.current = series.createPriceLine({
+        price: buyPoint.price,
+        color: '#22c55e',
+        lineWidth: 1,
+        lineStyle: 2,
+        axisLabelVisible: true,
+        title: `매수 ${buyPoint.price.toLocaleString()}`,
+      })
+    }
+  }, [buyPoint])
+
+  // 매수지점 수익률 라벨 실시간 업데이트
+  useEffect(() => {
+    if (!buyPoint || !realtimePrice || !priceLineRef.current) return
+    const pct = ((realtimePrice.price - buyPoint.price) / buyPoint.price * 100).toFixed(1)
+    const sign = Number(pct) >= 0 ? '+' : ''
+    priceLineRef.current.applyOptions({
+      title: `매수 ${buyPoint.price.toLocaleString()} (${sign}${pct}%)`,
+    })
+  }, [realtimePrice, buyPoint])
+
   // SSE 실시간 가격으로 차트 마지막 캔들 업데이트 (1초 간격)
   useEffect(() => {
     if (!realtimePrice || !candleSeriesRef.current || !lastCandleRef.current) return
+
+    const marketOpen = (data as any).market_open
+    const price = realtimePrice.price
+
+    // market_open=true이고 아직 당일 캔들을 생성하지 않았으면 새 캔들 추가
+    if (marketOpen && !todayCandleCreatedRef.current) {
+      const todayTs = Math.floor(Date.now() / 1000 / 86400) * 86400  // UTC 자정 기준 timestamp
+      const newCandle = { time: todayTs as any, open: price, high: price, low: price, close: price }
+      candleSeriesRef.current.update(newCandle)
+      lastCandleRef.current = { ...newCandle, volume: realtimePrice.volume || 0 }
+      todayCandleCreatedRef.current = true
+
+      if (volSeriesRef.current) {
+        volSeriesRef.current.update({
+          time: todayTs as any,
+          value: realtimePrice.volume || 0,
+          color: 'rgba(38,166,154,0.12)',
+        })
+      }
+      return
+    }
 
     const lc = lastCandleRef.current
     const updated = {
       time: lc.time as any,
       open: lc.open,
-      high: Math.max(lc.high, realtimePrice.price),
-      low: Math.min(lc.low, realtimePrice.price),
-      close: realtimePrice.price,
+      high: Math.max(lc.high, price),
+      low: Math.min(lc.low, price),
+      close: price,
     }
     candleSeriesRef.current.update(updated)
-    lastCandleRef.current = { ...lc, high: updated.high, low: updated.low, close: realtimePrice.price }
+    lastCandleRef.current = { ...lc, high: updated.high, low: updated.low, close: price }
 
     if (volSeriesRef.current && realtimePrice.volume > 0) {
       volSeriesRef.current.update({
         time: lc.time as any,
         value: realtimePrice.volume,
-        color: realtimePrice.price >= lc.open ? 'rgba(38,166,154,0.12)' : 'rgba(239,83,80,0.12)',
+        color: price >= lc.open ? 'rgba(38,166,154,0.12)' : 'rgba(239,83,80,0.12)',
       })
     }
   }, [realtimePrice])
@@ -263,6 +375,11 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice }: Pro
         <span className="text-[10px] text-[var(--muted)]">MACD (12,26,9)</span>
       </div>
       <div ref={macdRef} className="w-full rounded-b-lg overflow-hidden border border-[var(--border)] border-t-0" />
+      {markerWarning && (
+        <div className="px-3 py-1.5 bg-yellow-900/30 border border-yellow-700/50 rounded text-yellow-400 text-xs mt-1">
+          시그널 마커를 표시할 수 없습니다
+        </div>
+      )}
     </div>
   )
 }

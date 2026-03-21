@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, RefreshCw, Search, Trash2, TrendingUp, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { addSymbol, deleteSymbol, fetchBatchPrices, fetchSignals, fetchUnifiedCache, runUnifiedScan, searchSymbols } from '../api/client'
+import { addSymbol, deleteSymbol, fetchBatchPrices, fetchScanStatus, fetchSignals, fetchUnifiedCache, runUnifiedScan, searchSymbols } from '../api/client'
 import SignalCard from '../components/SignalCard'
 import { usePriceFlash } from '../hooks/usePriceFlash'
 import { useSignalStore } from '../stores/signalStore'
@@ -289,24 +289,59 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
     return () => { if (priceTimer.current) clearInterval(priceTimer.current) }
   }, [picks, maxSq, buyItems])
 
+  const [scanElapsed, setScanElapsed] = useState(0)
+
   const runScan = async () => {
     setScanning(true)
     setScanMsg('전체 시장 스캔 중...')
+    setScanElapsed(0)
     try {
       const result = await runUnifiedScan()
       applyResult(result)
       setScanMsg('스캔 완료')
       setTimeout(() => setScanMsg(''), 3000)
     } catch { setScanMsg('스캔 실패') }
-    finally { setScanning(false) }
+    finally { setScanning(false); setScanElapsed(0) }
   }
 
+  // 마운트 시: 캐시 로드 + 백엔드 스캔 상태 확인 + 필요시 스캔 실행
   useEffect(() => {
     if (autoLoaded.current) return
     autoLoaded.current = true
     fetchUnifiedCache().then(r => applyResult(r)).catch(() => {})
-    runScan()
+    // 백엔드 스캔 상태 확인 — 이미 스캔 중이면 폴링만
+    fetchScanStatus().then(status => {
+      if (status.scanning) {
+        setScanning(true)
+        setScanMsg('전체 시장 스캔 중...')
+        setScanElapsed(status.elapsed_seconds || 0)
+      } else if (!status.has_cache) {
+        runScan()
+      }
+    }).catch(() => { runScan() })
   }, [])
+
+  // 스캔 중일 때 상태 폴링 (3초 간격)
+  useEffect(() => {
+    if (!scanning) return
+    const poll = setInterval(async () => {
+      try {
+        const status = await fetchScanStatus()
+        setScanElapsed(status.elapsed_seconds || 0)
+        if (!status.scanning) {
+          // 스캔 완료 — 결과 로드
+          setScanning(false)
+          setScanElapsed(0)
+          const result = await fetchUnifiedCache()
+          applyResult(result)
+          setScanMsg('스캔 완료')
+          setTimeout(() => setScanMsg(''), 3000)
+          clearInterval(poll)
+        }
+      } catch {}
+    }, 3000)
+    return () => clearInterval(poll)
+  }, [scanning])
 
   const hasPicks = picks && (picks.kospi?.length > 0 || picks.kosdaq?.length > 0 || picks.us?.length > 0 || picks.crypto?.length > 0)
   const hasMaxSq = maxSq && (maxSq.kospi?.length > 0 || maxSq.kosdaq?.length > 0 || maxSq.us?.length > 0 || maxSq.crypto?.length > 0)
@@ -334,7 +369,13 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
       {scanning && !hasPicks && !hasMaxSq && buyItems.length === 0 && (
         <div className="text-center py-8 text-[var(--muted)]">
           <RefreshCw size={20} className="animate-spin mx-auto mb-2 text-orange-400" />
-          <p className="text-sm">전체 시장 스캔 중... (약 30초~1분)</p>
+          <p className="text-sm">전체 시장 스캔 중... {scanElapsed > 0 ? `(${scanElapsed}초 경과)` : '(약 30초~1분)'}</p>
+        </div>
+      )}
+      {scanning && (hasPicks || hasMaxSq || buyItems.length > 0) && (
+        <div className="flex items-center gap-2 mb-3 px-2 py-1.5 bg-orange-500/10 border border-orange-500/30 rounded-lg">
+          <RefreshCw size={14} className="animate-spin text-orange-400" />
+          <span className="text-xs text-orange-400">스캔 진행 중... {scanElapsed > 0 ? `(${scanElapsed}초)` : ''}</span>
         </div>
       )}
 

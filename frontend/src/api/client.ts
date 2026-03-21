@@ -31,6 +31,7 @@ export const fetchLatestPicks = () =>
 // 통합 스캔
 export const runUnifiedScan = () => api.post('/scan/unified').then(r => r.data)
 export const fetchUnifiedCache = () => api.get('/scan/unified').then(r => r.data)
+export const fetchScanStatus = () => api.get('/scan/status').then(r => r.data)
 
 // 검색
 export const searchSymbols = (q: string, market?: string) =>
