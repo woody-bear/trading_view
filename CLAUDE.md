@@ -136,3 +136,12 @@ BUY/SELL/NEUTRAL. 조건: BB %B, RSI, MACD 전환, 거래량. 민감도 3단계(
 - `.claude/docs/기능명세서_추천.md` — 추천 탭 기능명세
 - `.claude/docs/기능명세서_환율.md` — 환율 탭 기능명세
 - `.claude/docs/기능명세서_설정.md` — 설정 탭 기능명세
+
+## Active Technologies
+- TypeScript 5.x (React 18) + Python 3.12 (변경 없음) + React 18, lightweight-charts v5, Zustand, React Query, Tailwind CSS (002-fix-chart-usability)
+- N/A (프론트엔드 상태만 변경, DB 스키마 변경 없음) (002-fix-chart-usability)
+- TypeScript 5.x (React 18) + Python 3.12 + React 18, lightweight-charts v5, Zustand, React Query, Tailwind CSS / FastAPI, pandas, yfinance (002-fix-chart-usability)
+- SQLite chart_cache (스키마 변경 없음, 로직만 변경) + localStorage (매수지점) (002-fix-chart-usability)
+
+## Recent Changes
+- 002-fix-chart-usability: Added TypeScript 5.x (React 18) + Python 3.12 (변경 없음) + React 18, lightweight-charts v5, Zustand, React Query, Tailwind CSS

@@ -10,7 +10,18 @@
       "Read(//usr/local/**)",
       "WebSearch",
       "Bash(claude mcp:*)",
-      "Bash(export:*)"
+      "Bash(export:*)",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)",
+      "Bash(.specify/scripts/bash/create-new-feature.sh \"종목 상세화면 차트 오류 수정 및 사용성 개선\" --json --short-name \"fix-chart-usability\" \"Fix chart errors and improve signal detail usability\")",
+      "Bash(find /Users/woody/workflow/trading_view -name pytest.ini -o -name *.test.ts -o -name *.spec.ts)",
+      "Bash(git push:*)",
+      "mcp__filesystem__directory_tree",
+      "mcp__filesystem__list_directory_with_sizes",
+      "mcp__filesystem__read_text_file",
+      "mcp__filesystem__list_directory",
+      "Bash(find /Users/woody/workflow/trading_view -name *.md -path *speckit* -o -name speckit* -type f)",
+      "mcp__filesystem__read_multiple_files"
     ]
   },
   "enabledMcpjsonServers": [
