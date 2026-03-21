@@ -37,9 +37,10 @@ def _resolve_name(symbol: str, market: str, ticker: str) -> str:
 async def quick_chart(symbol: str, market: str, timeframe: str = "1d", limit: int = 200):
     """차트 데이터 — SQLite 캐시 우선, yfinance fallback."""
     from services.chart_cache import get_chart_data, resolve_name
+    from utils.market_hours import is_market_open
 
     empty = {"candles": [], "indicators": {}, "squeeze_dots": [], "markers": [], "current": None,
-             "symbol": symbol, "display_name": symbol, "timeframe": timeframe}
+             "symbol": symbol, "display_name": symbol, "timeframe": timeframe, "market_open": False}
 
     try:
         df = await get_chart_data(symbol, market, timeframe, limit)
@@ -65,6 +66,7 @@ async def quick_chart(symbol: str, market: str, timeframe: str = "1d", limit: in
         "symbol": symbol, "display_name": display_name, "timeframe": timeframe,
         "candles": candles, "indicators": indicators,
         "squeeze_dots": squeeze_dots, "markers": markers, "current": current,
+        "market_open": is_market_open(market),
     }
 
 

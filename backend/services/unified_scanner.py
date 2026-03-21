@@ -106,6 +106,22 @@ def _check_trend(df: pd.DataFrame, ema: dict) -> str:
     return "NEUTRAL"
 
 
+def get_scan_status() -> dict:
+    """현재 스캔 진행 상태를 반환."""
+    import time
+    elapsed = round(time.time() - _scan_started_at) if _scanning and _scan_started_at else 0
+    return {
+        "scanning": _scanning,
+        "elapsed_seconds": elapsed,
+        "scan_time": _scan_time,
+        "has_cache": bool(_cache),
+    }
+
+
+def get_cache():
+    return _cache, _scan_time
+
+
 async def scan_all() -> dict:
     """1회 다운로드로 추천/MAX SQ/차트 BUY 3개 결과 동시 생성."""
     global _cache, _scan_time, _scanning, _scan_started_at
@@ -266,5 +282,3 @@ async def scan_all() -> dict:
     return _cache
 
 
-def get_cache() -> tuple[dict, str | None]:
-    return _cache, _scan_time

@@ -14,6 +14,13 @@ router = APIRouter(tags=["market-scan"])
 _scanning = False
 
 
+@router.get("/scan/status")
+async def scan_status():
+    """스캔 진행 상태 조회."""
+    from services.unified_scanner import get_scan_status
+    return get_scan_status()
+
+
 @router.post("/scan/unified")
 async def unified_scan():
     """통합 스캔 — 1회 다운로드로 추천/MAX SQ/차트 BUY 동시 생성."""
