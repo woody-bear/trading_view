@@ -8,6 +8,7 @@ import Forex from './pages/Forex'
 import Scan from './pages/Scan'
 import Settings from './pages/Settings'
 import SignalDetail from './pages/SignalDetail'
+import AlertHistory from './pages/AlertHistory'
 import TopPicks from './pages/TopPicks'
 import Toast from './components/ui/Toast'
 
@@ -40,6 +41,7 @@ function AppInner() {
           <Route path="/scan" element={<Scan />} />
           <Route path="/picks" element={<TopPicks />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/alerts" element={<AlertHistory />} />
           <Route path="/:symbol" element={<SignalDetail />} />
           <Route path="/forex" element={<Forex />} />
         </Routes>

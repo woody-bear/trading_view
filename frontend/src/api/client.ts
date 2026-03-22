@@ -61,6 +61,11 @@ export const setKIS = (data: { app_key: string; app_secret: string; account_no: 
   api.put('/settings/kis', data).then(r => r.data)
 export const testKIS = () => api.post('/settings/kis/test').then(r => r.data)
 
+// BUY 신호 알림
+export const testBuyAlert = () => api.post('/alerts/buy-signal/test').then(r => r.data)
+export const fetchAlertHistory = (type: string = 'scheduled_buy', limit: number = 20) =>
+  api.get('/alerts/history', { params: { alert_type: type, limit } }).then(r => r.data.alerts)
+
 // 재무 데이터
 export const fetchFinancials = (symbol: string, market: string) =>
   api.get(`/financials/${symbol}`, { params: { market } }).then(r => r.data)

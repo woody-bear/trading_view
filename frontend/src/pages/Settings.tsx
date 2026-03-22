@@ -1,6 +1,7 @@
 import { Check, MessageCircle, Send, Settings as SettingsIcon, TrendingUp, Wifi, WifiOff } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { fetchWatchlist, getKIS, getSensitivity, getTelegram, setKIS, setSensitivity, setTelegram, testKIS, testTelegram, updateSymbol } from '../api/client'
+import { fetchWatchlist, getKIS, getSensitivity, getTelegram, setKIS, setSensitivity, setTelegram, testBuyAlert, testKIS, testTelegram, updateSymbol } from '../api/client'
+import { useToastStore } from '../stores/toastStore'
 
 const TIMEFRAMES = [
   { value: '15m', label: '15분봉', desc: '단타/스캘핑용' },
@@ -133,6 +134,23 @@ export default function Settings() {
       setTgMsgType('err')
       setTimeout(() => setTgMsg(''), 3000)
     } finally { setTgTesting(false) }
+  }
+
+  const { addToast } = useToastStore()
+  const [buyAlertTesting, setBuyAlertTesting] = useState(false)
+
+  const handleBuyAlertTest = async () => {
+    setBuyAlertTesting(true)
+    try {
+      const res = await testBuyAlert()
+      if (res.status === 'error') {
+        addToast('error', res.message)
+      } else {
+        addToast('success', res.message || `BUY 신호 ${res.symbol_count}종목 전송 완료`)
+      }
+    } catch {
+      addToast('error', 'BUY 신호 알림 테스트 실패')
+    } finally { setBuyAlertTesting(false) }
   }
 
   const handleKisSave = async () => {
@@ -302,6 +320,31 @@ export default function Settings() {
           )}
         </div>
       </div>
+
+      {/* BUY 신호 알림 */}
+      {tgConfigured && (
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5 mt-6">
+          <h2 className="text-white font-semibold mb-1 flex items-center gap-2">
+            <MessageCircle size={16} className="text-green-400" /> BUY 신호 정기 알림
+          </h2>
+          <p className="text-xs text-[var(--muted)] mb-4">
+            평일 오전 10:30 / 오후 3:00에 국내주식 BUY 신호 종목을 텔레그램으로 자동 발송합니다.
+          </p>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleBuyAlertTest}
+              disabled={buyAlertTesting}
+              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition disabled:opacity-50 flex items-center gap-1"
+            >
+              <Send size={14} />
+              {buyAlertTesting ? '전송 중...' : 'BUY 신호 알림 테스트'}
+            </button>
+            <a href="/alerts" className="text-xs text-sky-400 hover:text-sky-300 underline">
+              알림 이력 보기 →
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* 한국투자증권 API */}
       <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5 mt-6">
