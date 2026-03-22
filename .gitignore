@@ -37,3 +37,4 @@ backend/data/charts/*.parquet
 
 .claude/*
 specs/*
+backend/data/*
