@@ -101,16 +101,18 @@ class AlertLog(Base):
     __table_args__ = (Index("idx_alert_log_sent", "sent_at"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    signal_history_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("signal_history.id", ondelete="CASCADE"), nullable=False
+    signal_history_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("signal_history.id", ondelete="CASCADE"), nullable=True
     )
     channel: Mapped[str] = mapped_column(String(20), nullable=False, default="telegram")
+    alert_type: Mapped[str] = mapped_column(String(20), nullable=False, default="realtime")
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
     sent_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     success: Mapped[bool] = mapped_column(Boolean, default=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    symbol_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
-    signal_history: Mapped["SignalHistory"] = relationship(back_populates="alert_log")
+    signal_history: Mapped["SignalHistory | None"] = relationship(back_populates="alert_log")
 
 
 class SystemLog(Base):

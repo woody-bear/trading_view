@@ -13,7 +13,7 @@ ET = ZoneInfo("US/Eastern")
 
 
 def setup_scheduler():
-    """10분 간격 자동 스캔 job 등록."""
+    """10분 간격 자동 스캔 + 정기 BUY 알림 job 등록."""
     scheduler.add_job(
         _scheduled_scan,
         trigger="interval",
@@ -24,7 +24,34 @@ def setup_scheduler():
         id="signal_scan",
         name="신호 스캔",
     )
-    logger.info("스케줄러 등록 완료: 10분 간격 자동 스캔")
+
+    # 국내주식 BUY 신호 텔레그램 알림 — 평일 10:30, 15:00 KST
+    scheduler.add_job(
+        _scheduled_buy_alert,
+        trigger="cron",
+        hour=10, minute=30,
+        day_of_week="mon-fri",
+        timezone=KST,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=300,
+        id="buy_alert_1030",
+        name="BUY 알림 10:30",
+    )
+    scheduler.add_job(
+        _scheduled_buy_alert,
+        trigger="cron",
+        hour=15, minute=0,
+        day_of_week="mon-fri",
+        timezone=KST,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=300,
+        id="buy_alert_1500",
+        name="BUY 알림 15:00",
+    )
+
+    logger.info("스케줄러 등록 완료: 10분 스캔 + BUY 알림 (10:30/15:00 KST)")
 
 
 async def _scheduled_scan():
@@ -40,6 +67,14 @@ async def _scheduled_scan():
         await scan_latest_buy("1d")
     except Exception as e:
         logger.warning(f"차트 BUY 스캔 실패: {e}")
+
+
+async def _scheduled_buy_alert():
+    """스케줄러가 호출하는 BUY 신호 텔레그램 알림."""
+    from services.buy_signal_alert import send_scheduled_buy_alert
+    logger.info("정기 BUY 신호 알림 시작")
+    result = await send_scheduled_buy_alert()
+    logger.info(f"정기 BUY 신호 알림 완료: {result}")
 
 
 def is_market_open(market: str) -> bool:
