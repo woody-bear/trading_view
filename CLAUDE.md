@@ -142,6 +142,8 @@ BUY/SELL/NEUTRAL. 조건: BB %B, RSI, MACD 전환, 거래량. 민감도 3단계(
 - N/A (프론트엔드 상태만 변경, DB 스키마 변경 없음) (002-fix-chart-usability)
 - TypeScript 5.x (React 18) + Python 3.12 + React 18, lightweight-charts v5, Zustand, React Query, Tailwind CSS / FastAPI, pandas, yfinance (002-fix-chart-usability)
 - SQLite chart_cache (스키마 변경 없음, 로직만 변경) + localStorage (매수지점) (002-fix-chart-usability)
+- Python 3.12 + TypeScript 5.x (React 18) + APScheduler (기존), telegram Bot API (기존), SQLAlchemy (기존) (003-kr-buy-telegram-alert)
+- SQLite — alert_log 테이블 확장 (alert_type, symbol_count 컬럼 추가) (003-kr-buy-telegram-alert)
 
 ## Recent Changes
 - 002-fix-chart-usability: Added TypeScript 5.x (React 18) + Python 3.12 (변경 없음) + React 18, lightweight-charts v5, Zustand, React Query, Tailwind CSS

@@ -33,3 +33,7 @@ Thumbs.db
 *.tmp
 *.swp
 backend/data/charts/*.parquet
+
+
+.claude/*
+specs/*
