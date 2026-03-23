@@ -231,31 +231,6 @@ export default function Settings() {
         </div>
       </div>
 
-      {/* 차트 봉 단위 */}
-      <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5">
-        <h2 className="text-white font-semibold mb-1">차트 봉 단위</h2>
-        <p className="text-xs text-[var(--muted)] mb-4">모든 종목의 차트와 지표 계산에 적용됩니다</p>
-
-        <div className="space-y-2">
-          {TIMEFRAMES.map(tf => (
-            <button key={tf.value}
-              onClick={() => handleTfChange(tf.value)}
-              disabled={saving}
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition ${
-                currentTf === tf.value
-                  ? 'bg-blue-600/20 border border-blue-500/50 text-white'
-                  : 'bg-[var(--bg)] border border-transparent hover:border-[var(--border)] text-[var(--muted)] hover:text-white'
-              } disabled:opacity-50`}>
-              <div className="flex items-center gap-3">
-                <div className={`w-2 h-2 rounded-full ${currentTf === tf.value ? 'bg-blue-400' : 'bg-[var(--border)]'}`} />
-                <span className="text-sm font-semibold">{tf.label}</span>
-              </div>
-              <span className="text-xs text-[var(--muted)]">{tf.desc}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* 텔레그램 알림 */}
       <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5 mt-6">
         <h2 className="text-white font-semibold mb-1 flex items-center gap-2">

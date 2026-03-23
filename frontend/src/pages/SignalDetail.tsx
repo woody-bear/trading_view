@@ -85,7 +85,7 @@ export default function SignalDetail() {
   const [searchParams] = useSearchParams()
   const nav = useNavigate()
   const qc = useQueryClient()
-  const globalTf = typeof window !== 'undefined' ? localStorage.getItem('timeframe') || '1w' : '1w'
+  const globalTf = '1d'  // 일봉 고정
 
   // URL에서 market 힌트 (미등록 종목용)
   const marketHint = searchParams.get('market') || ''
@@ -122,7 +122,7 @@ export default function SignalDetail() {
   // 차트 데이터: 항상 quickChart를 사용 (확실한 데이터 보장)
   // 관심종목이어도 DB 캐시가 비어있을 수 있으므로 quickChart로 통일
   const guessMarket = signal?.market || marketHint || (lookupSymbol.match(/^\d{6}$/) ? 'KR' : 'US')
-  const { data: chartData, isLoading: chartLoading, isError: chartError, refetch: refetchChart } = useQuery({
+  const { data: chartData, isLoading: chartLoading, isFetching: chartFetching, isError: chartError, refetch: refetchChart } = useQuery({
     queryKey: ['chart-unified', urlSymbol, globalTf],
     queryFn: ({ signal }) => {
       const controller = new AbortController()
@@ -132,7 +132,11 @@ export default function SignalDetail() {
     },
     enabled: !!urlSymbol,
     retry: 1,
+    placeholderData: undefined,  // 이전 종목 데이터 표시 방지
   })
+
+  // 차트 데이터가 현재 심볼과 일치하는지 확인
+  const chartSymbolMatch = chartData && (chartData as any).symbol === lookupSymbol
 
   // chartData.current에서 지표 추출
   const cur = (chartData as any)?.current || {}
@@ -321,17 +325,19 @@ export default function SignalDetail() {
         <ConnectionIndicator status={connectionStatus || (realtimeConnected ? 'connected' : 'disconnected')} onReconnect={reconnect || (() => {})} />
       </div>
 
-      {/* 차트 + 봉 단위 표시 */}
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-xs text-[var(--muted)] bg-[var(--card)] border border-[var(--border)] px-2 py-1 rounded">
-          {tfLabels[globalTf] || globalTf}
-        </span>
-      </div>
-      {chartLoading && <ChartSkeleton />}
-      {chartEmpty && <ChartEmptyState status="empty" />}
+      {/* 차트 */}
+      {(chartLoading || chartFetching || !chartSymbolMatch) && !chartError && (
+        <div className="relative">
+          <ChartSkeleton />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-sm text-[var(--muted)] bg-[var(--card)]/80 px-3 py-1.5 rounded-lg backdrop-blur-sm">차트 로드중...</span>
+          </div>
+        </div>
+      )}
+      {chartEmpty && chartSymbolMatch && <ChartEmptyState status="empty" />}
       {chartTimeout && <ChartEmptyState status="timeout" onRetry={() => refetchChart()} />}
       {chartError && !chartTimeout && <ChartEmptyState status="error" onRetry={() => refetchChart()} />}
-      {chartData && !chartEmpty && !chartError && (
+      {chartData && chartSymbolMatch && !chartEmpty && !chartError && !chartFetching && (
         <ChartErrorBoundary onReset={() => refetchChart()}>
           <IndicatorChart
             data={chartData}
