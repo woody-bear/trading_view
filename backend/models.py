@@ -175,24 +175,6 @@ class DailyTopPick(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
-class ChartCache(Base):
-    """차트 캔들 캐시 — 종목코드 기반 (워치리스트 무관)."""
-    __tablename__ = "chart_cache"
-    __table_args__ = (
-        UniqueConstraint("symbol", "market", "timeframe", "timestamp", name="uq_chart_cache"),
-        Index("idx_chart_cache_lookup", "symbol", "market", "timeframe"),
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    symbol: Mapped[str] = mapped_column(String(20), nullable=False)
-    market: Mapped[str] = mapped_column(String(10), nullable=False)
-    timeframe: Mapped[str] = mapped_column(String(5), nullable=False)
-    timestamp: Mapped[int] = mapped_column(Integer, nullable=False)
-    open: Mapped[float] = mapped_column(Float, nullable=False)
-    high: Mapped[float] = mapped_column(Float, nullable=False)
-    low: Mapped[float] = mapped_column(Float, nullable=False)
-    close: Mapped[float] = mapped_column(Float, nullable=False)
-    volume: Mapped[float] = mapped_column(Float, nullable=False)
 
 
 class StockMaster(Base):

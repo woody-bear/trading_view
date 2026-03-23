@@ -1,7 +1,6 @@
 """차트 캔들 캐시 — parquet 파일 캐시 우선, yfinance fallback."""
 
 import asyncio
-import os
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -21,6 +20,9 @@ _NAME_TTL = 3600
 
 # 최소 유효 캔들 수
 _MIN_CANDLES = 50
+
+# 가격 검증 허용 배율 (현재가 대비 캐시 마지막 가격)
+_PRICE_TOLERANCE = 5.0
 
 
 def _yf_ticker(symbol: str, market: str) -> str:
@@ -65,8 +67,54 @@ def _strip_incomplete_candle(df: pd.DataFrame, market: str, timeframe: str = "1d
     return df
 
 
+def _get_known_price(symbol: str, market: str) -> float | None:
+    """current_signal 또는 watchlist에서 알려진 현재가 조회 (동기, 검증용)."""
+    try:
+        import sqlite3
+        db_path = Path(__file__).parent.parent / "data" / "ubb_pro.db"
+        if not db_path.exists():
+            return None
+        conn = sqlite3.connect(str(db_path))
+        cur = conn.cursor()
+        row = cur.execute(
+            "SELECT cs.price FROM current_signal cs "
+            "JOIN watchlist w ON cs.watchlist_id = w.id "
+            "WHERE w.symbol = ? AND w.market IN (?, 'KR', 'KOSPI', 'KOSDAQ', 'US', 'CRYPTO') "
+            "AND cs.price > 0 LIMIT 1",
+            (symbol, market)
+        ).fetchone()
+        conn.close()
+        return row[0] if row else None
+    except Exception:
+        return None
+
+
+def _validate_cache_price(df: pd.DataFrame, symbol: str, market: str) -> bool:
+    """캐시 마지막 가격이 알려진 현재가와 크게 다르지 않은지 검증.
+
+    현재가를 모르면 검증을 건너뛰고 True 반환.
+    10배 이상 차이나면 오염된 캐시로 판단하여 False.
+    """
+    known_price = _get_known_price(symbol, market)
+    if known_price is None or known_price <= 0:
+        return True  # 비교 대상 없으면 통과
+
+    cache_last_price = float(df["close"].iloc[-1])
+    if cache_last_price <= 0:
+        return False
+
+    ratio = max(known_price, cache_last_price) / min(known_price, cache_last_price)
+    if ratio > _PRICE_TOLERANCE:
+        logger.warning(
+            f"캐시 가격 불일치: {market}/{symbol} "
+            f"cache={cache_last_price:.0f} vs known={known_price:.0f} (ratio={ratio:.1f}x) — 캐시 폐기"
+        )
+        return False
+    return True
+
+
 def _load_parquet(symbol: str, market: str, timeframe: str) -> pd.DataFrame | None:
-    """parquet 파일에서 캐시 로드. 손상 시 삭제 후 None 반환."""
+    """parquet 파일에서 캐시 로드. 손상/가격 불일치 시 삭제 후 None 반환."""
     path = _cache_path(symbol, market, timeframe)
     if not path.exists():
         return None
@@ -76,6 +124,12 @@ def _load_parquet(symbol: str, market: str, timeframe: str) -> pd.DataFrame | No
             logger.warning(f"캐시 무결성 실패 ({len(df)}행 < {_MIN_CANDLES}): {path.name} — 삭제")
             path.unlink(missing_ok=True)
             return None
+
+        # 가격 정상 여부 검증 (모든 타임프레임)
+        if not _validate_cache_price(df, symbol, market):
+            path.unlink(missing_ok=True)
+            return None
+
         return df
     except Exception as e:
         logger.warning(f"캐시 읽기 실패: {path.name} — {e}, 삭제 후 재다운로드")
@@ -97,6 +151,11 @@ def _save_parquet(symbol: str, market: str, timeframe: str, df: pd.DataFrame) ->
         if filtered > 0:
             logger.warning(f"캐시 저장 전 이상 캔들 {filtered}개 제거: {market}/{symbol}")
 
+    # 저장 전 현재가 대비 검증
+    if not _validate_cache_price(df, symbol, market):
+        logger.error(f"yfinance 데이터 가격 불일치 — 저장하지 않음: {market}/{symbol}")
+        return
+
     path = _cache_path(symbol, market, timeframe)
     df.to_parquet(path)
     logger.debug(f"캐시 저장: {path.name} ({len(df)}행)")
@@ -104,7 +163,6 @@ def _save_parquet(symbol: str, market: str, timeframe: str, df: pd.DataFrame) ->
 
 def _is_cache_fresh(df: pd.DataFrame, market: str, timeframe: str = "1d") -> bool:
     """캐시의 마지막 캔들이 최신인지 시장 시간 기준으로 판단."""
-    from datetime import timedelta
     last_date = df.index[-1].date() if hasattr(df.index[-1], "date") else df.index[-1]
     last_complete = get_last_complete_date(market)
 
@@ -126,7 +184,7 @@ def _download_yfinance(ticker: str, timeframe: str, period: str = None) -> pd.Da
     interval = _yf_interval(timeframe)
 
     try:
-        data = yf.download(ticker, period=period, interval=interval, progress=False, auto_adjust=True)
+        data = yf.download(ticker, period=period, interval=interval, progress=False, auto_adjust=False)
         if data is None or data.empty:
             return None
         if isinstance(data.columns, pd.MultiIndex):
@@ -148,7 +206,7 @@ def _download_yfinance(ticker: str, timeframe: str, period: str = None) -> pd.Da
 async def get_chart_data(symbol: str, market: str, timeframe: str = "1d", limit: int = 200) -> pd.DataFrame | None:
     """캐시 우선 차트 데이터 조회. 없거나 오래됐으면 yfinance 전체 다운로드."""
 
-    # 1. parquet 캐시 로드
+    # 1. parquet 캐시 로드 (가격 검증 포함)
     df = _load_parquet(symbol, market, timeframe)
 
     if df is not None and _is_cache_fresh(df, market, timeframe):
@@ -172,6 +230,48 @@ async def get_chart_data(symbol: str, market: str, timeframe: str = "1d", limit:
         return _strip_incomplete_candle(df, market, timeframe).tail(limit)
 
     return None
+
+
+async def validate_all_caches() -> dict:
+    """서버 시작 시 모든 parquet 캐시의 가격 정상 여부 검증. 비정상 캐시 자동 삭제."""
+    removed = 0
+    checked = 0
+    for path in sorted(_CACHE_DIR.glob("*.parquet")):
+        try:
+            parts = path.stem.split("_")
+            # 파일명: {market}_{symbol}_{timeframe}.parquet
+            # 심볼에 _가 있을 수 있으므로 (예: BTC_USDT) 마지막이 timeframe
+            timeframe = parts[-1]
+            market = parts[0]
+            symbol = "_".join(parts[1:-1])
+
+            df = pd.read_parquet(path)
+            checked += 1
+
+            # 캔들 수 검증
+            if len(df) < _MIN_CANDLES:
+                logger.warning(f"캐시 검증 실패 (행 부족): {path.name} → 삭제")
+                path.unlink()
+                removed += 1
+                continue
+
+            # 가격 검증
+            if timeframe in ("1d",) and not _validate_cache_price(df, symbol, market):
+                path.unlink()
+                removed += 1
+                continue
+
+        except Exception as e:
+            logger.warning(f"캐시 검증 오류: {path.name} — {e} → 삭제")
+            path.unlink(missing_ok=True)
+            removed += 1
+
+    if removed:
+        logger.info(f"캐시 검증 완료: {checked}개 검사, {removed}개 비정상 캐시 삭제")
+    else:
+        logger.info(f"캐시 검증 완료: {checked}개 모두 정상")
+
+    return {"checked": checked, "removed": removed}
 
 
 async def resolve_name(symbol: str, market: str) -> str:

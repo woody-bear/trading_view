@@ -48,6 +48,10 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"종목 마스터 초기 로드 실패: {e}")
 
+    # 차트 캐시 무결성 검증 (오염된 캐시 자동 삭제)
+    from services.chart_cache import validate_all_caches
+    await validate_all_caches()
+
     setup_scheduler()
     scheduler.start()
     logger.info("스케줄러 시작됨")
@@ -107,17 +111,23 @@ async def health():
     return {"status": "ok"}
 
 
-# SPA 정적 파일 서빙 (운영 모드)
-_frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
-if _frontend_dist.exists():
-    from starlette.staticfiles import StaticFiles
-    from starlette.responses import FileResponse
-
-    class SPAStaticFiles(StaticFiles):
-        async def get_response(self, path, scope):
-            try:
-                return await super().get_response(path, scope)
-            except Exception:
-                return FileResponse(str(Path(self.directory) / "index.html"))
-
-    app.mount("/", SPAStaticFiles(directory=str(_frontend_dist), html=True), name="spa")
+# Admin 페이지 (API 서버 상태 확인용)
+@app.get("/")
+async def admin_page():
+    from starlette.responses import HTMLResponse
+    return HTMLResponse("""
+    <!DOCTYPE html>
+    <html><head><meta charset="utf-8"><title>UBB Pro API Server</title>
+    <style>body{font-family:system-ui;background:#0f172a;color:#e2e8f0;padding:40px;max-width:600px;margin:0 auto}
+    h1{color:#f59e0b}a{color:#38bdf8}.ok{color:#22c55e}code{background:#1e293b;padding:2px 6px;border-radius:4px}</style>
+    </head><body>
+    <h1>UBB Pro Signal System</h1>
+    <p class="ok">API Server Running</p>
+    <hr style="border-color:#334155">
+    <p>API Docs: <a href="/docs">/docs</a></p>
+    <p>Health: <a href="/api/health">/api/health</a></p>
+    <p>Frontend: <a href="http://localhost:3000">localhost:3000</a></p>
+    <hr style="border-color:#334155">
+    <p style="color:#64748b;font-size:13px">이 서버는 API 전용입니다. 화면은 <code>localhost:3000</code>에서 확인하세요.</p>
+    </body></html>
+    """)
