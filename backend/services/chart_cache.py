@@ -2,7 +2,7 @@
 
 import asyncio
 import time
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -33,7 +33,8 @@ def _yf_ticker(symbol: str, market: str) -> str:
         # KR로 들어온 경우 코스닥 여부 확인
         if market == "KR" and symbol.isdigit():
             try:
-                import sqlite3, os
+                import sqlite3
+                import os
                 db_path = os.path.join(os.path.dirname(__file__), "..", "data", "ubb_pro.db")
                 conn = sqlite3.connect(db_path)
                 row = conn.execute(
@@ -130,6 +131,13 @@ def _validate_cache_price(df: pd.DataFrame, symbol: str, market: str) -> bool:
 def _load_parquet(symbol: str, market: str, timeframe: str) -> pd.DataFrame | None:
     """parquet 파일에서 캐시 로드. 손상/가격 불일치 시 삭제 후 None 반환."""
     path = _cache_path(symbol, market, timeframe)
+    # KR로 조회 시 KOSPI/KOSDAQ 캐시도 탐색
+    if not path.exists() and market == "KR":
+        for alt in ("KOSPI", "KOSDAQ"):
+            alt_path = _cache_path(symbol, alt, timeframe)
+            if alt_path.exists():
+                path = alt_path
+                break
     if not path.exists():
         return None
     try:
