@@ -28,7 +28,7 @@ export default function SignalCard({ signal: s, index }: { signal: Signal; index
 
   return (
     <div
-      onClick={() => nav(`/${s.symbol.replace(/\//g, '_')}`)}
+      onClick={() => nav(`/${s.symbol.replace(/\//g, '_')}?market=${s.market}`)}
       className="bg-[var(--bg)] border border-[var(--border)] rounded-lg p-4 md:p-2.5 cursor-pointer hover:border-blue-500/50 transition active:scale-[0.98]"
     >
       {/* Row 1: 종목명 + 추세 + 스퀴즈 */}

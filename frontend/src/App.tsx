@@ -13,7 +13,7 @@ import TopPicks from './pages/TopPicks'
 import Toast from './components/ui/Toast'
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { refetchInterval: 10000 } },
+  defaultOptions: { queries: { staleTime: 60000, refetchOnWindowFocus: false } },
 })
 
 function AppInner() {

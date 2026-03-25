@@ -27,10 +27,24 @@ _PRICE_TOLERANCE = 5.0
 
 def _yf_ticker(symbol: str, market: str) -> str:
     """종목 심볼을 yfinance 티커로 변환."""
-    if market in ("KR", "KOSPI"):
-        return f"{symbol}.KS"
-    elif market == "KOSDAQ":
+    if market == "KOSDAQ":
         return f"{symbol}.KQ"
+    elif market in ("KR", "KOSPI"):
+        # KR로 들어온 경우 코스닥 여부 확인
+        if market == "KR" and symbol.isdigit():
+            try:
+                import sqlite3, os
+                db_path = os.path.join(os.path.dirname(__file__), "..", "data", "ubb_pro.db")
+                conn = sqlite3.connect(db_path)
+                row = conn.execute(
+                    "SELECT market_type FROM stock_master WHERE symbol = ? LIMIT 1", (symbol,)
+                ).fetchone()
+                conn.close()
+                if row and row[0] == "KOSDAQ":
+                    return f"{symbol}.KQ"
+            except Exception:
+                pass
+        return f"{symbol}.KS"
     elif market == "CRYPTO":
         return symbol.replace("/USDT", "-USD").replace("/", "-")
     return symbol
