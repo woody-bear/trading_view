@@ -1,50 +1,47 @@
-"""국내주식 BUY 신호 텔레그램 정기 알림 서비스."""
+"""BUY 신호 텔레그램 정기 알림 서비스 — 전체 시장 스캔(scan_snapshot) 기반."""
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from loguru import logger
 from sqlalchemy import select
 
 from config import get_settings
 from database import async_session
-from models import AlertLog, SignalHistory, Watchlist
+from models import AlertLog, ScanSnapshot, ScanSnapshotItem
 
 
-async def get_recent_buy_signals(days: int = 3) -> list[dict]:
-    """최근 N일(자연일) 이내 BUY 신호가 발생한 국내 종목 조회.
+async def get_recent_buy_signals() -> list[dict]:
+    """최신 전체 시장 스캔 스냅샷에서 chart_buy 종목 조회.
 
-    - signal_history에서 BUY 상태 전환 이력 조회
-    - KR/KOSPI/KOSDAQ 시장 필터
-    - 동일 종목 중복 제거 (최신 신호 유지)
+    - scan_snapshot_item (category='chart_buy') 에서 조회
     - 신뢰도 내림차순 정렬, 최대 20개
     """
-    cutoff = datetime.utcnow() - timedelta(days=days)
-
     async with async_session() as session:
-        result = await session.execute(
-            select(SignalHistory, Watchlist)
-            .join(Watchlist, SignalHistory.watchlist_id == Watchlist.id)
-            .where(
-                SignalHistory.signal_state == "BUY",
-                SignalHistory.detected_at >= cutoff,
-                Watchlist.market.in_(["KR", "KOSPI", "KOSDAQ"]),
-                Watchlist.is_active == True,
-            )
-            .order_by(SignalHistory.detected_at.desc())
+        # 최신 완료 스냅샷
+        snap = await session.scalar(
+            select(ScanSnapshot.id)
+            .where(ScanSnapshot.status == "completed")
+            .order_by(ScanSnapshot.completed_at.desc())
+            .limit(1)
         )
-        rows = result.all()
+        if not snap:
+            return []
 
-    # 종목별 중복 제거 (최신 신호만)
-    seen = set()
+        result = await session.execute(
+            select(ScanSnapshotItem)
+            .where(
+                ScanSnapshotItem.snapshot_id == snap,
+                ScanSnapshotItem.category == "chart_buy",
+            )
+            .order_by(ScanSnapshotItem.confidence.desc())
+            .limit(20)
+        )
+        items = result.scalars().all()
+
     signals = []
-    for sh, w in rows:
-        if w.symbol in seen:
-            continue
-        seen.add(w.symbol)
-
-        # 신호 강도
-        confidence = sh.confidence or 0
+    for item in items:
+        confidence = item.confidence or 0
         if confidence >= 90:
             grade = "STRONG"
         elif confidence >= 70:
@@ -55,21 +52,21 @@ async def get_recent_buy_signals(days: int = 3) -> list[dict]:
             grade = ""
 
         signals.append({
-            "symbol": w.symbol,
-            "display_name": w.display_name or w.symbol,
-            "market": w.market,
-            "price": sh.price or 0,
-            "change_pct": ((sh.price or 0) - (sh.ema_20 or sh.price or 1)) / (sh.ema_20 or sh.price or 1) * 100 if sh.price else 0,
+            "symbol": item.symbol,
+            "display_name": item.name,
+            "market": item.market,
+            "market_type": item.market_type,
+            "price": item.price or 0,
+            "change_pct": item.change_pct or 0,
             "confidence": confidence,
             "grade": grade,
-            "squeeze_level": sh.squeeze_level or 0,
-            "detected_at": sh.detected_at,
+            "squeeze_level": item.squeeze_level or 0,
+            "rsi": item.rsi,
+            "last_signal": item.last_signal or "BUY",
+            "last_signal_date": item.last_signal_date or "",
         })
 
-    # 신뢰도 순 정렬
-    signals.sort(key=lambda x: x["confidence"], reverse=True)
-
-    return signals[:20]
+    return signals
 
 
 def format_buy_signal_message(signals: list[dict], timestamp: datetime = None) -> str:
@@ -83,41 +80,42 @@ def format_buy_signal_message(signals: list[dict], timestamp: datetime = None) -
 
     if not signals:
         return (
-            f"📊 <b>국내주식 BUY 신호</b> ({date_str})\n\n"
+            f"📊 <b>전체 시장 BUY 신호</b> ({date_str})\n\n"
             f"현재 BUY 신호 종목이 없습니다.\n\n"
             f"추세추종 연구소"
         )
 
-    lines = [f"📊 <b>국내주식 BUY 신호</b> ({date_str})\n"]
+    # 시장별 분류
+    kr_signals = [s for s in signals if s["market"] == "KR"]
+    us_signals = [s for s in signals if s["market"] == "US"]
 
-    total = len(signals)
-    display = signals[:20]
-    remaining = total - len(display)
+    lines = [f"📊 <b>전체 시장 BUY 신호</b> ({date_str})\n"]
 
-    for i, s in enumerate(display, 1):
-        # 강도 이모지
-        grade_emoji = "🔥" if s["grade"] == "STRONG" else "⚡" if s["grade"] == "NORMAL" else "💡"
-        # 스퀴즈 표시
-        sq = " 🟡SQ" if s["squeeze_level"] >= 2 else ""
-        # 신호 발생일
-        sig_date = s["detected_at"].strftime("%-m/%-d")
-        # 가격 포맷
-        price_str = f"{s['price']:,.0f}"
-        change_str = f"{s['change_pct']:+.1f}%" if s["change_pct"] else ""
-        # 링크
-        link = f'{app_url}/{s["symbol"]}'
+    def _format_section(title: str, items: list[dict], currency: str = "원"):
+        if not items:
+            return
+        lines.append(f"\n<b>{'🇰🇷' if currency == '원' else '🇺🇸'} {title}</b> ({len(items)}종목)")
+        for i, s in enumerate(items[:10], 1):
+            sig_type = "🔵SQZ" if s["last_signal"] == "SQZ BUY" else "🟢"
+            sq = " 🟡SQ" if s["squeeze_level"] >= 2 else ""
+            price_str = f"{s['price']:,.0f}" if currency == "원" else f"${s['price']:,.2f}"
+            change_str = f"{s['change_pct']:+.1f}%" if s["change_pct"] else ""
+            sig_date = s["last_signal_date"] or ""
+            rsi_str = f"RSI {s['rsi']:.0f}" if s.get("rsi") else ""
+            link = f'{app_url}/{s["symbol"]}'
 
-        lines.append(
-            f"{i}. <b>{s['display_name']}</b> ({s['symbol']}){sq}\n"
-            f"   💰 {price_str}원 {change_str}\n"
-            f"   {grade_emoji} {s['grade']} ({s['confidence']:.0f}점) | 신호일: {sig_date}\n"
-            f"   <a href=\"{link}\">📈 상세보기</a>\n"
-        )
+            lines.append(
+                f"{i}. {sig_type} <b>{s['display_name']}</b> ({s['symbol']}){sq}\n"
+                f"   💰 {price_str} {change_str} | {rsi_str}\n"
+                f"   신호: {s['last_signal']} ({sig_date}) | <a href=\"{link}\">상세</a>"
+            )
+        if len(items) > 10:
+            lines.append(f"   ... 외 {len(items) - 10}개")
 
-    if remaining > 0:
-        lines.append(f"... 외 {remaining}개 종목\n")
+    _format_section("국내주식", kr_signals, "원")
+    _format_section("미국주식", us_signals, "$")
 
-    lines.append(f"총 {total}종목 | 추세추종 연구소")
+    lines.append(f"\n총 {len(signals)}종목 | 추세추종 연구소")
 
     return "\n".join(lines)
 
@@ -131,8 +129,8 @@ async def send_scheduled_buy_alert() -> dict:
         return {"status": "skipped", "reason": "telegram_not_configured"}
 
     try:
-        # 1. BUY 신호 조회
-        signals = await get_recent_buy_signals(days=3)
+        # 1. BUY 신호 조회 (전체 시장 스캔 스냅샷에서)
+        signals = await get_recent_buy_signals()
         symbol_count = len(signals)
 
         # 2. 메시지 생성

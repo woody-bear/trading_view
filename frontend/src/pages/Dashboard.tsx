@@ -2,7 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, RefreshCw, Search, Trash2, TrendingUp, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { addSymbol, deleteSymbol, fetchBatchPrices, fetchScanStatus, fetchSignals, fetchUnifiedCache, runUnifiedScan, searchSymbols } from '../api/client'
+import { addSymbol, deleteSymbol, fetchBatchPrices, fetchFullScanLatest, fetchScanStatus, fetchSignals, fetchUnifiedCache, runUnifiedScan, searchSymbols } from '../api/client'
+import SentimentPanel from '../components/SentimentPanel'
 import SignalCard from '../components/SignalCard'
 import { usePriceFlash } from '../hooks/usePriceFlash'
 import { useSignalStore } from '../stores/signalStore'
@@ -163,6 +164,9 @@ export default function Dashboard() {
         )}
       </div>
 
+      {/* ── 시장 방향성 ── */}
+      <SentimentPanel />
+
       {/* ── 관심종목 ── */}
       <div className="md:bg-[var(--card)] md:border md:border-[var(--border)] md:rounded-xl md:p-5 mb-4">
         <h1 className="text-lg md:text-xl font-bold text-white mb-3">관심종목</h1>
@@ -304,19 +308,34 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
     finally { setScanning(false); setScanElapsed(0) }
   }
 
-  // 마운트 시: 캐시 로드 + 백엔드 스캔 상태 확인 + 필요시 스캔 실행
+  // 마운트 시: full_market_scanner 스냅샷 우선 로드 → 없으면 unified_scanner fallback
   useEffect(() => {
     if (autoLoaded.current) return
     autoLoaded.current = true
-    fetchUnifiedCache().then(r => applyResult(r)).catch(() => {})
-    // 백엔드 스캔 상태 확인 — 이미 스캔 중이면 폴링만
+
+    // 1차: full_market_scanner 스냅샷 (DB 즉시 반환)
+    fetchFullScanLatest().then(r => {
+      if (r?.status !== 'no_data' && r?.picks) {
+        applyResult(r)
+      } else {
+        // 2차: unified_scanner 캐시 fallback
+        fetchUnifiedCache().then(r2 => applyResult(r2)).catch(() => {})
+      }
+    }).catch(() => {
+      fetchUnifiedCache().then(r => applyResult(r)).catch(() => {})
+    })
+
+    // 스캔 상태 확인
     fetchScanStatus().then(status => {
       if (status.scanning) {
         setScanning(true)
         setScanMsg('전체 시장 스캔 중...')
         setScanElapsed(status.elapsed_seconds || 0)
       } else if (!status.has_cache) {
-        runScan()
+        // unified 캐시 없으면 unified 스캔 실행
+        fetchFullScanLatest().then(r => {
+          if (r?.status === 'no_data') runScan()
+        }).catch(() => runScan())
       }
     }).catch(() => { runScan() })
   }, [])
@@ -329,11 +348,21 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
         const status = await fetchScanStatus()
         setScanElapsed(status.elapsed_seconds || 0)
         if (!status.scanning) {
-          // 스캔 완료 — 결과 로드
+          // 스캔 완료 — 결과 로드 (full_market_scanner 우선)
           setScanning(false)
           setScanElapsed(0)
-          const result = await fetchUnifiedCache()
-          applyResult(result)
+          try {
+            const full = await fetchFullScanLatest()
+            if (full?.status !== 'no_data' && full?.picks) {
+              applyResult(full)
+            } else {
+              const result = await fetchUnifiedCache()
+              applyResult(result)
+            }
+          } catch {
+            const result = await fetchUnifiedCache()
+            applyResult(result)
+          }
           setScanMsg('스캔 완료')
           setTimeout(() => setScanMsg(''), 3000)
           clearInterval(poll)
@@ -379,12 +408,37 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
         </div>
       )}
 
-      {/* 1. 추천 종목 */}
+      {/* 1. 차트 BUY 신호 */}
+      <div className="mb-2">
+        <div className="flex items-center gap-2 mb-3">
+          <h2 className="text-sm font-bold text-green-400">차트 BUY 신호</h2>
+          <span className="text-[9px] text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">일봉 3일 이내 + 데드크로스 제외 · 한국 2 + 미국 2</span>
+          {Object.keys(livePrices).length > 0 && (
+            <span className="text-[9px] text-green-400 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+              실시간 가격 반영중
+            </span>
+          )}
+        </div>
+        {buyItems.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+            {[...buyItems].sort((a: any, b: any) => (b.trend === 'BULL' ? 1 : 0) - (a.trend === 'BULL' ? 1 : 0)).map((item: any, i: number) => (
+              <BuyCard key={item.symbol} item={item} index={i} livePrice={livePrices[item.symbol]} nav={nav} />
+            ))}
+          </div>
+        ) : !scanning ? (
+          <p className="text-[var(--muted)] text-xs text-center py-4">3일 이내 BUY 신호 종목이 없습니다</p>
+        ) : null}
+      </div>
+
+      {/* 2. 추천 종목 */}
       {hasPicks && (
+        <>
+        <div className="border-t border-[var(--border)] my-4" />
         <div className="mb-5">
           <div className="flex items-center gap-2 mb-3">
             <h2 className="text-sm font-bold text-orange-400">추천 종목</h2>
-            <span className="text-[9px] text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">MID/MAX SQ + 상승추세 + 데드크로스 제외 · 강도순 시장별 Top 3</span>
+            <span className="text-[9px] text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">MID/MAX SQ + 상승추세 + 데드크로스 제외 · 강도순 시장별 Top 15</span>
             {Object.keys(livePrices).length > 0 && (
               <span className="text-[9px] text-green-400 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
@@ -393,15 +447,16 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
             )}
           </div>
           <div className="space-y-3">
-            {picks.kospi?.length > 0 && <PickSection title="코스피" picks={picks.kospi} nav={nav} qc={qc} livePrices={livePrices} />}
-            {picks.kosdaq?.length > 0 && <PickSection title="코스닥" picks={picks.kosdaq} nav={nav} qc={qc} livePrices={livePrices} />}
-            {picks.us?.length > 0 && <PickSection title="미국" picks={picks.us} nav={nav} qc={qc} livePrices={livePrices} />}
-            {picks.crypto?.length > 0 && <PickSection title="암호화폐" picks={picks.crypto} nav={nav} qc={qc} livePrices={livePrices} />}
+            {picks.kospi?.length > 0 && <PickSection title="코스피" picks={picks.kospi.slice(0, 15)} nav={nav} qc={qc} livePrices={livePrices} />}
+            {picks.kosdaq?.length > 0 && <PickSection title="코스닥" picks={picks.kosdaq.slice(0, 15)} nav={nav} qc={qc} livePrices={livePrices} />}
+            {picks.us?.length > 0 && <PickSection title="미국" picks={picks.us.slice(0, 15)} nav={nav} qc={qc} livePrices={livePrices} />}
+            {picks.crypto?.length > 0 && <PickSection title="암호화폐" picks={picks.crypto.slice(0, 15)} nav={nav} qc={qc} livePrices={livePrices} />}
           </div>
         </div>
+        </>
       )}
 
-      {/* 2. MAX SQ 폭발 임박 */}
+      {/* 3. MAX SQ 폭발 임박 */}
       <div className="border-t border-[var(--border)] my-4" />
       <div className="mb-5">
         <div className="flex items-center gap-2 mb-3">
@@ -423,30 +478,6 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
           </div>
         ) : !scanning ? (
           <p className="text-[var(--muted)] text-xs text-center py-4">MAX SQ + 상승추세 + 데드크로스 제외 조건에 해당하는 종목이 없습니다</p>
-        ) : null}
-      </div>
-
-      {/* 3. 차트 BUY 신호 */}
-      <div className="border-t border-[var(--border)] my-4" />
-      <div className="mb-2">
-        <div className="flex items-center gap-2 mb-3">
-          <h2 className="text-sm font-bold text-green-400">차트 BUY 신호</h2>
-          <span className="text-[9px] text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">일봉 3일 이내 + 데드크로스 제외 · 한국 2 + 미국 2</span>
-          {Object.keys(livePrices).length > 0 && (
-            <span className="text-[9px] text-green-400 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-              실시간 가격 반영중
-            </span>
-          )}
-        </div>
-        {buyItems.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-            {[...buyItems].sort((a: any, b: any) => (b.trend === 'BULL' ? 1 : 0) - (a.trend === 'BULL' ? 1 : 0)).map((item: any, i: number) => (
-              <BuyCard key={item.symbol} item={item} index={i} livePrice={livePrices[item.symbol]} nav={nav} />
-            ))}
-          </div>
-        ) : !scanning ? (
-          <p className="text-[var(--muted)] text-xs text-center py-4">3일 이내 BUY 신호 종목이 없습니다</p>
         ) : null}
       </div>
     </div>
@@ -562,13 +593,26 @@ function BuyCard({ item, index, livePrice, nav }: { item: any; index: number; li
   const pct = livePrice?.change_pct ?? item.change_pct
   const { flashClass } = usePriceFlash(price)
 
+  // 순위 이유 태그 생성
+  const reasons: string[] = []
+  const sq = item.squeeze_level ?? 0
+  if (sq >= 3) reasons.push('MAX SQ')
+  else if (sq >= 2) reasons.push('MID SQ')
+  else if (sq >= 1) reasons.push('LOW SQ')
+  if (item.rsi != null && item.rsi < 30) reasons.push('RSI 과매도')
+  else if (item.rsi != null && item.rsi < 40) reasons.push('RSI 낮음')
+  if (item.bb_pct_b != null && item.bb_pct_b < 20) reasons.push('BB하단')
+  if (item.last_signal === 'SQZ BUY') reasons.push('스퀴즈해소')
+  else reasons.push('BB반전')
+  if (item.trend === 'BULL') reasons.push('상승추세')
+
   return (
     <div onClick={() => nav(`/${item.symbol.replace(/\//g, '_')}?market=${item.market_type || item.market}`)}
       className="bg-[var(--bg)] border border-[var(--border)] rounded-lg p-3.5 md:p-2.5 cursor-pointer hover:border-green-500/50 transition active:scale-[0.98]">
       <div className="flex items-center justify-between mb-1.5 md:mb-1">
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="text-[11px] md:text-[10px] bg-[var(--border)] text-white w-5 h-5 md:w-4 md:h-4 rounded flex items-center justify-center font-mono">{index + 1}</span>
-          <span className="text-white font-semibold text-base md:text-sm truncate">{item.display_name}</span>
+          <span className="text-white font-semibold text-base md:text-sm truncate">{item.display_name || item.name}</span>
           <span className="text-[var(--muted)] text-[11px] md:text-[10px] shrink-0">{item.symbol}</span>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
@@ -594,6 +638,15 @@ function BuyCard({ item, index, livePrice, nav }: { item: any; index: number; li
           {item.rsi != null && <span className="text-[var(--muted)]">RSI <span className="text-white font-mono">{item.rsi?.toFixed(0)}</span></span>}
         </div>
       </div>
+      {reasons.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-1.5 md:mt-1">
+          {reasons.map(r => (
+            <span key={r} className="text-[10px] md:text-[8px] text-yellow-400/80 bg-yellow-400/10 px-1.5 py-0.5 rounded">
+              {r}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
