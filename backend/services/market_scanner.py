@@ -79,7 +79,7 @@ async def scan_market(market_type: str, top_n: int = 3, min_squeeze: int = 1, tr
         suffix = ".KS" if market_type == "KOSPI" else ".KQ"
         tickers = [f"{s}{suffix}" for s in symbols.keys()]
     elif market_type == "US":
-        symbols = _get_us_stocks()
+        symbols = {**_get_us_stocks(), **_get_us_etfs()}
         tickers = list(symbols.keys())
     else:
         return []
@@ -211,6 +211,11 @@ def _get_us_stocks() -> dict[str, str]:
         "F": "Ford", "GM": "GM", "PFE": "Pfizer", "MRNA": "Moderna",
         "ENPH": "Enphase", "FSLR": "First Solar", "ON": "ON Semi",
     }
+
+
+def _get_us_etfs() -> dict[str, str]:
+    from routes.search import _US_ETFS
+    return _US_ETFS
 
 
 def _batch_download(tickers: list[str]) -> pd.DataFrame | None:

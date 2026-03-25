@@ -70,6 +70,13 @@ export const testBuyAlert = () => api.post('/alerts/buy-signal/test').then(r => 
 export const fetchAlertHistory = (type: string = 'scheduled_buy', limit: number = 20) =>
   api.get('/alerts/history', { params: { alert_type: type, limit } }).then(r => r.data.alerts)
 
+// 전체 시장 스캔
+export const fetchFullScanLatest = () => api.get('/scan/full/latest').then(r => r.data)
+export const fetchFullScanStatus = () => api.get('/scan/full/status').then(r => r.data)
+export const triggerFullScan = () => api.post('/scan/full/trigger').then(r => r.data)
+export const fetchFullScanHistory = (limit: number = 10) =>
+  api.get('/scan/full/history', { params: { limit } }).then(r => r.data.history)
+
 // 재무 데이터
 export const fetchFinancials = (symbol: string, market: string) =>
   api.get(`/financials/${symbol}`, { params: { market } }).then(r => r.data)

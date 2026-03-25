@@ -177,6 +177,58 @@ class DailyTopPick(Base):
 
 
 
+class ScanSnapshot(Base):
+    """전체 시장 스캔 스냅샷 — 1회 스캔 실행 기록."""
+    __tablename__ = "scan_snapshot"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="running")  # running/completed/failed
+    total_symbols: Mapped[int] = mapped_column(Integer, default=0)
+    scanned_count: Mapped[int] = mapped_column(Integer, default=0)
+    picks_count: Mapped[int] = mapped_column(Integer, default=0)
+    max_sq_count: Mapped[int] = mapped_column(Integer, default=0)
+    buy_count: Mapped[int] = mapped_column(Integer, default=0)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    items: Mapped[list["ScanSnapshotItem"]] = relationship(
+        back_populates="snapshot", cascade="all, delete-orphan"
+    )
+
+
+class ScanSnapshotItem(Base):
+    """전체 시장 스캔 종목별 결과."""
+    __tablename__ = "scan_snapshot_item"
+    __table_args__ = (
+        Index("idx_snapshot_item_filter", "snapshot_id", "market_type", "category"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    snapshot_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("scan_snapshot.id", ondelete="CASCADE"), nullable=False
+    )
+    category: Mapped[str] = mapped_column(String(20), nullable=False)  # picks/max_sq/chart_buy
+    symbol: Mapped[str] = mapped_column(String(20), nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    market: Mapped[str] = mapped_column(String(10), nullable=False)  # KR/US/CRYPTO
+    market_type: Mapped[str] = mapped_column(String(10), nullable=False)  # KOSPI/KOSDAQ/US/CRYPTO
+    price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    change_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    rsi: Mapped[float | None] = mapped_column(Float, nullable=True)
+    bb_pct_b: Mapped[float | None] = mapped_column(Float, nullable=True)
+    bb_width: Mapped[float | None] = mapped_column(Float, nullable=True)
+    squeeze_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    macd_hist: Mapped[float | None] = mapped_column(Float, nullable=True)
+    volume_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    trend: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    last_signal: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    last_signal_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
+
+    snapshot: Mapped["ScanSnapshot"] = relationship(back_populates="items")
+
+
 class StockMaster(Base):
     """종목 마스터 — 한투 API 전종목 검색용."""
     __tablename__ = "stock_master"

@@ -1,16 +1,8 @@
-import { Check, MessageCircle, Send, Settings as SettingsIcon, TrendingUp, Wifi, WifiOff } from 'lucide-react'
+import { Check, Database, Loader2, MessageCircle, Play, Send, Settings as SettingsIcon, TrendingUp, Wifi, WifiOff } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { fetchWatchlist, getKIS, getSensitivity, getTelegram, setKIS, setSensitivity, setTelegram, testBuyAlert, testKIS, testTelegram, updateSymbol } from '../api/client'
+import { fetchFullScanHistory, fetchFullScanStatus, getKIS, getSensitivity, getTelegram, setKIS, setSensitivity, setTelegram, testBuyAlert, testKIS, testTelegram, triggerFullScan } from '../api/client'
 import { useToastStore } from '../stores/toastStore'
 
-const TIMEFRAMES = [
-  { value: '15m', label: '15분봉', desc: '단타/스캘핑용' },
-  { value: '30m', label: '30분봉', desc: '단기 트레이딩' },
-  { value: '1h', label: '1시간봉', desc: '단기 스윙' },
-  { value: '4h', label: '4시간봉', desc: '중기 스윙' },
-  { value: '1d', label: '일봉', desc: '중장기 투자' },
-  { value: '1w', label: '주봉', desc: '추세 추종 (기본값)' },
-]
 
 const SENSITIVITIES = [
   {
@@ -31,7 +23,6 @@ const SENSITIVITIES = [
 ]
 
 export default function Settings() {
-  const [currentTf, setCurrentTf] = useState(() => localStorage.getItem('timeframe') || '1w')
   const [currentSens, setCurrentSens] = useState('strict')
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
@@ -57,6 +48,19 @@ export default function Settings() {
   const [kisTesting, setKisTesting] = useState(false)
   const [kisWs, setKisWs] = useState<{ connected: boolean; subscribed: number; max: number } | null>(null)
 
+  // 전체 스캔 모니터링
+  const [scanHistory, setScanHistory] = useState<Array<{
+    id: number; status: string; total_symbols: number; scanned_count: number;
+    picks_count: number; max_sq_count: number; buy_count: number;
+    error_message: string | null; started_at: string; completed_at: string | null;
+    elapsed_seconds: number | null;
+  }>>([])
+  const [scanStatus, setScanStatus] = useState<{
+    running: boolean; progress_pct: number; elapsed_seconds: number;
+    scanned_count: number; total_symbols: number; last_completed_at: string | null;
+  } | null>(null)
+  const [scanTriggering, setScanTriggering] = useState(false)
+
   useEffect(() => {
     getSensitivity().then(d => setCurrentSens(d.current)).catch(() => {})
     getTelegram().then(d => {
@@ -64,6 +68,8 @@ export default function Settings() {
       setTgToken(d.bot_token)
       setTgChatId(d.chat_id)
     }).catch(() => {})
+    fetchFullScanHistory(10).then(setScanHistory).catch(() => {})
+    fetchFullScanStatus().then(setScanStatus).catch(() => {})
     getKIS().then(d => {
       setKisConfigured(d.configured)
       setKisAppKey(d.app_key)
@@ -73,17 +79,40 @@ export default function Settings() {
     }).catch(() => {})
   }, [])
 
-  const handleTfChange = async (tf: string) => {
-    setSaving(true); setMsg('')
+  // 스캔 진행 중이면 5초 폴링
+  useEffect(() => {
+    if (!scanStatus?.running) return
+    const timer = setInterval(async () => {
+      try {
+        const s = await fetchFullScanStatus()
+        setScanStatus(s)
+        if (!s.running) {
+          clearInterval(timer)
+          fetchFullScanHistory(10).then(setScanHistory).catch(() => {})
+        }
+      } catch { /* ignore */ }
+    }, 5000)
+    return () => clearInterval(timer)
+  }, [scanStatus?.running])
+
+  const handleFullScanTrigger = async () => {
+    setScanTriggering(true)
     try {
-      localStorage.setItem('timeframe', tf)
-      setCurrentTf(tf)
-      const items = await fetchWatchlist()
-      await Promise.all(items.map((i: any) => updateSymbol(i.id, { timeframe: tf })))
-      setMsg(`봉 단위 → ${TIMEFRAMES.find(t => t.value === tf)?.label}`)
-      setTimeout(() => setMsg(''), 3000)
-    } catch { setMsg('변경 실패'); setTimeout(() => setMsg(''), 3000) }
-    finally { setSaving(false) }
+      const res = await triggerFullScan()
+      if (res.status === 'started') {
+        addToast('success', '전체 시장 스캔 시작됨')
+        setScanStatus(prev => prev ? { ...prev, running: true, progress_pct: 0, elapsed_seconds: 0 } : null)
+        // 폴링 시작을 위해 상태 갱신
+        setTimeout(async () => {
+          const s = await fetchFullScanStatus()
+          setScanStatus(s)
+        }, 2000)
+      } else if (res.status === 'already_running') {
+        addToast('error', '이미 스캔이 진행 중입니다')
+      }
+    } catch {
+      addToast('error', '스캔 트리거 실패')
+    } finally { setScanTriggering(false) }
   }
 
   const handleSensChange = async (level: string) => {
@@ -412,6 +441,114 @@ export default function Settings() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* 전체 시장 스캔 모니터링 */}
+      <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5 mt-6">
+        <h2 className="text-white font-semibold mb-1 flex items-center gap-2">
+          <Database size={16} className="text-purple-400" /> 전체 시장 스캔
+        </h2>
+        <p className="text-xs text-[var(--muted)] mb-4">
+          stock_master 전종목을 스캔하여 스퀴즈/BUY 신호를 DB에 저장합니다 (매시 :30 자동 실행)
+        </p>
+
+        {/* 진행 상태 */}
+        {scanStatus?.running && (
+          <div className="mb-4 bg-purple-500/10 border border-purple-500/30 rounded-lg p-3">
+            <div className="flex items-center gap-2 text-purple-400 text-sm mb-2">
+              <Loader2 size={14} className="animate-spin" />
+              스캔 진행 중... {scanStatus.scanned_count}/{scanStatus.total_symbols}종목 ({scanStatus.progress_pct}%)
+            </div>
+            <div className="w-full bg-[var(--bg)] rounded-full h-2">
+              <div
+                className="bg-purple-500 h-2 rounded-full transition-all duration-500"
+                style={{ width: `${scanStatus.progress_pct}%` }}
+              />
+            </div>
+            <div className="text-[10px] text-[var(--muted)] mt-1">
+              경과: {scanStatus.elapsed_seconds}초
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center gap-3 mb-4">
+          <button
+            onClick={handleFullScanTrigger}
+            disabled={scanTriggering || scanStatus?.running}
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm rounded-lg transition disabled:opacity-50 flex items-center gap-1"
+          >
+            <Play size={14} />
+            {scanTriggering ? '시작 중...' : scanStatus?.running ? '진행 중...' : '수동 스캔 실행'}
+          </button>
+          {scanStatus?.last_completed_at && (
+            <span className="text-xs text-[var(--muted)]">
+              마지막 완료: {new Date(scanStatus.last_completed_at).toLocaleString('ko-KR')}
+            </span>
+          )}
+        </div>
+
+        {/* 최근 스캔 이력 */}
+        {scanHistory.length > 0 && (
+          <div>
+            <h3 className="text-sm text-[var(--muted)] mb-2">최근 스캔 이력</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-[var(--muted)] border-b border-[var(--border)]">
+                    <th className="text-left py-1.5 pr-2">시간</th>
+                    <th className="text-center py-1.5 px-1">상태</th>
+                    <th className="text-right py-1.5 px-1">종목</th>
+                    <th className="text-right py-1.5 px-1">추천</th>
+                    <th className="text-right py-1.5 px-1">MAX</th>
+                    <th className="text-right py-1.5 px-1">BUY</th>
+                    <th className="text-right py-1.5 pl-1">소요</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {scanHistory.map(h => (
+                    <tr key={h.id} className="border-b border-[var(--border)]/50 text-white">
+                      <td className="py-1.5 pr-2 whitespace-nowrap text-[var(--muted)]">
+                        {h.started_at ? new Date(h.started_at).toLocaleString('ko-KR', {
+                          month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+                        }) : '-'}
+                      </td>
+                      <td className="py-1.5 px-1 text-center">
+                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                          h.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                          h.status === 'failed' ? 'bg-red-500/20 text-red-400' :
+                          'bg-yellow-500/20 text-yellow-400'
+                        }`}>
+                          {h.status === 'completed' ? '완료' : h.status === 'failed' ? '실패' : '진행중'}
+                        </span>
+                      </td>
+                      <td className="py-1.5 px-1 text-right font-mono">
+                        {h.scanned_count}/{h.total_symbols}
+                      </td>
+                      <td className="py-1.5 px-1 text-right text-yellow-400 font-mono">
+                        {h.picks_count}
+                      </td>
+                      <td className="py-1.5 px-1 text-right text-orange-400 font-mono">
+                        {h.max_sq_count}
+                      </td>
+                      <td className="py-1.5 px-1 text-right text-green-400 font-mono">
+                        {h.buy_count}
+                      </td>
+                      <td className="py-1.5 pl-1 text-right text-[var(--muted)] font-mono">
+                        {h.elapsed_seconds != null ? `${Math.floor(h.elapsed_seconds / 60)}분${h.elapsed_seconds % 60}초` : '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {scanHistory.length === 0 && !scanStatus?.running && (
+          <div className="text-xs text-[var(--muted)] text-center py-4">
+            아직 스캔 이력이 없습니다. 수동 스캔을 실행하거나 스케줄 시간을 기다려주세요.
+          </div>
+        )}
       </div>
     </div>
   )

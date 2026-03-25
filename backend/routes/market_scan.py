@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime
 
 from fastapi import APIRouter, Depends
@@ -120,6 +121,49 @@ async def _save_daily(results: list[ScanResult]):
             ))
         await session.commit()
         logger.info(f"일일 Top Pick {len(results)}건 저장 ({today})")
+
+
+# ── 전체 시장 스캔 (스냅샷 기반) ──────────────────────────
+
+
+@router.get("/scan/full/latest")
+async def get_full_scan_latest():
+    """최신 완료된 전체 스캔 스냅샷 조회 (DB에서 즉시 반환)."""
+    from services.full_market_scanner import get_latest_snapshot
+    result = await get_latest_snapshot()
+    if not result:
+        return {"status": "no_data", "picks": {}, "max_sq": {}, "chart_buy": {"items": []}}
+    return result
+
+
+@router.get("/scan/full/status")
+async def get_full_scan_status():
+    """전체 스캔 진행 상태 조회."""
+    from services.full_market_scanner import get_progress, get_latest_snapshot
+    progress = get_progress()
+    # 마지막 완료 시간도 포함
+    latest = await get_latest_snapshot()
+    progress["last_completed_at"] = latest["completed_at"] if latest else None
+    return progress
+
+
+@router.post("/scan/full/trigger")
+async def trigger_full_scan(background_tasks=None):
+    """전체 시장 스캔 수동 트리거 (백그라운드 실행)."""
+    from services.full_market_scanner import get_progress, run_full_scan
+    if get_progress()["running"]:
+        return {"status": "already_running"}
+
+    asyncio.ensure_future(run_full_scan())
+    return {"status": "started"}
+
+
+@router.get("/scan/full/history")
+async def get_full_scan_history(limit: int = 10):
+    """전체 스캔 스냅샷 이력 조회."""
+    from services.full_market_scanner import get_snapshot_history
+    history = await get_snapshot_history(limit)
+    return {"history": history}
 
 
 def _to_dict(r: ScanResult) -> dict:

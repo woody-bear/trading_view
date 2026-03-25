@@ -51,7 +51,22 @@ def setup_scheduler():
         name="BUY 알림 15:00",
     )
 
-    logger.info("스케줄러 등록 완료: 10분 스캔 + BUY 알림 (10:30/15:00 KST)")
+    # 전체 시장 스캔 — 매 1시간 (평일, KST 9:30~15:30)
+    scheduler.add_job(
+        _scheduled_full_market_scan,
+        trigger="cron",
+        hour="9,10,11,12,13,14,15",
+        minute=30,
+        day_of_week="mon-fri",
+        timezone=KST,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=600,
+        id="full_market_scan",
+        name="전체 시장 스캔",
+    )
+
+    logger.info("스케줄러 등록 완료: 10분 스캔 + BUY 알림 (10:30/15:00 KST) + 전체 시장 스캔 (매시 :30)")
 
 
 async def _scheduled_scan():
@@ -75,6 +90,14 @@ async def _scheduled_buy_alert():
     logger.info("정기 BUY 신호 알림 시작")
     result = await send_scheduled_buy_alert()
     logger.info(f"정기 BUY 신호 알림 완료: {result}")
+
+
+async def _scheduled_full_market_scan():
+    """스케줄러가 호출하는 전체 시장 스캔."""
+    from services.full_market_scanner import run_full_scan
+    logger.info("전체 시장 스캔 시작 (스케줄)")
+    result = await run_full_scan()
+    logger.info(f"전체 시장 스캔 완료: {result.get('status')} — {result.get('scanned', 0)}개 분석")
 
 
 def is_market_open(market: str) -> bool:
