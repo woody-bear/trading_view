@@ -297,8 +297,29 @@ async def resolve_name(symbol: str, market: str) -> str:
             return name
 
     name = await asyncio.to_thread(_resolve_name_sync, symbol, market)
+
+    # pykrx/yfinance 실패 시 stock_master DB fallback
+    if name == symbol and market in ("KR", "KOSPI", "KOSDAQ"):
+        name = await _resolve_name_from_db(symbol) or symbol
+
     _name_cache[cache_key] = (name, time.time())
     return name
+
+
+async def _resolve_name_from_db(symbol: str) -> str | None:
+    """stock_master 테이블에서 종목명 조회."""
+    try:
+        from sqlalchemy import select
+        from database import async_session
+        from models import StockMaster
+
+        async with async_session() as session:
+            row = (await session.execute(
+                select(StockMaster.name).where(StockMaster.symbol == symbol).limit(1)
+            )).scalar_one_or_none()
+            return row
+    except Exception:
+        return None
 
 
 def _resolve_name_sync(symbol: str, market: str) -> str:
