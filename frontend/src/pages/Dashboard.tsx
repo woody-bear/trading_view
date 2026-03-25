@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, RefreshCw, Search, Trash2, TrendingUp, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, RefreshCw, Search, Trash2, TrendingUp, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { addSymbol, deleteSymbol, fetchBatchPrices, fetchFullScanLatest, fetchScanStatus, fetchSignals, fetchUnifiedCache, runUnifiedScan, searchSymbols } from '../api/client'
@@ -236,6 +236,12 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
   const [maxSq, setMaxSq] = useState<any>(null)
   const [buyItems, setBuyItems] = useState<any[]>([])
 
+  // 섹션 토글 (localStorage 유지)
+  const [showPicks, setShowPicks] = useState(() => localStorage.getItem('dash_showPicks') !== 'false')
+  const [showMaxSq, setShowMaxSq] = useState(() => localStorage.getItem('dash_showMaxSq') !== 'false')
+  const togglePicks = () => { setShowPicks(v => { localStorage.setItem('dash_showPicks', String(!v)); return !v }) }
+  const toggleMaxSq = () => { setShowMaxSq(v => { localStorage.setItem('dash_showMaxSq', String(!v)); return !v }) }
+
   // 실시간 가격 캐시: {symbol: {price, change_pct, ...}}
   const [livePrices, setLivePrices] = useState<Record<string, any>>({})
   const priceTimer = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -436,22 +442,20 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
         <>
         <div className="border-t border-[var(--border)] my-4" />
         <div className="mb-5">
-          <div className="flex items-center gap-2 mb-3">
+          <button onClick={togglePicks} className="flex items-center gap-2 mb-3 w-full text-left">
+            {showPicks ? <ChevronDown size={14} className="text-orange-400" /> : <ChevronRight size={14} className="text-orange-400" />}
             <h2 className="text-sm font-bold text-orange-400">추천 종목</h2>
             <span className="text-[9px] text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">MID/MAX SQ + 상승추세 + 데드크로스 제외 · 강도순 시장별 Top 15</span>
-            {Object.keys(livePrices).length > 0 && (
-              <span className="text-[9px] text-green-400 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-                실시간 가격 반영중
-              </span>
-            )}
-          </div>
-          <div className="space-y-3">
-            {picks.kospi?.length > 0 && <PickSection title="코스피" picks={picks.kospi.slice(0, 15)} nav={nav} qc={qc} livePrices={livePrices} />}
-            {picks.kosdaq?.length > 0 && <PickSection title="코스닥" picks={picks.kosdaq.slice(0, 15)} nav={nav} qc={qc} livePrices={livePrices} />}
-            {picks.us?.length > 0 && <PickSection title="미국" picks={picks.us.slice(0, 15)} nav={nav} qc={qc} livePrices={livePrices} />}
-            {picks.crypto?.length > 0 && <PickSection title="암호화폐" picks={picks.crypto.slice(0, 15)} nav={nav} qc={qc} livePrices={livePrices} />}
-          </div>
+            {!showPicks && <span className="text-[9px] text-[var(--muted)]">접힘</span>}
+          </button>
+          {showPicks && (
+            <div className="space-y-3">
+              {picks.kospi?.length > 0 && <PickSection title="코스피" picks={picks.kospi.slice(0, 15)} nav={nav} qc={qc} livePrices={livePrices} />}
+              {picks.kosdaq?.length > 0 && <PickSection title="코스닥" picks={picks.kosdaq.slice(0, 15)} nav={nav} qc={qc} livePrices={livePrices} />}
+              {picks.us?.length > 0 && <PickSection title="미국" picks={picks.us.slice(0, 15)} nav={nav} qc={qc} livePrices={livePrices} />}
+              {picks.crypto?.length > 0 && <PickSection title="암호화폐" picks={picks.crypto.slice(0, 15)} nav={nav} qc={qc} livePrices={livePrices} />}
+            </div>
+          )}
         </div>
         </>
       )}
@@ -459,26 +463,24 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
       {/* 3. MAX SQ 폭발 임박 */}
       <div className="border-t border-[var(--border)] my-4" />
       <div className="mb-5">
-        <div className="flex items-center gap-2 mb-3">
+        <button onClick={toggleMaxSq} className="flex items-center gap-2 mb-3 w-full text-left">
+          {showMaxSq ? <ChevronDown size={14} className="text-red-400" /> : <ChevronRight size={14} className="text-red-400" />}
           <h2 className="text-sm font-bold text-red-400">MAX SQ 폭발 임박</h2>
           <span className="text-[9px] text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">MAX SQ + 상승추세 + 데드크로스 제외 · 시장별 Top 5</span>
-          {Object.keys(livePrices).length > 0 && (
-            <span className="text-[9px] text-green-400 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-              실시간 가격 반영중
-            </span>
-          )}
-        </div>
-        {hasMaxSq ? (
-          <div className="space-y-3">
-            {maxSq.kospi?.length > 0 && <PickSection title="코스피" picks={maxSq.kospi} nav={nav} qc={qc} livePrices={livePrices} />}
-            {maxSq.kosdaq?.length > 0 && <PickSection title="코스닥" picks={maxSq.kosdaq} nav={nav} qc={qc} livePrices={livePrices} />}
-            {maxSq.us?.length > 0 && <PickSection title="미국" picks={maxSq.us} nav={nav} qc={qc} livePrices={livePrices} />}
-            {maxSq.crypto?.length > 0 && <PickSection title="암호화폐" picks={maxSq.crypto} nav={nav} qc={qc} livePrices={livePrices} />}
-          </div>
-        ) : !scanning ? (
-          <p className="text-[var(--muted)] text-xs text-center py-4">MAX SQ + 상승추세 + 데드크로스 제외 조건에 해당하는 종목이 없습니다</p>
-        ) : null}
+          {!showMaxSq && <span className="text-[9px] text-[var(--muted)]">접힘</span>}
+        </button>
+        {showMaxSq && (
+          hasMaxSq ? (
+            <div className="space-y-3">
+              {maxSq.kospi?.length > 0 && <PickSection title="코스피" picks={maxSq.kospi} nav={nav} qc={qc} livePrices={livePrices} />}
+              {maxSq.kosdaq?.length > 0 && <PickSection title="코스닥" picks={maxSq.kosdaq} nav={nav} qc={qc} livePrices={livePrices} />}
+              {maxSq.us?.length > 0 && <PickSection title="미국" picks={maxSq.us} nav={nav} qc={qc} livePrices={livePrices} />}
+              {maxSq.crypto?.length > 0 && <PickSection title="암호화폐" picks={maxSq.crypto} nav={nav} qc={qc} livePrices={livePrices} />}
+            </div>
+          ) : !scanning ? (
+            <p className="text-[var(--muted)] text-xs text-center py-4">MAX SQ + 상승추세 + 데드크로스 제외 조건에 해당하는 종목이 없습니다</p>
+          ) : null
+        )}
       </div>
     </div>
   )

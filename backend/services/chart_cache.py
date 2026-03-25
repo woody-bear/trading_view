@@ -304,11 +304,15 @@ async def resolve_name(symbol: str, market: str) -> str:
         if time.time() - ts < _NAME_TTL:
             return name
 
-    name = await asyncio.to_thread(_resolve_name_sync, symbol, market)
+    # 1순위: stock_master DB (즉시)
+    if market in ("KR", "KOSPI", "KOSDAQ"):
+        name = await _resolve_name_from_db(symbol)
+        if name:
+            _name_cache[cache_key] = (name, time.time())
+            return name
 
-    # pykrx/yfinance 실패 시 stock_master DB fallback
-    if name == symbol and market in ("KR", "KOSPI", "KOSDAQ"):
-        name = await _resolve_name_from_db(symbol) or symbol
+    # 2순위: pykrx/yfinance (느림)
+    name = await asyncio.to_thread(_resolve_name_sync, symbol, market)
 
     _name_cache[cache_key] = (name, time.time())
     return name
