@@ -231,10 +231,9 @@ def _analyze_ticker(df: pd.DataFrame, info: dict) -> dict | None:
 
         # 카테고리 분류
         categories = []
-        if last_sq >= 2 and trend == "BULL":
+        # 추천 종목: SQ Lv1 이상 + BULL 트렌드
+        if last_sq >= 1 and trend == "BULL":
             categories.append("picks")
-        if last_sq >= 3 and trend == "BULL":
-            categories.append("max_sq")
 
         # 차트 BUY 신호 (Pine Script 정밀 판정 + 사전 필터)
         buy_signal, buy_date = _check_buy_signal_precise(df, last_rsi, last_sq)
@@ -454,9 +453,9 @@ async def get_latest_snapshot() -> dict | None:
         )
         items = items_result.scalars().all()
 
-        # 카테고리별 그룹핑
+        # 카테고리별 그룹핑 (picks + max_sq 통합)
         picks_by_market = {}
-        max_sq_by_market = {}
+        picks_seen = set()  # 중복 방지 (기존 max_sq가 picks와 겹칠 수 있음)
         chart_buy_items = []
 
         for item in items:
@@ -471,10 +470,11 @@ async def get_latest_snapshot() -> dict | None:
                 "last_signal": item.last_signal,
                 "last_signal_date": item.last_signal_date,
             }
-            if item.category == "picks":
-                picks_by_market.setdefault(item.market_type.lower(), []).append(d)
-            elif item.category == "max_sq":
-                max_sq_by_market.setdefault(item.market_type.lower(), []).append(d)
+            if item.category in ("picks", "max_sq"):
+                key = f"{item.market_type}:{item.symbol}"
+                if key not in picks_seen:
+                    picks_seen.add(key)
+                    picks_by_market.setdefault(item.market_type.lower(), []).append(d)
             elif item.category == "chart_buy":
                 chart_buy_items.append(d)
 
@@ -483,13 +483,11 @@ async def get_latest_snapshot() -> dict | None:
             "status": snapshot.status,
             "total_symbols": snapshot.total_symbols,
             "scanned_count": snapshot.scanned_count,
-            "picks_count": snapshot.picks_count,
-            "max_sq_count": snapshot.max_sq_count,
+            "picks_count": snapshot.picks_count + snapshot.max_sq_count,
             "buy_count": snapshot.buy_count,
             "started_at": snapshot.started_at.isoformat() if snapshot.started_at else None,
             "completed_at": snapshot.completed_at.isoformat() if snapshot.completed_at else None,
             "picks": picks_by_market,
-            "max_sq": max_sq_by_market,
             "chart_buy": {"items": chart_buy_items},
         }
 
