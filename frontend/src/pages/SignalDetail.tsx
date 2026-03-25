@@ -226,7 +226,6 @@ export default function SignalDetail() {
   }
 
 
-  const tfLabels: Record<string, string> = { '15m': '15분봉', '30m': '30분봉', '1h': '1시간봉', '4h': '4시간봉', '1d': '일봉', '1w': '주봉' }
 
   // BUY 조건 체크리스트 (민감도에 따라 동적)
   const buyConditions = [

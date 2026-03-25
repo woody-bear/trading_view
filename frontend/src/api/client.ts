@@ -33,6 +33,10 @@ export const runUnifiedScan = () => api.post('/scan/unified').then(r => r.data)
 export const fetchUnifiedCache = () => api.get('/scan/unified').then(r => r.data)
 export const fetchScanStatus = () => api.get('/scan/status').then(r => r.data)
 
+// 시장 방향성
+export const fetchSentiment = () => api.get('/sentiment/overview').then(r => r.data)
+export const fetchSentimentHistory = () => api.get('/sentiment/history').then(r => r.data)
+
 // 검색
 export const searchSymbols = (q: string, market?: string) =>
   api.get('/search', { params: { q, market: market || '' } }).then(r => r.data.results)

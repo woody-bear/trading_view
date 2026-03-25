@@ -13,6 +13,7 @@ from routes.system import router as system_router
 from routes.watchlist import router as watchlist_router
 from routes.webhook import router as webhook_router
 from routes.alerts import router as alerts_router
+from routes.sentiment import router as sentiment_router
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(signals_router)
@@ -28,3 +29,4 @@ api_router.include_router(settings_router)
 api_router.include_router(prices_router)
 api_router.include_router(financials_router)
 api_router.include_router(alerts_router)
+api_router.include_router(sentiment_router)
