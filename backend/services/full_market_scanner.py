@@ -335,6 +335,14 @@ async def run_full_scan() -> dict:
                 if df is None:
                     continue
                 scanned += 1
+
+                # chart_cache에 parquet 저장 (상세 페이지 즉시 로드용)
+                try:
+                    from services.chart_cache import _save_parquet
+                    _save_parquet(info["symbol"], info["market_type"], "1d", df.copy())
+                except Exception:
+                    pass
+
                 result = _analyze_ticker(df, info)
                 if result:
                     all_items.append(result)
