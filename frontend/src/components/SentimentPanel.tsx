@@ -1,6 +1,16 @@
 import { useQuery } from '@tanstack/react-query'
-import { ArrowDown, ArrowUp, Minus } from 'lucide-react'
+import { ArrowDown, ArrowUp, BarChart3, Minus } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { fetchSentiment, fetchSentimentHistory } from '../api/client'
+
+// 지표 이름 → 차트 조회용 심볼 매핑
+const INDEX_SYMBOLS: Record<string, { symbol: string; market: string }> = {
+  'VIX': { symbol: '^VIX', market: 'US' },
+  '코스피': { symbol: '^KS11', market: 'KR' },
+  'S&P 500': { symbol: '^GSPC', market: 'US' },
+  '나스닥': { symbol: '^IXIC', market: 'US' },
+  'USD/KRW': { symbol: 'USDKRW=X', market: 'US' },
+}
 
 interface MarketIndex {
   name: string
@@ -107,11 +117,10 @@ function FearGreedGauge({ score, label }: { score: number; label: string }) {
   )
 }
 
-function MiniCard({ index }: { index: MarketIndex }) {
+function MiniCard({ index, onClick }: { index: MarketIndex; onClick?: () => void }) {
   const dirColor = index.direction === 'up' ? 'text-green-400' : index.direction === 'down' ? 'text-red-400' : 'text-gray-400'
   const DirIcon = index.direction === 'up' ? ArrowUp : index.direction === 'down' ? ArrowDown : Minus
 
-  // 포맷: 한국 지수는 쉼표, 미국은 소수점, 환율은 소수점 없음
   const fmtVal = (name: string, val: number) => {
     if (name === 'VIX') return val.toFixed(1)
     if (name === 'USD/KRW') return val.toLocaleString('ko-KR', { maximumFractionDigits: 0 })
@@ -120,7 +129,8 @@ function MiniCard({ index }: { index: MarketIndex }) {
   }
 
   return (
-    <div className="bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 min-w-0">
+    <div onClick={onClick}
+      className={`bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 min-w-0 ${onClick ? 'cursor-pointer hover:border-blue-500/50 transition active:scale-[0.98]' : ''}`}>
       <div className="text-[10px] text-[var(--muted)] truncate">{index.name}</div>
       <div className="text-sm font-mono font-semibold text-white mt-0.5">{fmtVal(index.name, index.value)}</div>
       <div className={`flex items-center gap-0.5 text-[10px] font-mono ${dirColor}`}>
@@ -181,6 +191,7 @@ function Skeleton() {
 }
 
 export default function SentimentPanel() {
+  const nav = useNavigate()
   const { data, isLoading, isError } = useQuery<SentimentData>({
     queryKey: ['sentiment'],
     queryFn: fetchSentiment,
@@ -210,8 +221,21 @@ export default function SentimentPanel() {
 
   const indices = [data.vix, data.kospi, data.sp500, data.nasdaq, data.usdkrw]
 
+  const handleIndexClick = (name: string) => {
+    const info = INDEX_SYMBOLS[name]
+    if (info) {
+      nav(`/${encodeURIComponent(info.symbol)}?market=${info.market}`)
+    }
+  }
+
   return (
     <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 mb-4">
+      {/* 섹션 제목 */}
+      <div className="flex items-center gap-2 mb-3">
+        <BarChart3 size={16} className="text-blue-400" />
+        <h2 className="text-sm font-bold text-white">시장 지표</h2>
+      </div>
+
       {/* Fear & Greed 게이지 */}
       <FearGreedGauge score={data.fear_greed} label={data.fear_greed_label} />
 
@@ -227,10 +251,10 @@ export default function SentimentPanel() {
         <MiniTrendChart dates={history.dates} values={history.values} />
       )}
 
-      {/* 지표 미니카드 */}
+      {/* 지표 미니카드 (클릭 시 차트) */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-3">
         {indices.map((idx) => (
-          <MiniCard key={idx.name} index={idx} />
+          <MiniCard key={idx.name} index={idx} onClick={() => handleIndexClick(idx.name)} />
         ))}
       </div>
 

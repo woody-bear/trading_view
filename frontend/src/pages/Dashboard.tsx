@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, ChevronRight, Plus, RefreshCw, Search, Trash2, TrendingUp, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { addSymbol, deleteSymbol, fetchBatchPrices, fetchFullScanLatest, fetchScanStatus, fetchSignals, fetchUnifiedCache, runUnifiedScan, searchSymbols } from '../api/client'
@@ -235,10 +235,13 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
   const [picks, setPicks] = useState<any>(null)
   const [maxSq] = useState<any>(null)  // 하위 호환용 (제거 예정)
   const [buyItems, setBuyItems] = useState<any[]>([])
+  const [overheatItems, setOverheatItems] = useState<any[]>([])
 
   // 섹션 토글 (localStorage 유지)
-  const [showPicks, setShowPicks] = useState(() => localStorage.getItem('dash_showPicks') !== 'false')
+  const [showPicks, setShowPicks] = useState(() => localStorage.getItem('dash_showPicks') === 'true')
   const togglePicks = () => { setShowPicks(v => { localStorage.setItem('dash_showPicks', String(!v)); return !v }) }
+  const [showOverheat, setShowOverheat] = useState(() => localStorage.getItem('dash_showOverheat') === 'true')
+  const toggleOverheat = () => { setShowOverheat(v => { localStorage.setItem('dash_showOverheat', String(!v)); return !v }) }
 
   // 실시간 가격 캐시: {symbol: {price, change_pct, ...}}
   const [livePrices, setLivePrices] = useState<Record<string, any>>({})
@@ -248,6 +251,7 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
     if (result?.picks) setPicks(result.picks)
     // max_sq는 picks에 통합됨
     if (result?.chart_buy) setBuyItems(result.chart_buy.items || [])
+    if (result?.overheat) setOverheatItems(result.overheat.items || [])
   }
 
   // 스캔 결과에서 모든 종목 심볼 추출
@@ -273,8 +277,9 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
       add(maxSq.us, 'US'); add(maxSq.crypto, 'CRYPTO')
     }
     add(buyItems)
+    add(overheatItems)
     return syms
-  }, [picks, maxSq, buyItems])
+  }, [picks, maxSq, buyItems, overheatItems])
 
   // 실시간 가격 fetch
   const refreshPrices = useCallback(async () => {
@@ -295,7 +300,7 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
     refreshPrices()
     priceTimer.current = setInterval(refreshPrices, 5_000)
     return () => { if (priceTimer.current) clearInterval(priceTimer.current) }
-  }, [picks, maxSq, buyItems])
+  }, [picks, maxSq, buyItems, overheatItems])
 
   const [scanElapsed, setScanElapsed] = useState(0)
 
@@ -382,11 +387,7 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
     <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-3 md:p-5">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <TrendingUp size={18} className="text-orange-400" />
           <h1 className="text-base md:text-xl font-bold text-white">전체 시장 스캔</h1>
-          <span className="text-[10px] text-[var(--muted)] bg-[var(--bg)] px-2 py-0.5 rounded border border-[var(--border)]">
-            코스피 54 · 코스닥 30 · 미국 65 · 코인 10
-          </span>
         </div>
         <div className="flex items-center gap-2">
           {scanMsg && <span className="text-[10px] text-green-400 bg-green-400/10 px-2 py-1 rounded">{scanMsg}</span>}
@@ -434,7 +435,54 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
         ) : null}
       </div>
 
-      {/* 2. 추천 종목 */}
+      {/* 2. 투자과열 */}
+      {overheatItems.length > 0 && (
+        <>
+        <div className="border-t border-[var(--border)] my-4" />
+        <div className="mb-5">
+          <button onClick={toggleOverheat} className="flex items-center gap-2 mb-3 w-full text-left">
+            {showOverheat ? <ChevronDown size={14} className="text-red-400" /> : <ChevronRight size={14} className="text-red-400" />}
+            <h2 className="text-sm font-bold text-red-400">투자과열 신호</h2>
+            <span className="text-[9px] text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">RSI 70+ 또는 RSI 65+거래량 2x · 국내 개별주</span>
+            <span className="text-[9px] text-red-400 font-bold">{overheatItems.length}종목</span>
+            {!showOverheat && <span className="text-[9px] text-[var(--muted)]">접힘</span>}
+          </button>
+          {showOverheat && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+              {overheatItems.map((item: any, i: number) => (
+                <div key={item.symbol}
+                  onClick={() => nav(`/${item.symbol}?market=${item.market_type || item.market}`)}
+                  className="bg-[var(--bg)] border border-red-500/30 rounded-lg p-3 md:p-2.5 cursor-pointer hover:border-red-500/60 transition active:scale-[0.98]">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-[10px] bg-red-500/20 text-red-400 w-5 h-5 rounded flex items-center justify-center font-mono">{i + 1}</span>
+                      <span className="text-white font-semibold text-sm truncate">{item.name}</span>
+                      <span className="text-[var(--muted)] text-[10px]">{item.symbol}</span>
+                      <span className={`text-[8px] px-1 py-0.5 rounded ${item.market_type === 'KOSPI' ? 'text-blue-400 bg-blue-500/15' : 'text-purple-400 bg-purple-500/15'}`}>
+                        {item.market_type === 'KOSPI' ? '코스피' : '코스닥'}
+                      </span>
+                    </div>
+                    <span className="text-[9px] font-bold text-red-400 bg-red-500/20 px-1.5 py-0.5 rounded">과열</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-mono text-white">{item.price?.toLocaleString()}</span>
+                    <div className="flex items-center gap-2 text-[10px]">
+                      <span className={item.change_pct >= 0 ? 'text-green-400' : 'text-red-400'}>
+                        {item.change_pct >= 0 ? '+' : ''}{item.change_pct}%
+                      </span>
+                      <span className="text-red-400 font-bold">RSI {item.rsi?.toFixed(0)}</span>
+                      <span className="text-[var(--muted)]">거래량 {item.volume_ratio?.toFixed(1)}x</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        </>
+      )}
+
+      {/* 3. 추천 종목 */}
       {hasPicks && (
         <>
         <div className="border-t border-[var(--border)] my-4" />

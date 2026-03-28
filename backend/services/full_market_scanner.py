@@ -77,6 +77,7 @@ async def _load_symbols() -> list[dict]:
                 "name": row.name,
                 "market": "KR",
                 "market_type": row.market_type,
+                "is_etf": row.is_etf,
             })
 
         # US stocks from stock_master
@@ -240,6 +241,11 @@ def _analyze_ticker(df: pd.DataFrame, info: dict) -> dict | None:
         if buy_signal:
             categories.append("chart_buy")
 
+        # 투자과열: RSI >= 70 또는 (RSI >= 65 + 거래량 2배+) — 한국 개별주, 거래량 있는 종목만
+        if info["market"] == "KR" and not info.get("is_etf", False) and last_vol >= 0.1:
+            if last_rsi >= 70 or (last_rsi >= 65 and last_vol >= 2.0):
+                categories.append("overheat")
+
         if not categories:
             return None
 
@@ -387,9 +393,9 @@ async def run_full_scan() -> dict:
                     elif cat == "chart_buy":
                         buy_count += 1
 
-            # 스냅샷 완료 업데이트
+            # 스냅샷 완료 업데이트 (0건 분석이면 failed 처리)
             snap = await session.get(ScanSnapshot, snapshot_id)
-            snap.status = "completed"
+            snap.status = "completed" if scanned > 0 else "failed"
             snap.total_symbols = total
             snap.scanned_count = scanned
             snap.picks_count = picks_count
@@ -455,8 +461,9 @@ async def get_latest_snapshot() -> dict | None:
 
         # 카테고리별 그룹핑 (picks + max_sq 통합)
         picks_by_market = {}
-        picks_seen = set()  # 중복 방지 (기존 max_sq가 picks와 겹칠 수 있음)
+        picks_seen = set()
         chart_buy_items = []
+        overheat_items = []
 
         for item in items:
             d = {
@@ -477,6 +484,8 @@ async def get_latest_snapshot() -> dict | None:
                     picks_by_market.setdefault(item.market_type.lower(), []).append(d)
             elif item.category == "chart_buy":
                 chart_buy_items.append(d)
+            elif item.category == "overheat":
+                overheat_items.append(d)
 
         return {
             "snapshot_id": snapshot.id,
@@ -489,6 +498,7 @@ async def get_latest_snapshot() -> dict | None:
             "completed_at": snapshot.completed_at.isoformat() if snapshot.completed_at else None,
             "picks": picks_by_market,
             "chart_buy": {"items": chart_buy_items},
+            "overheat": {"items": overheat_items},
         }
 
 

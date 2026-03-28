@@ -24,6 +24,20 @@ async def test_buy_alert():
     return result
 
 
+@router.post("/alerts/sell-signal/test")
+async def test_sell_alert():
+    """수동으로 SELL 신호 체크 알림을 즉시 전송."""
+    from config import get_settings
+    settings = get_settings()
+
+    if not settings.telegram_configured:
+        return {"status": "error", "message": "텔레그램 설정을 먼저 완료해주세요"}
+
+    from services.sell_signal_alert import send_scheduled_sell_alert
+    result = await send_scheduled_sell_alert()
+    return result
+
+
 @router.get("/alerts/history")
 async def get_alert_history(alert_type: str = "scheduled_buy", limit: int = 20):
     """알림 발송 이력 조회."""
