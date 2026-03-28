@@ -65,10 +65,18 @@ def _yf_period(timeframe: str) -> str:
     return "2y"
 
 
+def _normalize_market(market: str) -> str:
+    """KR/KOSPI/KOSDAQ → KR로 통일하여 중복 캐시 방지."""
+    if market in ("KOSPI", "KOSDAQ"):
+        return "KR"
+    return market
+
+
 def _cache_path(symbol: str, market: str, timeframe: str) -> Path:
-    """캐시 파일 경로. 심볼의 /를 _로 치환."""
+    """캐시 파일 경로. 심볼의 /를 _로 치환. 한국 시장은 KR로 통일."""
     safe_symbol = symbol.replace("/", "_")
-    return _CACHE_DIR / f"{market}_{safe_symbol}_{timeframe}.parquet"
+    norm_market = _normalize_market(market)
+    return _CACHE_DIR / f"{norm_market}_{safe_symbol}_{timeframe}.parquet"
 
 
 def _strip_incomplete_candle(df: pd.DataFrame, market: str, timeframe: str = "1d") -> pd.DataFrame:
@@ -131,12 +139,13 @@ def _validate_cache_price(df: pd.DataFrame, symbol: str, market: str) -> bool:
 def _load_parquet(symbol: str, market: str, timeframe: str) -> pd.DataFrame | None:
     """parquet 파일에서 캐시 로드. 손상/가격 불일치 시 삭제 후 None 반환."""
     path = _cache_path(symbol, market, timeframe)
-    # KR로 조회 시 KOSPI/KOSDAQ 캐시도 탐색
-    if not path.exists() and market == "KR":
+    # 마이그레이션: 구 KOSPI/KOSDAQ 캐시 파일이 남아있으면 병합
+    if not path.exists():
         for alt in ("KOSPI", "KOSDAQ"):
-            alt_path = _cache_path(symbol, alt, timeframe)
+            alt_path = _CACHE_DIR / f"{alt}_{symbol.replace('/', '_')}_{timeframe}.parquet"
             if alt_path.exists():
-                path = alt_path
+                alt_path.rename(path)
+                logger.info(f"캐시 마이그레이션: {alt_path.name} → {path.name}")
                 break
     if not path.exists():
         return None

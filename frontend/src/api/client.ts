@@ -59,6 +59,12 @@ export const testTelegram = () => api.post('/settings/telegram/test').then(r => 
 export const fetchBatchPrices = (symbols: { symbol: string; market: string }[]) =>
   api.post('/prices/batch', { symbols }).then(r => r.data.prices)
 
+// 종목 상세 (KIS)
+export const fetchStockDetail = (symbol: string, market: string = 'KR') =>
+  api.get(`/stocks/${symbol}/detail`, { params: { market } }).then(r => r.data)
+export const fetchOrderbook = (symbol: string, market: string = 'KR') =>
+  api.get(`/stocks/${symbol}/orderbook`, { params: { market } }).then(r => r.data)
+
 // 한국투자증권
 export const getKIS = () => api.get('/settings/kis').then(r => r.data)
 export const setKIS = (data: { app_key: string; app_secret: string; account_no: string; paper_trading: boolean }) =>

@@ -193,24 +193,50 @@ def _get_kr_stocks(market_type: str) -> dict[str, str]:
 
 def _get_us_stocks() -> dict[str, str]:
     return {
+        # ── 대형 기술주 ──
         "AAPL": "Apple", "MSFT": "Microsoft", "GOOGL": "Alphabet", "AMZN": "Amazon",
-        "NVDA": "NVIDIA", "META": "Meta", "TSLA": "Tesla", "JPM": "JPMorgan",
-        "V": "Visa", "UNH": "UnitedHealth", "XOM": "Exxon", "MA": "Mastercard",
-        "HD": "Home Depot", "PG": "P&G", "COST": "Costco", "AVGO": "Broadcom",
-        "LLY": "Eli Lilly", "MRK": "Merck", "ABBV": "AbbVie", "KO": "Coca-Cola",
-        "PEP": "PepsiCo", "CRM": "Salesforce", "CSCO": "Cisco", "ADBE": "Adobe",
-        "NKE": "Nike", "TXN": "Texas Inst", "QCOM": "Qualcomm", "AMGN": "Amgen",
-        "INTC": "Intel", "IBM": "IBM", "CAT": "Caterpillar", "BA": "Boeing",
-        "GE": "GE", "SBUX": "Starbucks", "GS": "Goldman", "AMD": "AMD",
-        "NFLX": "Netflix", "DIS": "Disney", "PYPL": "PayPal", "UBER": "Uber",
-        "SQ": "Block", "SHOP": "Shopify", "SNOW": "Snowflake", "PLTR": "Palantir",
-        "COIN": "Coinbase", "CRWD": "CrowdStrike", "NET": "Cloudflare",
+        "NVDA": "NVIDIA", "META": "Meta", "TSLA": "Tesla", "AVGO": "Broadcom",
+        "CRM": "Salesforce", "CSCO": "Cisco", "ADBE": "Adobe", "AMD": "AMD",
+        "NFLX": "Netflix", "INTC": "Intel", "IBM": "IBM", "ORCL": "Oracle",
+        "NOW": "ServiceNow", "PANW": "Palo Alto", "CRWD": "CrowdStrike",
+        "PLTR": "Palantir", "NET": "Cloudflare", "SNOW": "Snowflake",
         "ARM": "Arm", "SMCI": "Super Micro", "MU": "Micron", "MRVL": "Marvell",
-        "PANW": "Palo Alto", "NOW": "ServiceNow", "ORCL": "Oracle",
-        "ABNB": "Airbnb", "RIVN": "Rivian", "NIO": "NIO", "SOFI": "SoFi",
-        "F": "Ford", "GM": "GM", "PFE": "Pfizer", "MRNA": "Moderna",
-        "ENPH": "Enphase", "FSLR": "First Solar", "ON": "ON Semi",
+        "SHOP": "Shopify", "SQ": "Block", "COIN": "Coinbase", "UBER": "Uber",
+        "ABNB": "Airbnb", "PYPL": "PayPal", "SOFI": "SoFi",
+        # ── 금융 ──
+        "JPM": "JPMorgan", "V": "Visa", "MA": "Mastercard", "GS": "Goldman",
+        "BAC": "Bank of America", "WFC": "Wells Fargo", "MS": "Morgan Stanley",
+        "C": "Citigroup", "BLK": "BlackRock", "SCHW": "Schwab",
+        "AXP": "AmEx", "BX": "Blackstone", "KKR": "KKR",
+        # ── 헬스케어 ──
+        "UNH": "UnitedHealth", "LLY": "Eli Lilly", "MRK": "Merck",
+        "ABBV": "AbbVie", "PFE": "Pfizer", "MRNA": "Moderna",
+        "JNJ": "Johnson&Johnson", "TMO": "Thermo Fisher", "ABT": "Abbott",
+        "AMGN": "Amgen", "GILD": "Gilead", "ISRG": "Intuitive Surgical",
+        "VRTX": "Vertex", "REGN": "Regeneron", "MDT": "Medtronic",
+        # ── 소비재 ──
+        "KO": "Coca-Cola", "PEP": "PepsiCo", "PG": "P&G", "COST": "Costco",
+        "WMT": "Walmart", "HD": "Home Depot", "MCD": "McDonald's",
+        "NKE": "Nike", "SBUX": "Starbucks", "TGT": "Target",
+        "LOW": "Lowe's", "TJX": "TJX", "DIS": "Disney",
+        # ── 산업재 ──
+        "CAT": "Caterpillar", "BA": "Boeing", "GE": "GE", "HON": "Honeywell",
+        "UPS": "UPS", "RTX": "RTX", "DE": "Deere", "LMT": "Lockheed Martin",
+        "MMM": "3M", "UNP": "Union Pacific",
+        # ── 에너지 ──
+        "XOM": "Exxon", "CVX": "Chevron", "COP": "ConocoPhillips",
+        "SLB": "Schlumberger", "EOG": "EOG Resources",
+        # ── 통신/미디어 ──
+        "T": "AT&T", "VZ": "Verizon", "TMUS": "T-Mobile", "CMCSA": "Comcast",
+        # ── 반도체 ──
+        "TXN": "Texas Inst", "QCOM": "Qualcomm", "LRCX": "Lam Research",
+        "AMAT": "Applied Materials", "KLAC": "KLA", "ON": "ON Semi",
+        "ADI": "Analog Devices", "MPWR": "Monolithic Power",
+        # ── 기타 ──
+        "F": "Ford", "GM": "GM", "RIVN": "Rivian", "NIO": "NIO",
+        "ENPH": "Enphase", "FSLR": "First Solar",
     }
+
 
 
 def _get_us_etfs() -> dict[str, str]:

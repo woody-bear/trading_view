@@ -8,6 +8,7 @@ export interface RealtimePrice {
   low: number
   volume: number
   change_pct: number
+  is_expected?: boolean  // 장전/장후 예상 체결가
 }
 
 const MAX_ERRORS = 3
