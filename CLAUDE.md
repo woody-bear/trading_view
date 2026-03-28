@@ -146,6 +146,10 @@ BUY/SELL/NEUTRAL. 조건: BB %B, RSI, MACD 전환, 거래량. 민감도 3단계(
 - SQLite — alert_log 테이블 확장 (alert_type, symbol_count 컬럼 추가) (003-kr-buy-telegram-alert)
 - Python 3.12 + TypeScript 5.x (React 18) + yfinance (기존), pandas (기존), lightweight-charts (기존) (005-market-sentiment-dashboard)
 - 없음 (실시간 조회, DB 변경 없음) (005-market-sentiment-dashboard)
+- Python 3.12 (backend) + TypeScript 5.x (frontend) + FastAPI, pykis (한투 API), React 18, Tailwind CSS (006-kis-stock-detail)
+- SQLite WAL (aiosqlite) — 투자지표 캐시용 메모리 캐시 (dict + TTL) (006-kis-stock-detail)
+- TypeScript 5.x (React 18) — 프론트엔드 전용 + React 18, Tailwind CSS (007-position-guide)
+- N/A (DB 변경 없음, 상태 저장 없음) (007-position-guide)
 
 ## Recent Changes
 - 002-fix-chart-usability: Added TypeScript 5.x (React 18) + Python 3.12 (변경 없음) + React 18, lightweight-charts v5, Zustand, React Query, Tailwind CSS
