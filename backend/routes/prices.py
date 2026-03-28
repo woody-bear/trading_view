@@ -44,6 +44,54 @@ async def batch_prices(body: BatchPriceRequest):
     return {"prices": results}
 
 
+@router.get("/stocks/{symbol}/detail")
+async def stock_detail(symbol: str, market: str = "KR"):
+    """종목 투자지표 + 기업정보 + 위험상태 + 가격제한 통합 조회."""
+    from config import get_settings
+    from services.kis_client import get_kis_service
+
+    settings = get_settings()
+    if not settings.kis_configured:
+        return {"status": "unavailable", "reason": "kis_not_configured"}
+
+    if market == "CRYPTO":
+        return {"status": "unavailable", "reason": "not_supported"}
+
+    kis = get_kis_service()
+    if not kis:
+        return {"status": "unavailable", "reason": "kis_init_failed"}
+
+    data = await asyncio.to_thread(kis.get_stock_detail, symbol)
+    if not data:
+        return {"status": "unavailable", "reason": "api_error"}
+
+    return data
+
+
+@router.get("/stocks/{symbol}/orderbook")
+async def stock_orderbook(symbol: str, market: str = "KR"):
+    """매도/매수 호가 조회."""
+    from config import get_settings
+    from services.kis_client import get_kis_service
+
+    settings = get_settings()
+    if not settings.kis_configured:
+        return {"status": "unavailable", "reason": "kis_not_configured"}
+
+    if market in ("CRYPTO", "US"):
+        return {"status": "unavailable", "reason": "not_supported"}
+
+    kis = get_kis_service()
+    if not kis:
+        return {"status": "unavailable", "reason": "kis_init_failed"}
+
+    data = await asyncio.to_thread(kis.get_orderbook, symbol)
+    if not data:
+        return {"status": "unavailable", "reason": "api_error"}
+
+    return data
+
+
 @router.get("/prices/stream/{symbol}")
 async def price_stream(symbol: str, market: str = "KR", request: Request = None):
     """SSE 스트림 — 1초 간격으로 한투 API 현재가 전송 (가격 변동 시에만)."""

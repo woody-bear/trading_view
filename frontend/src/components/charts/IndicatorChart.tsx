@@ -5,6 +5,7 @@ import {
   createSeriesMarkers,
   HistogramSeries,
   LineSeries,
+  TickMarkType,
 } from 'lightweight-charts'
 import { useEffect, useRef, useState } from 'react'
 import { onPriceUpdate } from '../../hooks/useWebSocket'
@@ -62,13 +63,27 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
     if (macdRef.current) macdRef.current.innerHTML = ''
 
     const width = el.clientWidth
+    const tickMarkFormatter = (time: number, tickMarkType: TickMarkType) => {
+      const d = new Date(time * 1000)
+      const m = d.getUTCMonth() + 1
+      const day = d.getUTCDate()
+      if (tickMarkType === TickMarkType.Year) return `${d.getUTCFullYear()}년`
+      if (tickMarkType === TickMarkType.Month) return `${m}월`
+      return `${m}/${day}`
+    }
     const chartOpts = {
       width,
       layout: { background: { type: ColorType.Solid as const, color: '#1e293b' }, textColor: '#94a3b8' },
       grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#262f3d' } },
       crosshair: { mode: 0 as const },
       rightPriceScale: { borderColor: '#334155' },
-      timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#334155' },
+      localization: { locale: 'en-US' },
+      timeScale: {
+        timeVisible: false,
+        secondsVisible: false,
+        borderColor: '#334155',
+        tickMarkFormatter,
+      },
     }
 
     // === MAIN CHART ===
