@@ -8,6 +8,10 @@ import ChartEmptyState from '../components/charts/ChartEmptyState'
 import ChartErrorBoundary from '../components/charts/ChartErrorBoundary'
 import ChartSkeleton from '../components/charts/ChartSkeleton'
 import FinancialChart from '../components/charts/FinancialChart'
+import PositionGuide from '../components/PositionGuide'
+import RiskWarningBanner from '../components/RiskWarningBanner'
+import StockFundamentals from '../components/StockFundamentals'
+import OrderbookPanel from '../components/OrderbookPanel'
 import IndicatorChart from '../components/charts/IndicatorChart'
 import ConnectionIndicator from '../components/ui/ConnectionIndicator'
 import { usePriceFlash } from '../hooks/usePriceFlash'
@@ -17,6 +21,11 @@ import { useBuyPoint } from '../hooks/useBuyPoint'
 import { useToastStore } from '../stores/toastStore'
 
 const stateLabel: Record<string, string> = { BUY: '매수', SELL: '매도', NEUTRAL: '대기' }
+const stateDesc: Record<string, string> = {
+  BUY: 'BB 하단 + RSI 과매도 + 모멘텀 반전 — 매수 진입 구간',
+  SELL: 'BB 상단 + RSI 과매수 + 모멘텀 하락 — 매도 검토 구간',
+  NEUTRAL: '매수·매도 조건 미충족 — 추세 관망 중',
+}
 
 interface IndicatorGauge {
   label: string
@@ -300,7 +309,10 @@ export default function SignalDetail() {
             <span className="text-[var(--muted)] text-sm shrink-0">{s.symbol}</span>
           </div>
         </div>
-        <span className={`text-base md:text-lg font-bold shrink-0 ${stateColor}`}>{stateLabel[s.signal_state]}</span>
+        <div className="text-right shrink-0">
+          <span className={`text-base md:text-lg font-bold ${stateColor}`}>{stateLabel[s.signal_state]}</span>
+          <div className="text-[9px] text-[var(--muted)] max-w-[180px]">{stateDesc[s.signal_state]}</div>
+        </div>
         {!isInWatchlist && !addedNow && (
           <button onClick={handleAddToWatchlist} disabled={adding}
             className="shrink-0 flex items-center gap-1 px-2.5 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs disabled:opacity-50">
@@ -320,9 +332,13 @@ export default function SignalDetail() {
         <span className={`text-sm font-mono ${currentChangePct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
           {currentChangePct >= 0 ? '+' : ''}{currentChangePct?.toFixed(2)}%
         </span>
+        {livePrice?.is_expected && <span className="text-xs text-yellow-400 border border-yellow-400/30 rounded px-1.5 py-0.5">예상가</span>}
         {s.confidence > 0 && <span className="text-xs text-[var(--muted)]">강도 {s.confidence.toFixed(0)}점</span>}
         <ConnectionIndicator status={connectionStatus || (realtimeConnected ? 'connected' : 'disconnected')} onReconnect={reconnect || (() => {})} />
       </div>
+
+      {/* 위험경고 배너 (한국 주식만) */}
+      <RiskWarningBanner symbol={lookupSymbol} market={guessMarket} />
 
       {/* 차트 */}
       {(chartLoading || chartFetching || !chartSymbolMatch) && !chartError && (
@@ -355,6 +371,49 @@ export default function SignalDetail() {
         </ChartErrorBoundary>
       )}
 
+      {/* 포지션 가이드 — 차트 마지막 BUY/SELL 마커 기준 */}
+      <PositionGuide
+        symbol={lookupSymbol}
+        signalState={(() => {
+          const markers = (chartData as any)?.markers || []
+          for (let i = markers.length - 1; i >= 0; i--) {
+            const t = markers[i].text
+            if (t === 'BUY' || t === 'SQZ BUY') return 'BUY'
+            if (t === 'SELL' || t === 'SQZ SELL') return 'SELL'
+          }
+          return 'NEUTRAL'
+        })()}
+        lastSignalText={(() => {
+          const markers = (chartData as any)?.markers || []
+          for (let i = markers.length - 1; i >= 0; i--) {
+            const t = markers[i].text
+            if (['BUY', 'SQZ BUY', 'SELL', 'SQZ SELL'].includes(t)) return t
+          }
+          return undefined
+        })()}
+        lastSignalDate={(() => {
+          const markers = (chartData as any)?.markers || []
+          for (let i = markers.length - 1; i >= 0; i--) {
+            const t = markers[i].text
+            if (['BUY', 'SQZ BUY', 'SELL', 'SQZ SELL'].includes(t)) {
+              const d = new Date(markers[i].time * 1000)
+              return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+            }
+          }
+          return undefined
+        })()}
+        rsi={s.rsi}
+        bbPctB={s.bb_pct_b}
+        ema20={s.ema_20}
+        ema50={s.ema_50}
+      />
+
+      {/* 투자지표 + 52주 범위 + 가격제한 */}
+      <StockFundamentals symbol={lookupSymbol} market={guessMarket} />
+
+      {/* 호가창 (한국 주식만) */}
+      <OrderbookPanel symbol={lookupSymbol} market={guessMarket} />
+
       {/* 실적 차트 */}
       <FinancialChart symbol={lookupSymbol} market={s.market} />
 
@@ -380,7 +439,8 @@ export default function SignalDetail() {
         <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3">
           <div className="text-xs text-[var(--muted)]">종합 신호</div>
           <div className={`font-mono mt-1 text-lg font-bold ${stateColor}`}>{stateLabel[s.signal_state]}</div>
-          {s.confidence > 0 && <div className="text-[9px] text-[var(--muted)]">신뢰도 {s.confidence.toFixed(0)}점 / {s.signal_grade}</div>}
+          <div className="text-[9px] text-[var(--muted)] mt-0.5">{stateDesc[s.signal_state]}</div>
+          {s.confidence > 0 && <div className="text-[9px] text-[var(--muted)] mt-0.5">신뢰도 {s.confidence.toFixed(0)}점 / {s.signal_grade}</div>}
         </div>
       </div>
 
