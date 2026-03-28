@@ -74,8 +74,6 @@ def format_buy_signal_message(signals: list[dict], timestamp: datetime = None) -
     if timestamp is None:
         timestamp = datetime.now()
 
-    settings = get_settings()
-    app_url = getattr(settings, "APP_URL", None) or "http://localhost:3000"
     date_str = timestamp.strftime("%-m/%-d %H:%M")
 
     if not signals:
@@ -91,29 +89,19 @@ def format_buy_signal_message(signals: list[dict], timestamp: datetime = None) -
 
     lines = [f"📊 <b>전체 시장 BUY 신호</b> ({date_str})\n"]
 
-    def _format_section(title: str, items: list[dict], currency: str = "원"):
+    def _format_section(title: str, items: list[dict]):
         if not items:
             return
-        lines.append(f"\n<b>{'🇰🇷' if currency == '원' else '🇺🇸'} {title}</b> ({len(items)}종목)")
-        for i, s in enumerate(items[:10], 1):
-            sig_type = "🔵SQZ" if s["last_signal"] == "SQZ BUY" else "🟢"
-            sq = " 🟡SQ" if s["squeeze_level"] >= 2 else ""
-            price_str = f"{s['price']:,.0f}" if currency == "원" else f"${s['price']:,.2f}"
-            change_str = f"{s['change_pct']:+.1f}%" if s["change_pct"] else ""
-            sig_date = s["last_signal_date"] or ""
-            rsi_str = f"RSI {s['rsi']:.0f}" if s.get("rsi") else ""
-            link = f'{app_url}/{s["symbol"]}'
+        flag = '🇰🇷' if title == '국내주식' else '🇺🇸'
+        lines.append(f"\n<b>{flag} {title}</b> ({len(items)}종목)")
+        for i, s in enumerate(items, 1):
+            sig_type = "🔵" if s["last_signal"] == "SQZ BUY" else "🟢"
+            sq = " SQ" if s["squeeze_level"] >= 2 else ""
+            rsi_str = f"R{s['rsi']:.0f}" if s.get("rsi") else ""
+            lines.append(f"{i}. {sig_type} {s['display_name']}{sq} {rsi_str}")
 
-            lines.append(
-                f"{i}. {sig_type} <b>{s['display_name']}</b> ({s['symbol']}){sq}\n"
-                f"   💰 {price_str} {change_str} | {rsi_str}\n"
-                f"   신호: {s['last_signal']} ({sig_date}) | <a href=\"{link}\">상세</a>"
-            )
-        if len(items) > 10:
-            lines.append(f"   ... 외 {len(items) - 10}개")
-
-    _format_section("국내주식", kr_signals, "원")
-    _format_section("미국주식", us_signals, "$")
+    _format_section("국내주식", kr_signals)
+    _format_section("미국주식", us_signals)
 
     lines.append(f"\n총 {len(signals)}종목 | 추세추종 연구소")
 
