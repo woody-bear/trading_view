@@ -1,6 +1,16 @@
 import axios from 'axios'
+import { supabase } from '../lib/supabase'
 
 const api = axios.create({ baseURL: '/api' })
+
+// Bearer 토큰 자동 주입
+api.interceptors.request.use(async (config) => {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (session?.access_token) {
+    config.headers.Authorization = `Bearer ${session.access_token}`
+  }
+  return config
+})
 
 export const fetchSignals = () => api.get('/signals').then(r => r.data.signals)
 export const fetchWatchlist = () => api.get('/watchlist').then(r => r.data.items)

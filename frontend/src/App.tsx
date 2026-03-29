@@ -2,7 +2,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Settings as SettingsIcon } from 'lucide-react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import BottomNav from './components/BottomNav'
+import { AuthProvider } from './components/AuthProvider'
+import { LoginButton } from './components/LoginButton'
+import { UserMenu } from './components/UserMenu'
 import { useWebSocket } from './hooks/useWebSocket'
+import { useAuthStore } from './store/authStore'
 import Dashboard from './pages/Dashboard'
 import Forex from './pages/Forex'
 import Scan from './pages/Scan'
@@ -10,6 +14,7 @@ import Settings from './pages/Settings'
 import SignalDetail from './pages/SignalDetail'
 import AlertHistory from './pages/AlertHistory'
 import TopPicks from './pages/TopPicks'
+import AuthCallback from './pages/AuthCallback'
 import Toast from './components/ui/Toast'
 
 const queryClient = new QueryClient({
@@ -18,6 +23,8 @@ const queryClient = new QueryClient({
 
 function AppInner() {
   useWebSocket()
+  const { user } = useAuthStore()
+
   return (
     <div className="min-h-screen bg-[var(--bg)]">
       {/* PC 상단 네비 (모바일 숨김) */}
@@ -29,9 +36,12 @@ function AppInner() {
           <a href="/picks" className="text-[var(--gold)] hover:text-yellow-300 text-sm font-semibold">추천</a>
           <a href="/forex" className="text-emerald-400 hover:text-emerald-300 text-sm font-semibold">환율</a>
         </div>
-        <a href="/settings" className="ml-auto text-[var(--muted)] hover:text-[var(--gold)] transition" title="설정">
-          <SettingsIcon size={18} />
-        </a>
+        <div className="ml-auto flex items-center gap-3">
+          <a href="/settings" className="text-[var(--muted)] hover:text-[var(--gold)] transition" title="설정">
+            <SettingsIcon size={18} />
+          </a>
+          {user ? <UserMenu /> : <LoginButton />}
+        </div>
       </nav>
 
       {/* 메인 콘텐츠 — 모바일에서 하단바 높이만큼 패딩 */}
@@ -42,6 +52,7 @@ function AppInner() {
           <Route path="/picks" element={<TopPicks />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/alerts" element={<AlertHistory />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/:symbol" element={<SignalDetail />} />
           <Route path="/forex" element={<Forex />} />
         </Routes>
@@ -63,7 +74,9 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <AppInner />
+        <AuthProvider>
+          <AppInner />
+        </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>
   )
