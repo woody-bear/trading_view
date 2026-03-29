@@ -51,8 +51,17 @@ def _get_all_stocks() -> dict[str, dict]:
 
 
 def _batch_download(tickers: list[str]) -> pd.DataFrame | None:
+    import concurrent.futures
     try:
-        return yf.download(tickers, period="2y", interval="1d", progress=False, auto_adjust=True, threads=True)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(
+                yf.download, tickers,
+                period="2y", interval="1d", progress=False, auto_adjust=True, threads=True
+            )
+            return future.result(timeout=180)  # 3분 초과 시 포기
+    except concurrent.futures.TimeoutError:
+        logger.error(f"통합 스캔 배치 다운로드 타임아웃 (3분 초과, {len(tickers)}개 종목)")
+        return None
     except Exception as e:
         logger.error(f"통합 스캔 배치 다운로드 실패: {e}")
         return None
@@ -108,8 +117,14 @@ def _check_trend(df: pd.DataFrame, ema: dict) -> str:
 
 def get_scan_status() -> dict:
     """현재 스캔 진행 상태를 반환."""
+    global _scanning
     import time
     elapsed = round(time.time() - _scan_started_at) if _scanning and _scan_started_at else 0
+    # 상태 조회 시에도 고착 감지 — scan_all() 재호출 없이도 자동 해제
+    if _scanning and _scan_started_at and time.time() - _scan_started_at > 300:
+        logger.warning(f"스캔 고착 감지 ({elapsed}초 경과) — 상태 조회 중 강제 해제")
+        _scanning = False
+        elapsed = 0
     return {
         "scanning": _scanning,
         "elapsed_seconds": elapsed,
