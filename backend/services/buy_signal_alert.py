@@ -6,9 +6,9 @@ from datetime import datetime
 from loguru import logger
 from sqlalchemy import select
 
-from config import get_settings
 from database import async_session
-from models import AlertLog, ScanSnapshot, ScanSnapshotItem
+from models import AlertLog, ScanSnapshot, ScanSnapshotItem, UserAlertConfig
+from sqlalchemy import select
 
 
 async def get_recent_buy_signals() -> list[dict]:
@@ -109,81 +109,87 @@ def format_buy_signal_message(signals: list[dict], timestamp: datetime = None) -
 
 
 async def send_scheduled_buy_alert() -> dict:
-    """정기 BUY 신호 알림 전송 — 스케줄러에서 호출."""
-    settings = get_settings()
-
-    if not settings.telegram_configured:
-        logger.warning("텔레그램 미설정 — BUY 신호 알림 건너뜀")
-        return {"status": "skipped", "reason": "telegram_not_configured"}
+    """정기 BUY 신호 알림 전송 — 사용자별 개별 발송."""
+    from services.telegram_bot import TelegramService
 
     try:
-        # 1. BUY 신호 조회 (전체 시장 스캔 스냅샷에서)
+        # 활성 user_alert_config 목록 조회
+        async with async_session() as session:
+            result = await session.execute(
+                select(UserAlertConfig).where(
+                    UserAlertConfig.is_active.is_(True),
+                    UserAlertConfig.telegram_bot_token.isnot(None),
+                    UserAlertConfig.telegram_chat_id.isnot(None),
+                )
+            )
+            configs = result.scalars().all()
+
+        if not configs:
+            logger.warning("활성 텔레그램 설정 없음 — BUY 신호 알림 건너뜀")
+            return {"status": "skipped", "reason": "no_active_configs"}
+
+        # BUY 신호는 전체 시장 기준 (사용자별 동일 메시지)
         signals = await get_recent_buy_signals()
         symbol_count = len(signals)
-
-        # 2. 메시지 생성
         now = datetime.now()
         message = format_buy_signal_message(signals, now)
 
-        # 3. 텔레그램 발송 (재시도 포함)
-        from services.telegram_bot import TelegramService
-        telegram = TelegramService()
-        success = False
-        error_msg = None
+        total_sent = 0
+        total_failed = 0
 
-        for attempt in range(3):
+        for config in configs:
             try:
-                success = await telegram.send_message(message)
+                telegram = TelegramService(
+                    bot_token=config.telegram_bot_token,
+                    chat_id=config.telegram_chat_id,
+                )
+                success = False
+                error_msg = None
+
+                for attempt in range(3):
+                    try:
+                        success = await telegram.send_message(message)
+                        if success:
+                            break
+                    except Exception as e:
+                        error_msg = str(e)
+                        logger.warning(f"BUY 알림 발송 시도 {attempt + 1}/3 실패 (user {config.user_id}): {e}")
+                        if attempt < 2:
+                            await asyncio.sleep(10)
+
+                if not success and not error_msg:
+                    error_msg = "send_message returned False"
+
+                async with async_session() as session:
+                    session.add(AlertLog(
+                        signal_history_id=None,
+                        channel="telegram",
+                        alert_type="scheduled_buy",
+                        message=message,
+                        sent_at=now,
+                        success=success,
+                        error_message=error_msg if not success else None,
+                        symbol_count=symbol_count,
+                    ))
+                    await session.commit()
+
                 if success:
-                    break
+                    total_sent += 1
+                else:
+                    total_failed += 1
+
             except Exception as e:
-                error_msg = str(e)
-                logger.warning(f"BUY 알림 발송 시도 {attempt + 1}/3 실패: {e}")
-                if attempt < 2:
-                    await asyncio.sleep(10)
+                logger.error(f"BUY 알림 오류 (user {config.user_id}): {e}")
+                total_failed += 1
 
-        if not success and not error_msg:
-            error_msg = "send_message returned False"
-
-        # 4. 이력 저장
-        async with async_session() as session:
-            session.add(AlertLog(
-                signal_history_id=None,
-                channel="telegram",
-                alert_type="scheduled_buy",
-                message=message,
-                sent_at=now,
-                success=success,
-                error_message=error_msg if not success else None,
-                symbol_count=symbol_count,
-            ))
-            await session.commit()
-
-        status = "sent" if success else "failed"
-        logger.info(f"BUY 신호 알림 {status}: {symbol_count}종목")
-
+        logger.info(f"BUY 신호 알림 완료: {symbol_count}종목, {total_sent}명 성공, {total_failed}명 실패")
         return {
-            "status": status,
+            "status": "done",
             "symbol_count": symbol_count,
-            "message": f"BUY 신호 {symbol_count}종목 전송 {'완료' if success else '실패'}",
+            "sent": total_sent,
+            "failed": total_failed,
         }
 
     except Exception as e:
-        logger.error(f"BUY 신호 알림 오류: {e}")
-        # 에러도 이력에 기록
-        try:
-            async with async_session() as session:
-                session.add(AlertLog(
-                    signal_history_id=None,
-                    channel="telegram",
-                    alert_type="scheduled_buy",
-                    message=None,
-                    sent_at=datetime.now(),
-                    success=False,
-                    error_message=str(e),
-                    symbol_count=0,
-                ))
-                await session.commit()
-        except Exception:
-            pass
+        logger.error(f"BUY 신호 알림 전체 오류: {e}")
         return {"status": "error", "message": str(e)}

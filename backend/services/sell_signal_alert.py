@@ -1,30 +1,33 @@
 """관심종목 SELL 신호 텔레그램 정기 알림 — watchlist 국내 종목 대상."""
 
 import asyncio
+import uuid
 from datetime import datetime
+from typing import Optional
 
 from loguru import logger
 from sqlalchemy import select
 
 from config import get_settings
 from database import async_session
-from models import AlertLog, CurrentSignal, Watchlist
+from models import AlertLog, CurrentSignal, UserAlertConfig, Watchlist
 
 
-async def get_watchlist_sell_status() -> list[dict]:
+async def get_watchlist_sell_status(user_id: Optional[uuid.UUID] = None) -> list[dict]:
     """관심종목 전체(KR/US/CRYPTO)의 현재 신호 상태를 조회.
 
     Returns: 전 종목 리스트 (SELL 여부 포함)
     """
     async with async_session() as session:
-        result = await session.execute(
+        query = (
             select(Watchlist, CurrentSignal)
             .outerjoin(CurrentSignal, CurrentSignal.watchlist_id == Watchlist.id)
-            .where(
-                Watchlist.is_active.is_(True),
-            )
+            .where(Watchlist.is_active.is_(True))
             .order_by(Watchlist.id)
         )
+        if user_id is not None:
+            query = query.where(Watchlist.user_id == user_id)
+        result = await session.execute(query)
         rows = result.all()
 
     items = []
@@ -97,81 +100,89 @@ def format_sell_alert_message(items: list[dict], timestamp: datetime = None) -> 
 
 
 async def send_scheduled_sell_alert() -> dict:
-    """정기 SELL 신호 알림 전송 — 스케줄러에서 호출."""
-    settings = get_settings()
-
-    if not settings.telegram_configured:
-        logger.warning("텔레그램 미설정 — SELL 신호 알림 건너뜀")
-        return {"status": "skipped", "reason": "telegram_not_configured"}
+    """정기 SELL 신호 알림 전송 — 스케줄러에서 호출. 사용자별 개별 발송."""
+    from services.telegram_bot import TelegramService
 
     try:
-        # 1. 관심종목 SELL 상태 조회
-        items = await get_watchlist_sell_status()
-        sell_count = sum(1 for x in items if x["signal_state"] == "SELL")
-
-        # 2. 메시지 생성
-        now = datetime.now()
-        message = format_sell_alert_message(items, now)
-
-        # 3. 텔레그램 발송
-        from services.telegram_bot import TelegramService
-        telegram = TelegramService()
-        success = False
-        error_msg = None
-
-        for attempt in range(3):
-            try:
-                success = await telegram.send_message(message)
-                if success:
-                    break
-            except Exception as e:
-                error_msg = str(e)
-                logger.warning(f"SELL 알림 발송 시도 {attempt + 1}/3 실패: {e}")
-                if attempt < 2:
-                    await asyncio.sleep(10)
-
-        if not success and not error_msg:
-            error_msg = "send_message returned False"
-
-        # 4. 이력 저장
+        # 활성 user_alert_config 목록 조회
         async with async_session() as session:
-            session.add(AlertLog(
-                signal_history_id=None,
-                channel="telegram",
-                alert_type="scheduled_sell",
-                message=message,
-                sent_at=now,
-                success=success,
-                error_message=error_msg if not success else None,
-                symbol_count=len(items),
-            ))
-            await session.commit()
+            result = await session.execute(
+                select(UserAlertConfig).where(
+                    UserAlertConfig.is_active.is_(True),
+                    UserAlertConfig.telegram_bot_token.isnot(None),
+                    UserAlertConfig.telegram_chat_id.isnot(None),
+                )
+            )
+            configs = result.scalars().all()
 
-        status = "sent" if success else "failed"
-        logger.info(f"SELL 신호 알림 {status}: {len(items)}종목 체크, SELL {sell_count}개")
+        if not configs:
+            logger.warning("활성 텔레그램 설정 없음 — SELL 신호 알림 건너뜀")
+            return {"status": "skipped", "reason": "no_active_configs"}
+
+        now = datetime.now()
+        total_sent = 0
+        total_failed = 0
+
+        for config in configs:
+            try:
+                items = await get_watchlist_sell_status(user_id=config.user_id)
+                if not items:
+                    continue
+
+                sell_count = sum(1 for x in items if x["signal_state"] == "SELL")
+                message = format_sell_alert_message(items, now)
+
+                telegram = TelegramService(
+                    bot_token=config.telegram_bot_token,
+                    chat_id=config.telegram_chat_id,
+                )
+                success = False
+                error_msg = None
+
+                for attempt in range(3):
+                    try:
+                        success = await telegram.send_message(message)
+                        if success:
+                            break
+                    except Exception as e:
+                        error_msg = str(e)
+                        logger.warning(f"SELL 알림 발송 시도 {attempt + 1}/3 실패 (user {config.user_id}): {e}")
+                        if attempt < 2:
+                            await asyncio.sleep(10)
+
+                if not success and not error_msg:
+                    error_msg = "send_message returned False"
+
+                async with async_session() as session:
+                    session.add(AlertLog(
+                        signal_history_id=None,
+                        channel="telegram",
+                        alert_type="scheduled_sell",
+                        message=message,
+                        sent_at=now,
+                        success=success,
+                        error_message=error_msg if not success else None,
+                        symbol_count=len(items),
+                    ))
+                    await session.commit()
+
+                if success:
+                    total_sent += 1
+                    logger.info(f"SELL 알림 전송 완료 (user {config.user_id}): {len(items)}종목, SELL {sell_count}개")
+                else:
+                    total_failed += 1
+
+            except Exception as e:
+                logger.error(f"SELL 알림 오류 (user {config.user_id}): {e}")
+                total_failed += 1
 
         return {
-            "status": status,
-            "symbol_count": len(items),
-            "sell_count": sell_count,
-            "message": f"SELL 체크 {len(items)}종목 ({sell_count}개 SELL) 전송 {'완료' if success else '실패'}",
+            "status": "done",
+            "sent": total_sent,
+            "failed": total_failed,
+            "message": f"SELL 알림 발송 완료: {total_sent}명 성공, {total_failed}명 실패",
         }
 
     except Exception as e:
-        logger.error(f"SELL 신호 알림 오류: {e}")
-        try:
-            async with async_session() as session:
-                session.add(AlertLog(
-                    signal_history_id=None,
-                    channel="telegram",
-                    alert_type="scheduled_sell",
-                    message=None,
-                    sent_at=datetime.now(),
-                    success=False,
-                    error_message=str(e),
-                    symbol_count=0,
-                ))
-                await session.commit()
-        except Exception:
-            pass
+        logger.error(f"SELL 신호 알림 전체 오류: {e}")
         return {"status": "error", "message": str(e)}

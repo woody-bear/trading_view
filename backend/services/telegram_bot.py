@@ -8,14 +8,28 @@ from indicators.signal_engine import SignalResult
 
 
 class TelegramService:
-    def __init__(self):
+    def __init__(self, bot_token: Optional[str] = None, chat_id: Optional[str] = None):
         self.settings = get_settings()
+        self._override_token = bot_token
+        self._override_chat_id = chat_id
         self._bot: Optional[Bot] = None
 
     @property
+    def _token(self) -> Optional[str]:
+        return self._override_token or self.settings.TELEGRAM_BOT_TOKEN
+
+    @property
+    def _chat_id(self) -> Optional[str]:
+        return self._override_chat_id or self.settings.TELEGRAM_CHAT_ID
+
+    @property
+    def _configured(self) -> bool:
+        return bool(self._token and self._chat_id)
+
+    @property
     def bot(self) -> Optional[Bot]:
-        if self._bot is None and self.settings.telegram_configured:
-            self._bot = Bot(token=self.settings.TELEGRAM_BOT_TOKEN)
+        if self._bot is None and self._configured:
+            self._bot = Bot(token=self._token)
         return self._bot
 
     async def send_signal_alert(
@@ -27,7 +41,7 @@ class TelegramService:
         prev_state: str,
         timeframe: str,
     ) -> bool:
-        if not self.settings.telegram_configured:
+        if not self._configured:
             logger.debug("텔레그램 미설정 — 알림 스킵")
             return False
 
@@ -55,7 +69,7 @@ class TelegramService:
 
         try:
             await self.bot.send_message(
-                chat_id=self.settings.TELEGRAM_CHAT_ID,
+                chat_id=self._chat_id,
                 text=message,
                 parse_mode="HTML",
             )
@@ -67,11 +81,11 @@ class TelegramService:
 
     async def send_message(self, text: str) -> bool:
         """범용 텔레그램 메시지 발송."""
-        if not self.settings.telegram_configured:
+        if not self._configured:
             return False
         try:
             await self.bot.send_message(
-                chat_id=self.settings.TELEGRAM_CHAT_ID,
+                chat_id=self._chat_id,
                 text=text,
                 parse_mode="HTML",
             )
