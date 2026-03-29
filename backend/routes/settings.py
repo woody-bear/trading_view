@@ -1,9 +1,16 @@
+import uuid
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from loguru import logger
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from auth import get_current_user, get_user_id
+from database import get_session
+from models import UserAlertConfig
 
 from config import PROJECT_ROOT, get_settings
 from indicators.signal_engine import SENSITIVITY_PRESETS, load_sensitivity, save_sensitivity
@@ -45,7 +52,7 @@ async def get_sensitivity():
 
 
 @router.put("/settings/sensitivity")
-async def update_sensitivity(body: SensitivityUpdate):
+async def update_sensitivity(body: SensitivityUpdate, _=Depends(get_current_user)):
     if body.level not in SENSITIVITY_PRESETS:
         return {"error": "유효하지 않은 민감도 레벨"}
     save_sensitivity(body.level)
@@ -92,40 +99,69 @@ def _write_env(env: dict[str, str]) -> None:
 
 
 @router.get("/settings/telegram")
-async def get_telegram():
-    settings = get_settings()
+async def get_telegram(
+    user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    user_id = uuid.UUID(get_user_id(user))
+    result = await session.execute(
+        select(UserAlertConfig).where(UserAlertConfig.user_id == user_id)
+    )
+    config = result.scalar_one_or_none()
+    if not config:
+        return {"configured": False, "bot_token": "", "chat_id": ""}
     return {
-        "configured": settings.telegram_configured,
-        "bot_token": _mask(settings.TELEGRAM_BOT_TOKEN),
-        "chat_id": settings.TELEGRAM_CHAT_ID or "",
+        "configured": bool(config.telegram_bot_token and config.telegram_chat_id),
+        "bot_token": "",  # 보안상 토큰은 반환하지 않음 — 변경 시 새로 입력
+        "bot_token_hint": _mask(config.telegram_bot_token),  # 마스킹된 힌트만
+        "chat_id": config.telegram_chat_id or "",
     }
 
 
 @router.put("/settings/telegram")
-async def update_telegram(body: TelegramUpdate):
-    env = _read_env()
-    env["TELEGRAM_BOT_TOKEN"] = body.bot_token
-    env["TELEGRAM_CHAT_ID"] = body.chat_id
-    _write_env(env)
-
-    # Reload settings in-memory
-    get_settings.cache_clear()
-
+async def update_telegram(
+    body: TelegramUpdate,
+    user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    user_id = uuid.UUID(get_user_id(user))
+    result = await session.execute(
+        select(UserAlertConfig).where(UserAlertConfig.user_id == user_id)
+    )
+    config = result.scalar_one_or_none()
+    if config:
+        config.telegram_bot_token = body.bot_token
+        config.telegram_chat_id = body.chat_id
+    else:
+        config = UserAlertConfig(
+            user_id=user_id,
+            telegram_bot_token=body.bot_token,
+            telegram_chat_id=body.chat_id,
+        )
+        session.add(config)
+    await session.commit()
     return {"status": "ok", "configured": True}
 
 
 @router.post("/settings/telegram/test")
-async def test_telegram():
+async def test_telegram(
+    user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
     from telegram import Bot
 
-    settings = get_settings()
-    if not settings.telegram_configured:
+    user_id = uuid.UUID(get_user_id(user))
+    result = await session.execute(
+        select(UserAlertConfig).where(UserAlertConfig.user_id == user_id)
+    )
+    config = result.scalar_one_or_none()
+    if not config or not config.telegram_bot_token or not config.telegram_chat_id:
         return {"status": "error", "message": "텔레그램이 설정되지 않았습니다"}
 
     try:
-        bot = Bot(token=settings.TELEGRAM_BOT_TOKEN)
+        bot = Bot(token=config.telegram_bot_token)
         await bot.send_message(
-            chat_id=settings.TELEGRAM_CHAT_ID,
+            chat_id=config.telegram_chat_id,
             text="✅ 추세추종 연구소 텔레그램 연동 테스트 성공!\n알림이 정상적으로 수신됩니다.",
             parse_mode="HTML",
         )
@@ -168,7 +204,7 @@ async def get_kis():
 
 
 @router.put("/settings/kis")
-async def update_kis(body: KISUpdate):
+async def update_kis(body: KISUpdate, _=Depends(get_current_user)):
     env = _read_env()
     env["KIS_APP_KEY"] = body.app_key
     env["KIS_APP_SECRET"] = body.app_secret
@@ -185,7 +221,7 @@ async def update_kis(body: KISUpdate):
 
 
 @router.post("/settings/kis/test")
-async def test_kis():
+async def test_kis(_=Depends(get_current_user)):
     """한투 API 연결 테스트 — 삼성전자(005930) 현재가 1건 조회."""
     import asyncio
     from services.kis_client import get_kis_service

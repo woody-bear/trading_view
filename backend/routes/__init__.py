@@ -14,8 +14,12 @@ from routes.watchlist import router as watchlist_router
 from routes.webhook import router as webhook_router
 from routes.alerts import router as alerts_router
 from routes.sentiment import router as sentiment_router
+from routes.auth import router as auth_router
+from routes.position import router as position_router
 
 api_router = APIRouter(prefix="/api")
+api_router.include_router(auth_router)
+api_router.include_router(position_router)
 api_router.include_router(signals_router)
 api_router.include_router(watchlist_router)
 api_router.include_router(charts_router)

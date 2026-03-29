@@ -1,9 +1,11 @@
+import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from auth import get_optional_user, get_user_id
 from database import get_session
 from models import CurrentSignal, Watchlist
 from services.scanner import run_scan
@@ -16,11 +18,16 @@ async def get_signals(
     market: Optional[str] = None,
     signal_state: Optional[str] = None,
     session: AsyncSession = Depends(get_session),
+    user: Optional[dict] = Depends(get_optional_user),
 ):
+    if not user:
+        return {"signals": []}
+
+    user_id = uuid.UUID(get_user_id(user))
     query = (
         select(CurrentSignal, Watchlist)
         .join(Watchlist, CurrentSignal.watchlist_id == Watchlist.id)
-        .where(Watchlist.is_active.is_(True))
+        .where(Watchlist.is_active.is_(True), Watchlist.user_id == user_id)
     )
     if market:
         query = query.where(Watchlist.market == market)

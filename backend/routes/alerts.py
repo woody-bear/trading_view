@@ -1,9 +1,10 @@
 """BUY 신호 알림 관련 API."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from loguru import logger
 from sqlalchemy import select
 
+from auth import get_current_user
 from database import async_session
 from models import AlertLog
 
@@ -11,7 +12,7 @@ router = APIRouter(tags=["alerts"])
 
 
 @router.post("/alerts/buy-signal/test")
-async def test_buy_alert():
+async def test_buy_alert(_=Depends(get_current_user)):
     """수동으로 BUY 신호 알림을 즉시 전송."""
     from config import get_settings
     settings = get_settings()
@@ -25,7 +26,7 @@ async def test_buy_alert():
 
 
 @router.post("/alerts/sell-signal/test")
-async def test_sell_alert():
+async def test_sell_alert(_=Depends(get_current_user)):
     """수동으로 SELL 신호 체크 알림을 즉시 전송."""
     from config import get_settings
     settings = get_settings()
@@ -39,7 +40,7 @@ async def test_sell_alert():
 
 
 @router.get("/alerts/history")
-async def get_alert_history(alert_type: str = "scheduled_buy", limit: int = 20):
+async def get_alert_history(alert_type: str = "scheduled_buy", limit: int = 20, _=Depends(get_current_user)):
     """알림 발송 이력 조회."""
     async with async_session() as session:
         query = (
