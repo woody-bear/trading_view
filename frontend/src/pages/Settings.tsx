@@ -2,6 +2,9 @@ import { Check, Database, Loader2, MessageCircle, Play, Send, Settings as Settin
 import { useEffect, useState } from 'react'
 import { fetchFullScanHistory, fetchFullScanStatus, getKIS, getSensitivity, getTelegram, setKIS, setSensitivity, setTelegram, testBuyAlert, testKIS, testTelegram, triggerFullScan } from '../api/client'
 import { useToastStore } from '../stores/toastStore'
+import { useAuthStore } from '../store/authStore'
+import { LoginButton } from '../components/LoginButton'
+import { UserMenu } from '../components/UserMenu'
 
 
 const SENSITIVITIES = [
@@ -23,12 +26,14 @@ const SENSITIVITIES = [
 ]
 
 export default function Settings() {
+  const { user } = useAuthStore()
   const [currentSens, setCurrentSens] = useState('strict')
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
 
   // 텔레그램
   const [tgToken, setTgToken] = useState('')
+  const [tgTokenHint, setTgTokenHint] = useState('')
   const [tgChatId, setTgChatId] = useState('')
   const [tgConfigured, setTgConfigured] = useState(false)
   const [tgSaving, setTgSaving] = useState(false)
@@ -65,7 +70,8 @@ export default function Settings() {
     getSensitivity().then(d => setCurrentSens(d.current)).catch(() => {})
     getTelegram().then(d => {
       setTgConfigured(d.configured)
-      setTgToken(d.bot_token)
+      setTgToken('')  // 토큰은 항상 빈 값으로 — 변경 시 새로 입력
+      setTgTokenHint(d.bot_token_hint || '')
       setTgChatId(d.chat_id)
     }).catch(() => {})
     fetchFullScanHistory(10).then(setScanHistory).catch(() => {})
@@ -128,8 +134,15 @@ export default function Settings() {
   }
 
   const handleTgSave = async () => {
-    if (!tgToken || !tgChatId) {
+    // 기존 설정이 있는 경우 토큰 비워도 Chat ID만 변경 가능
+    if ((!tgToken && !tgConfigured) || !tgChatId) {
       setTgMsg('토큰과 Chat ID를 모두 입력하세요')
+      setTgMsgType('err')
+      setTimeout(() => setTgMsg(''), 3000)
+      return
+    }
+    if (!tgToken && tgConfigured) {
+      setTgMsg('토큰을 변경하지 않으려면 기존 토큰을 다시 입력하세요')
       setTgMsgType('err')
       setTimeout(() => setTgMsg(''), 3000)
       return
@@ -140,9 +153,10 @@ export default function Settings() {
       setTgConfigured(true)
       setTgMsg('텔레그램 설정 저장 완료')
       setTgMsgType('ok')
-      // Re-fetch masked token
       const d = await getTelegram()
-      setTgToken(d.bot_token)
+      setTgToken('')
+      setTgTokenHint(d.bot_token_hint || '')
+      setTgChatId(d.chat_id)
       setTimeout(() => setTgMsg(''), 3000)
     } catch {
       setTgMsg('저장 실패')
@@ -226,6 +240,24 @@ export default function Settings() {
         <SettingsIcon size={22} className="text-blue-400" /> 설정
       </h1>
 
+      {/* 모바일 로그인 섹션 (PC 헤더에 없는 경우 표시) */}
+      <div className="md:hidden bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 mb-6 flex items-center justify-between">
+        {user ? (
+          <>
+            <div>
+              <p className="text-sm font-medium text-white">{user.user_metadata?.full_name ?? user.user_metadata?.name ?? user.email}</p>
+              <p className="text-xs text-[var(--muted)]">{user.email}</p>
+            </div>
+            <UserMenu />
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-[var(--muted)]">로그인하면 개인화 기능을 사용할 수 있습니다</p>
+            <LoginButton />
+          </>
+        )}
+      </div>
+
       {msg && (
         <div className="mb-4 text-xs text-green-400 bg-green-400/10 px-3 py-2 rounded-lg flex items-center gap-2">
           <Check size={14} /> {msg}
@@ -284,10 +316,12 @@ export default function Settings() {
               type="text"
               value={tgToken}
               onChange={e => setTgToken(e.target.value)}
-              placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+              placeholder={tgTokenHint || '123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11'}
               className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder-[var(--muted)] focus:border-sky-500 focus:outline-none"
             />
-            <p className="text-[10px] text-[var(--muted)] mt-1">@BotFather에서 봇 생성 후 받은 토큰</p>
+            <p className="text-[10px] text-[var(--muted)] mt-1">
+              {tgConfigured ? '변경 시에만 새 토큰 입력 (현재 설정됨)' : '@BotFather에서 봇 생성 후 받은 토큰'}
+            </p>
           </div>
           <div>
             <label className="block text-xs text-[var(--muted)] mb-1">Chat ID</label>

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, Check, CheckCircle2, Circle, Clock, RotateCcw, TrendingUp } from 'lucide-react'
+import apiClient from '../api/client'
+import { useAuthStore } from '../store/authStore'
 
 interface Props {
   symbol: string
@@ -136,12 +138,13 @@ export default function PositionGuide({ symbol, signalState, lastSignalText, las
   )
 }
 
-// ── BUY 가이드 (순차 체크 + localStorage) ──────────────────
+// ── BUY 가이드 (순차 체크 + localStorage / 서버 동기화) ──────────────────
 function BuyGuide({ symbol, signalLabel, signalDate, rsi, bbPctB, ema20, ema50 }: {
   symbol: string; signalLabel: string; signalDate: string
   rsi: number; bbPctB: number; ema20: number; ema50: number
 }) {
   const stepDefs = getBuyStepDefs(rsi, bbPctB, ema20, ema50)
+  const { user } = useAuthStore()
 
   // localStorage에서 상태 로드 (신호 날짜가 다르면 리셋)
   const [completed, setCompleted] = useState<number[]>(() => {
@@ -149,6 +152,17 @@ function BuyGuide({ symbol, signalLabel, signalDate, rsi, bbPctB, ema20, ema50 }
     if (saved && saved.signalDate === signalDate) return saved.completedSteps
     return []
   })
+
+  // 로그인 시 서버에서 상태 로드
+  useEffect(() => {
+    if (!user) return
+    apiClient.get(`/api/position/${symbol}`, { params: { market: 'KR' } })
+      .then(res => {
+        const stages: number[] = res.data.completed_stages ?? []
+        if (stages.length > 0) setCompleted(stages)
+      })
+      .catch(() => {})
+  }, [symbol, user])
 
   // 신호 날짜 변경 시 리셋
   useEffect(() => {
@@ -159,12 +173,16 @@ function BuyGuide({ symbol, signalLabel, signalDate, rsi, bbPctB, ema20, ema50 }
     }
   }, [symbol, signalDate])
 
-  // 상태 저장
+  // 상태 저장 (localStorage + 서버)
   useEffect(() => {
     if (signalDate) {
       saveState(symbol, { signalDate, completedSteps: completed })
     }
-  }, [symbol, signalDate, completed])
+    if (user) {
+      apiClient.put(`/api/position/${symbol}`, { market: 'KR', completed_stages: completed })
+        .catch(() => {})
+    }
+  }, [symbol, signalDate, completed, user])
 
   const handleComplete = useCallback((stepIndex: number) => {
     setCompleted(prev => {
@@ -272,6 +290,11 @@ function BuyGuide({ symbol, signalLabel, signalDate, rsi, bbPctB, ema20, ema50 }
         })}
       </div>
 
+      {!user && (
+        <p className="text-[9px] text-blue-400/70 mt-2">
+          💡 로그인하면 기기 간 포지션 상태가 동기화됩니다
+        </p>
+      )}
       <Disclaimer />
     </div>
   )
