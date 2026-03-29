@@ -150,6 +150,8 @@ BUY/SELL/NEUTRAL. 조건: BB %B, RSI, MACD 전환, 거래량. 민감도 3단계(
 - SQLite WAL (aiosqlite) — 투자지표 캐시용 메모리 캐시 (dict + TTL) (006-kis-stock-detail)
 - TypeScript 5.x (React 18) — 프론트엔드 전용 + React 18, Tailwind CSS (007-position-guide)
 - N/A (DB 변경 없음, 상태 저장 없음) (007-position-guide)
+- Python 3.12 (backend) + TypeScript 5.x / React 18 (frontend) + FastAPI, SQLAlchemy 2.0 async, asyncpg, PyJWT, @supabase/supabase-js v2, Zustand, Tailwind CSS (008-google-auth-personalization)
+- Supabase PostgreSQL (이미 전환 완료) (008-google-auth-personalization)
 
 ## Recent Changes
 - 002-fix-chart-usability: Added TypeScript 5.x (React 18) + Python 3.12 (변경 없음) + React 18, lightweight-charts v5, Zustand, React Query, Tailwind CSS
