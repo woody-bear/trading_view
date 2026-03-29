@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     KIS_ACCOUNT_NO: Optional[str] = None
     KIS_PAPER_TRADING: bool = True
 
+    # Supabase
+    SUPABASE_URL: str = ""
+    SUPABASE_ANON_KEY: str = ""
+    SUPABASE_SERVICE_ROLE_KEY: str = ""
+
     # 알림 설정
     ALERT_COOLDOWN_MINUTES: int = 30
     MIN_SIGNAL_GRADE: str = "WEAK"

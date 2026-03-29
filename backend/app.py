@@ -29,8 +29,6 @@ async def lifespan(app: FastAPI):
     from services import kis_websocket
 
     logger.info("UBB Pro Signal System 시작")
-    if not settings.telegram_configured:
-        logger.warning("TELEGRAM_BOT_TOKEN 미설정 — 텔레그램 알림 비활성화")
 
     # 한투 실시간 WebSocket 연결 (설정 시)
     if settings.kis_configured:
@@ -92,7 +90,12 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:8000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:8000",
+        "https://www.asst.kr",
+        "https://asst.kr",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
