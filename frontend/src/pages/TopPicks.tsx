@@ -15,6 +15,23 @@ interface Pick {
   market_type?: string; trend?: string; trend_label?: string;
 }
 
+function isAllMarketsClosed(): boolean {
+  const now = new Date()
+  const krOpen = (() => {
+    const kst = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }))
+    const d = kst.getDay(), h = kst.getHours(), m = kst.getMinutes()
+    if (d === 0 || d === 6) return false
+    return h >= 9 && (h < 15 || (h === 15 && m <= 30))
+  })()
+  const usOpen = (() => {
+    const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }))
+    const d = et.getDay(), h = et.getHours(), m = et.getMinutes()
+    if (d === 0 || d === 6) return false
+    return (h > 9 || (h === 9 && m >= 30)) && h < 16
+  })()
+  return !krOpen && !usOpen
+}
+
 export default function TopPicks() {
   const nav = useNavigate()
   const [kospi, setKospi] = useState<Pick[]>([])
@@ -65,7 +82,12 @@ export default function TopPicks() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {scanDate && <span className="text-xs text-[var(--muted)]">스캔일: {scanDate}</span>}
+          {isAllMarketsClosed() && !scanning && (
+            <span className="text-xs font-semibold text-slate-300 bg-slate-600/40 border border-slate-500/40 px-2.5 py-1 rounded-full">
+              장 종료
+            </span>
+          )}
+          {scanDate && <span className="text-xs text-[var(--muted)]">마지막 스캔: {scanDate}</span>}
           <button onClick={runScan} disabled={scanning}
             className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm disabled:opacity-50 flex items-center gap-2">
             {scanning ? <><Loader2 size={14} className="animate-spin" /> 스캔 중...</> : '전체 시장 스캔'}

@@ -7,6 +7,8 @@ import SentimentPanel from '../components/SentimentPanel'
 import SignalCard from '../components/SignalCard'
 import { usePriceFlash } from '../hooks/usePriceFlash'
 import { useSignalStore } from '../stores/signalStore'
+import { useAuthStore } from '../store/authStore'
+import { useToastStore } from '../stores/toastStore'
 import type { Signal } from '../types'
 import { fmtPrice } from '../utils/format'
 
@@ -22,6 +24,8 @@ export default function Dashboard() {
   const nav = useNavigate()
   const { data, isLoading } = useQuery<Signal[]>({ queryKey: ['signals'], queryFn: fetchSignals })
   const { signals, setSignals } = useSignalStore()
+  const { user } = useAuthStore()
+  const { addToast } = useToastStore()
 
   // 검색 상태
   const [searchQuery, setSearchQuery] = useState('')
@@ -63,6 +67,10 @@ export default function Dashboard() {
   }, [])
 
   const handleAddFromSearch = async (r: SearchResult) => {
+    if (!user) {
+      addToast('error', '관심종목을 추가하려면 로그인이 필요합니다')
+      return
+    }
     setAdding(r.symbol)
     setAddMsg('')
     try {
@@ -225,11 +233,42 @@ export default function Dashboard() {
 }
 
 // ══════════════════════════════════════════════════════════════
+// ── 장 운영 여부 판단 ──────────────────────────────────────────
+function isMarketOpen(market: 'KR' | 'US'): boolean {
+  const now = new Date()
+  if (market === 'KR') {
+    const kst = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }))
+    const day = kst.getDay()
+    const h = kst.getHours(), m = kst.getMinutes()
+    if (day === 0 || day === 6) return false
+    return h >= 9 && (h < 15 || (h === 15 && m <= 30))
+  }
+  const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }))
+  const day = et.getDay()
+  const h = et.getHours(), m = et.getMinutes()
+  if (day === 0 || day === 6) return false
+  return (h > 9 || (h === 9 && m >= 30)) && h < 16
+}
+
+function isAllMarketsClosed(): boolean {
+  return !isMarketOpen('KR') && !isMarketOpen('US')
+}
+
+function fmtScanTime(isoStr: string | null | undefined): string {
+  if (!isoStr) return ''
+  try {
+    const d = new Date(isoStr.endsWith('Z') ? isoStr : isoStr + 'Z')
+    const kst = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }))
+    return `${kst.getMonth() + 1}/${kst.getDate()} ${String(kst.getHours()).padStart(2, '0')}:${String(kst.getMinutes()).padStart(2, '0')}`
+  } catch { return '' }
+}
+
 // 통합 시장 스캔 박스 (1회 다운로드, 3개 결과 동시 생성)
 // ══════════════════════════════════════════════════════════════
 export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
   const [scanning, setScanning] = useState(false)
   const [scanMsg, setScanMsg] = useState('')
+  const [scanTime, setScanTime] = useState<string | null>(null)
   const autoLoaded = useRef(false)
 
   const [picks, setPicks] = useState<any>(null)
@@ -252,6 +291,9 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
     // max_sq는 picks에 통합됨
     if (result?.chart_buy) setBuyItems(result.chart_buy.items || [])
     if (result?.overheat) setOverheatItems(result.overheat.items || [])
+    // 마지막 스캔 시각 (full_market_scanner: completed_at, unified_scanner: scan_time)
+    const ts = result?.completed_at || result?.scan_time
+    if (ts) setScanTime(ts)
   }
 
   // 스캔 결과에서 모든 종목 심볼 추출
@@ -336,6 +378,7 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
 
     // 스캔 상태 확인
     fetchScanStatus().then(status => {
+      if (status.scan_time) setScanTime(status.scan_time)
       if (status.scanning) {
         setScanning(true)
         setScanMsg('전체 시장 스캔 중...')
@@ -382,12 +425,23 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
   }, [scanning])
 
   const hasPicks = picks && (picks.kospi?.length > 0 || picks.kosdaq?.length > 0 || picks.us?.length > 0 || picks.crypto?.length > 0)
+  const allClosed = isAllMarketsClosed()
 
   return (
     <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-3 md:p-5">
       <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <h1 className="text-base md:text-xl font-bold text-white">전체 시장 스캔</h1>
+          {allClosed && !scanning && (
+            <span className="text-[10px] font-semibold text-slate-300 bg-slate-600/40 border border-slate-500/40 px-2 py-0.5 rounded-full">
+              장 종료
+            </span>
+          )}
+          {scanTime && !scanning && (
+            <span className="text-[10px] text-[var(--muted)]">
+              마지막 스캔: {fmtScanTime(scanTime)}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {scanMsg && <span className="text-[10px] text-green-400 bg-green-400/10 px-2 py-1 rounded">{scanMsg}</span>}
