@@ -30,6 +30,9 @@ _progress: dict = {
     "scanned_count": 0,
     "total_symbols": 0,
     "started_at": None,
+    "current_snapshot_id": None,
+    "live_chart_buy_count": 0,
+    "markets": None,  # ["KR"] / ["US", "CRYPTO"] / None(전체)
 }
 
 _CRYPTO = {
@@ -58,50 +61,74 @@ def get_progress() -> dict:
         "completed_chunks": _progress["completed_chunks"],
         "total_chunks": _progress["total_chunks"],
         "progress_pct": pct,
+        "current_snapshot_id": _progress.get("current_snapshot_id"),
+        "live_chart_buy_count": _progress.get("live_chart_buy_count", 0),
         "elapsed_seconds": elapsed,
+        "markets": _progress.get("markets"),
     }
 
 
-async def _load_symbols() -> list[dict]:
-    """stock_master + 암호화폐에서 전체 심볼 로드."""
+async def _load_symbols(markets: list[str] | None = None) -> list[dict]:
+    """큐레이션 종목 리스트 로드. markets=None이면 전체, 아니면 해당 시장만.
+
+    markets 예시:
+      ["KR"]            — 국내만 (코스피200+코스닥150+KRX섹터)
+      ["US", "CRYPTO"]  — 미국+암호화폐 (S&P500+나스닥100+10코인)
+      None              — 전체
+    """
+    from services.scan_symbols_list import ALL_KR_SYMBOLS, ALL_US_TICKERS
+
+    include_kr = markets is None or "KR" in markets
+    include_us = markets is None or "US" in markets
+    include_crypto = markets is None or "CRYPTO" in markets
+
     symbols = []
     async with async_session() as session:
-        result = await session.execute(
-            select(StockMaster).where(StockMaster.market == "KR")
-        )
-        for row in result.scalars().all():
-            suffix = ".KS" if row.market_type == "KOSPI" else ".KQ"
-            symbols.append({
-                "ticker": f"{row.symbol}{suffix}",
-                "symbol": row.symbol,
-                "name": row.name,
-                "market": "KR",
-                "market_type": row.market_type,
-                "is_etf": row.is_etf,
-            })
+        if include_kr:
+            result = await session.execute(
+                select(StockMaster).where(
+                    StockMaster.market == "KR",
+                    StockMaster.symbol.in_(ALL_KR_SYMBOLS),
+                )
+            )
+            for row in result.scalars().all():
+                suffix = ".KS" if row.market_type == "KOSPI" else ".KQ"
+                symbols.append({
+                    "ticker": f"{row.symbol}{suffix}",
+                    "symbol": row.symbol,
+                    "name": row.name,
+                    "market": "KR",
+                    "market_type": row.market_type,
+                    "is_etf": row.is_etf,
+                })
 
-        # US stocks from stock_master
-        result = await session.execute(
-            select(StockMaster).where(StockMaster.market == "US")
-        )
-        for row in result.scalars().all():
-            symbols.append({
-                "ticker": row.symbol,
-                "symbol": row.symbol,
-                "name": row.name,
-                "market": "US",
-                "market_type": "US",
-            })
+        if include_us:
+            result = await session.execute(
+                select(StockMaster).where(
+                    StockMaster.market == "US",
+                    StockMaster.symbol.in_(ALL_US_TICKERS),
+                )
+            )
+            found_us: dict[str, StockMaster] = {row.symbol: row for row in result.scalars().all()}
+            for ticker in sorted(ALL_US_TICKERS):
+                row = found_us.get(ticker)
+                symbols.append({
+                    "ticker": ticker,
+                    "symbol": ticker,
+                    "name": row.name if row else ticker,
+                    "market": "US",
+                    "market_type": "US",
+                })
 
-    # Crypto
-    for ticker, (sym, name, mtype) in _CRYPTO.items():
-        symbols.append({
-            "ticker": ticker,
-            "symbol": sym,
-            "name": name,
-            "market": "CRYPTO",
-            "market_type": "CRYPTO",
-        })
+    if include_crypto:
+        for ticker, (sym, name, mtype) in _CRYPTO.items():
+            symbols.append({
+                "ticker": ticker,
+                "symbol": sym,
+                "name": name,
+                "market": "CRYPTO",
+                "market_type": "CRYPTO",
+            })
 
     return symbols
 
@@ -277,8 +304,13 @@ def _analyze_ticker(df: pd.DataFrame, info: dict) -> dict | None:
         return None
 
 
-async def run_full_scan() -> dict:
-    """전체 시장 스캔 실행 — 청크 단위 다운로드 + DB 스냅샷 저장."""
+async def run_full_scan(markets: list[str] | None = None) -> dict:
+    """시장 스캔 실행 — 청크 단위 다운로드 + DB 스냅샷 저장.
+
+    markets=["KR"]           → 국내만 (코스피200+코스닥150+KRX섹터, ~351종목)
+    markets=["US","CRYPTO"]  → 미국+암호화폐 (S&P500+나스닥100+10코인, ~522종목)
+    markets=None             → 전체 (~873종목)
+    """
     global _progress
 
     if _progress["running"]:
@@ -292,6 +324,9 @@ async def run_full_scan() -> dict:
     _progress["running"] = True
     _progress["started_at"] = time.time()
     _progress["scanned_count"] = 0
+    _progress["current_snapshot_id"] = None
+    _progress["live_chart_buy_count"] = 0
+    _progress["markets"] = markets
 
     # 스냅샷 생성
     async with async_session() as session:
@@ -300,9 +335,10 @@ async def run_full_scan() -> dict:
         await session.commit()
         await session.refresh(snapshot)
         snapshot_id = snapshot.id
+        _progress["current_snapshot_id"] = snapshot_id
 
     try:
-        symbols = await _load_symbols()
+        symbols = await _load_symbols(markets)
         total = len(symbols)
         _progress["total_symbols"] = total
 
@@ -334,6 +370,7 @@ async def run_full_scan() -> dict:
                 _progress["completed_chunks"] = ci + 1
                 continue
 
+            chunk_chart_buy = []
             for ticker in tickers:
                 info = ticker_map[ticker]
                 df = _extract(df_all, ticker)
@@ -351,6 +388,38 @@ async def run_full_scan() -> dict:
                 result = _analyze_ticker(df, info)
                 if result:
                     all_items.append(result)
+                    if "chart_buy" in result["categories"]:
+                        chunk_chart_buy.append(result)
+
+            # chart_buy 종목 즉시 DB 저장 (실시간 표시용)
+            if chunk_chart_buy:
+                try:
+                    async with async_session() as s2:
+                        for item in chunk_chart_buy:
+                            s2.add(ScanSnapshotItem(
+                                snapshot_id=snapshot_id,
+                                category="chart_buy",
+                                symbol=item["symbol"],
+                                name=item["name"],
+                                market=item["market"],
+                                market_type=item["market_type"],
+                                price=item.get("price"),
+                                change_pct=item.get("change_pct"),
+                                rsi=item.get("rsi"),
+                                bb_pct_b=item.get("bb_pct_b"),
+                                bb_width=item.get("bb_width"),
+                                squeeze_level=item.get("squeeze_level"),
+                                macd_hist=item.get("macd_hist"),
+                                volume_ratio=item.get("volume_ratio"),
+                                confidence=item.get("confidence"),
+                                trend=item.get("trend"),
+                                last_signal=item.get("last_signal"),
+                                last_signal_date=item.get("last_signal_date"),
+                            ))
+                        await s2.commit()
+                    _progress["live_chart_buy_count"] += len(chunk_chart_buy)
+                except Exception as e:
+                    logger.warning(f"chart_buy 실시간 저장 실패 (청크 {ci + 1}): {e}")
 
             _progress["completed_chunks"] = ci + 1
             _progress["scanned_count"] = scanned
@@ -366,6 +435,9 @@ async def run_full_scan() -> dict:
         async with async_session() as session:
             for item in all_items:
                 for cat in item["categories"]:
+                    if cat == "chart_buy":
+                        buy_count += 1
+                        continue  # 이미 청크별로 저장됨 — 중복 방지
                     session.add(ScanSnapshotItem(
                         snapshot_id=snapshot_id,
                         category=cat,
@@ -390,8 +462,6 @@ async def run_full_scan() -> dict:
                         picks_count += 1
                     elif cat == "max_sq":
                         max_sq_count += 1
-                    elif cat == "chart_buy":
-                        buy_count += 1
 
             # 스냅샷 완료 업데이트 (0건 분석이면 failed 처리)
             snap = await session.get(ScanSnapshot, snapshot_id)
@@ -437,11 +507,37 @@ async def run_full_scan() -> dict:
         return {"status": "failed", "error": str(e)}
     finally:
         _progress["running"] = False
+        _progress["current_snapshot_id"] = None
 
 
 async def get_latest_snapshot() -> dict | None:
-    """최신 완료된 스냅샷 + 아이템 조회."""
+    """최신 완료된 스냅샷 + 아이템 조회. 스캔 중이면 running snapshot의 chart_buy도 포함."""
     async with async_session() as session:
+        # 스캔 진행 중: running snapshot의 chart_buy 실시간 조회
+        live_chart_buy_items = []
+        running_snap_id = _progress.get("current_snapshot_id")
+        if _progress.get("running") and running_snap_id:
+            live_result = await session.execute(
+                select(ScanSnapshotItem)
+                .where(
+                    ScanSnapshotItem.snapshot_id == running_snap_id,
+                    ScanSnapshotItem.category == "chart_buy",
+                )
+                .order_by(ScanSnapshotItem.confidence.desc())
+            )
+            for item in live_result.scalars().all():
+                live_chart_buy_items.append({
+                    "symbol": item.symbol, "name": item.name,
+                    "market": item.market, "market_type": item.market_type,
+                    "price": item.price, "change_pct": item.change_pct,
+                    "rsi": item.rsi, "bb_pct_b": item.bb_pct_b,
+                    "bb_width": item.bb_width, "squeeze_level": item.squeeze_level,
+                    "macd_hist": item.macd_hist, "volume_ratio": item.volume_ratio,
+                    "confidence": item.confidence, "trend": item.trend,
+                    "last_signal": item.last_signal,
+                    "last_signal_date": item.last_signal_date,
+                })
+
         result = await session.execute(
             select(ScanSnapshot)
             .where(ScanSnapshot.status == "completed")
@@ -449,7 +545,20 @@ async def get_latest_snapshot() -> dict | None:
             .limit(1)
         )
         snapshot = result.scalar_one_or_none()
+
+        # 완료 스냅샷 없고 running 중이면 live 데이터만 반환
         if not snapshot:
+            if live_chart_buy_items:
+                return {
+                    "snapshot_id": running_snap_id,
+                    "status": "running",
+                    "total_symbols": _progress.get("total_symbols", 0),
+                    "scanned_count": _progress.get("scanned_count", 0),
+                    "picks_count": 0, "buy_count": len(live_chart_buy_items),
+                    "started_at": None, "completed_at": None,
+                    "picks": {}, "chart_buy": {"items": live_chart_buy_items},
+                    "overheat": {"items": []},
+                }
             return None
 
         items_result = await session.execute(
@@ -487,17 +596,20 @@ async def get_latest_snapshot() -> dict | None:
             elif item.category == "overheat":
                 overheat_items.append(d)
 
+        # 스캔 진행 중이면 live chart_buy 우선, 아니면 완료 스냅샷 데이터 사용
+        final_chart_buy = live_chart_buy_items if live_chart_buy_items else chart_buy_items
+
         return {
             "snapshot_id": snapshot.id,
-            "status": snapshot.status,
+            "status": "running" if _progress.get("running") else snapshot.status,
             "total_symbols": snapshot.total_symbols,
             "scanned_count": snapshot.scanned_count,
             "picks_count": snapshot.picks_count + snapshot.max_sq_count,
-            "buy_count": snapshot.buy_count,
+            "buy_count": len(final_chart_buy),
             "started_at": snapshot.started_at.isoformat() if snapshot.started_at else None,
             "completed_at": snapshot.completed_at.isoformat() if snapshot.completed_at else None,
             "picks": picks_by_market,
-            "chart_buy": {"items": chart_buy_items},
+            "chart_buy": {"items": final_chart_buy},
             "overheat": {"items": overheat_items},
         }
 
@@ -527,6 +639,34 @@ async def get_snapshot_history(limit: int = 10) -> list[dict]:
                     if s.completed_at and s.started_at else None,
             }
             for s in snapshots
+        ]
+
+
+async def get_snapshot_buy_items(snapshot_id: int) -> list[dict]:
+    """특정 스냅샷의 차트 BUY 신호 종목 목록 반환."""
+    async with async_session() as session:
+        result = await session.execute(
+            select(ScanSnapshotItem)
+            .where(
+                ScanSnapshotItem.snapshot_id == snapshot_id,
+                ScanSnapshotItem.category == "chart_buy",
+            )
+            .order_by(ScanSnapshotItem.confidence.desc())
+        )
+        items = result.scalars().all()
+        return [
+            {
+                "symbol": i.symbol,
+                "name": i.name,
+                "market_type": i.market_type,
+                "price": i.price,
+                "change_pct": i.change_pct,
+                "rsi": round(i.rsi, 1) if i.rsi else None,
+                "squeeze_level": i.squeeze_level,
+                "confidence": round(i.confidence, 1) if i.confidence else None,
+                "last_signal_date": i.last_signal_date,
+            }
+            for i in items
         ]
 
 
