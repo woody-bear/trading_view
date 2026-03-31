@@ -477,13 +477,75 @@ export default function Settings() {
         </div>
       </div>
 
+      {/* 텔레그램 알림 조건표 */}
+      {tgConfigured && (
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5 mt-6">
+          <h2 className="text-white font-semibold mb-3 flex items-center gap-2">
+            <MessageCircle size={16} className="text-sky-400" /> 텔레그램 자동 알림 스케줄
+          </h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-[var(--muted)] border-b border-[var(--border)]">
+                  <th className="text-left py-1.5 pr-3">발송 시각 (KST)</th>
+                  <th className="text-left py-1.5 pr-3">종류</th>
+                  <th className="text-left py-1.5">내용</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border)]/40">
+                <tr className="text-white">
+                  <td className="py-2 pr-3 font-mono text-green-400">평일 10:30</td>
+                  <td className="py-2 pr-3 whitespace-nowrap">🟢 BUY 신호 알림 (국내)</td>
+                  <td className="py-2 text-[var(--muted)]">전체 스캔 차트 BUY 종목 목록 (최대 20개)</td>
+                </tr>
+                <tr className="text-white">
+                  <td className="py-2 pr-3 font-mono text-green-400">평일 15:00</td>
+                  <td className="py-2 pr-3 whitespace-nowrap">🟢 BUY 신호 알림 (국내)</td>
+                  <td className="py-2 text-[var(--muted)]">전체 스캔 차트 BUY 종목 목록 (최대 20개)</td>
+                </tr>
+                <tr className="text-white">
+                  <td className="py-2 pr-3 font-mono text-yellow-400">평일 09:00~15:30<br/><span className="text-[10px] text-[var(--muted)]">(30분마다)</span></td>
+                  <td className="py-2 pr-3 whitespace-nowrap">🔴 SELL 체크 (국내 관심종목)</td>
+                  <td className="py-2 text-[var(--muted)]">국내 관심종목 중 SELL 신호 종목 (장중 14회)</td>
+                </tr>
+                <tr className="text-white">
+                  <td className="py-2 pr-3 font-mono text-yellow-400">평일 20:00</td>
+                  <td className="py-2 pr-3 whitespace-nowrap">🔴 SELL 체크 (미국 관심종목)</td>
+                  <td className="py-2 text-[var(--muted)]">미국 관심종목 중 SELL 신호 종목</td>
+                </tr>
+                <tr className="text-white">
+                  <td className="py-2 pr-3 font-mono text-yellow-400">화~토 04:00</td>
+                  <td className="py-2 pr-3 whitespace-nowrap">🔴 SELL 체크 (미국 관심종목 장중)</td>
+                  <td className="py-2 text-[var(--muted)]">미국 장중 관심종목 중 SELL 신호 종목</td>
+                </tr>
+                <tr className="text-white">
+                  <td className="py-2 pr-3 font-mono text-blue-400">평일 20:00</td>
+                  <td className="py-2 pr-3 whitespace-nowrap">🔵 BUY 신호 알림 (미국)</td>
+                  <td className="py-2 text-[var(--muted)]">미국 스캔 차트 BUY 종목 목록 (최대 20개)</td>
+                </tr>
+                <tr className="text-white">
+                  <td className="py-2 pr-3 font-mono text-blue-400">화~토 04:00</td>
+                  <td className="py-2 pr-3 whitespace-nowrap">🔵 BUY 신호 알림 (미국 장중)</td>
+                  <td className="py-2 text-[var(--muted)]">미국 스캔 차트 BUY 종목 목록 (최대 20개)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[10px] text-[var(--muted)] mt-3">
+            ※ BUY 알림은 전체 시장 스캔 완료 후 발송 · SELL 체크는 관심종목에 등록된 종목만 대상
+          </p>
+        </div>
+      )}
+
       {/* 전체 시장 스캔 모니터링 */}
       <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5 mt-6">
         <h2 className="text-white font-semibold mb-1 flex items-center gap-2">
           <Database size={16} className="text-purple-400" /> 전체 시장 스캔
         </h2>
         <p className="text-xs text-[var(--muted)] mb-4">
-          stock_master 전종목을 스캔하여 스퀴즈/BUY 신호를 DB에 저장합니다 (매시 :30 자동 실행)
+          국내 3,500+ / 미국 900+ 전종목 스캔 · 차트BUY/추천/과열 신호 저장<br />
+          <span className="text-purple-300">국내</span>: 평일 9:30~15:30 매시 :30 (7회) &nbsp;
+          <span className="text-blue-300">미국</span>: 평일 19:50 · 화~토 03:50 (2회)
         </p>
 
         {/* 진행 상태 */}

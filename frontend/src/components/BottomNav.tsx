@@ -1,11 +1,11 @@
-import { BarChart3, DollarSign, Home, Settings, Star } from 'lucide-react'
+import { BarChart3, BookMarked, Home, Settings, TrendingUp } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 const tabs = [
   { path: '/', icon: Home, label: '홈' },
   { path: '/scan', icon: BarChart3, label: '스캔' },
-  { path: '/forex', icon: DollarSign, label: '환율' },
-  { path: '/picks', icon: Star, label: '추천' },
+  { path: '/buy-list', icon: TrendingUp, label: 'BUY종목' },
+  { path: '/scrap', icon: BookMarked, label: '스크랩' },
   { path: '/settings', icon: Settings, label: '설정' },
 ]
 

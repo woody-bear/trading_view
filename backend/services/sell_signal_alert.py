@@ -2,11 +2,11 @@
 
 import asyncio
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from loguru import logger
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from config import get_settings
 from database import async_session
@@ -99,11 +99,30 @@ def format_sell_alert_message(items: list[dict], timestamp: datetime = None) -> 
     return "\n".join(lines)
 
 
-async def send_scheduled_sell_alert() -> dict:
-    """정기 SELL 신호 알림 전송 — 스케줄러에서 호출. 사용자별 개별 발송."""
+async def send_scheduled_sell_alert(market: str | None = None) -> dict:
+    """정기 SELL 신호 알림 전송 — 스케줄러에서 호출. 사용자별 개별 발송.
+
+    Args:
+        market: 'KR' → KR 종목만, 'US' → US 종목만, None → 전체
+    """
     from services.telegram_bot import TelegramService
 
     try:
+        # ── 중복 발송 방지: 최근 2분 이내 scheduled_sell 발송 이력 확인 ──
+        sell_type = f"scheduled_sell_{market.lower()}" if market else "scheduled_sell"
+        async with async_session() as session:
+            cutoff = datetime.utcnow() - timedelta(minutes=2)
+            recent_count = await session.scalar(
+                select(func.count(AlertLog.id)).where(
+                    AlertLog.alert_type == sell_type,
+                    AlertLog.success.is_(True),
+                    AlertLog.sent_at >= cutoff,
+                )
+            )
+            if recent_count and recent_count > 0:
+                logger.warning(f"SELL 알림 중복 방지 ({sell_type}): 최근 2분 이내 이미 {recent_count}건 발송됨 — 건너뜀")
+                return {"status": "skipped", "reason": "duplicate_guard"}
+
         # 활성 user_alert_config 목록 조회
         async with async_session() as session:
             result = await session.execute(
@@ -125,7 +144,9 @@ async def send_scheduled_sell_alert() -> dict:
 
         for config in configs:
             try:
-                items = await get_watchlist_sell_status(user_id=config.user_id)
+                all_items = await get_watchlist_sell_status(user_id=config.user_id)
+                # market 필터 적용
+                items = [x for x in all_items if market is None or x.get("market") == market]
                 if not items:
                     continue
 
@@ -157,7 +178,7 @@ async def send_scheduled_sell_alert() -> dict:
                     session.add(AlertLog(
                         signal_history_id=None,
                         channel="telegram",
-                        alert_type="scheduled_sell",
+                        alert_type=sell_type,
                         message=message,
                         sent_at=now,
                         success=success,

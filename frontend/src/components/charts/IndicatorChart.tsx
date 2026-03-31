@@ -212,7 +212,7 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
     volSeries.setData(data.candles.map(c => ({
       time: c.time as any,
       value: c.volume,
-      color: c.close >= c.open ? 'rgba(38,166,154,0.12)' : 'rgba(239,83,80,0.12)',
+      color: c.close >= c.open ? 'rgba(38,166,154,0.30)' : 'rgba(239,83,80,0.28)',
     })))
     volSeriesRef.current = volSeries
 

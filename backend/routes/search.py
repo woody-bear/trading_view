@@ -50,13 +50,39 @@ async def search_symbols(q: str, market: str = ""):
     if not q or len(q) < 1:
         return {"results": []}
 
+    q_upper = q.strip().upper()
+
+    # 미국 시장 검색 포함 여부 & 티커처럼 보이는 짧은 쿼리인지 판단
+    # (1~5자 알파벳 → 정확한 US 티커일 가능성 높음)
+    is_us_market = market in ("", "US")
+    looks_like_ticker = is_us_market and q_upper.isalpha() and len(q_upper) <= 5
+
+    # 티커처럼 보이면 yfinance 정확 조회를 먼저 실행 (비동기 병렬)
+    yf_exact_task = None
+    if looks_like_ticker:
+        import asyncio
+        yf_exact_task = asyncio.create_task(_search_yfinance(q_upper))
+
     # 1순위: stock_master DB 검색 (전종목)
     from services.stock_master import search_master, get_master_count
     master_count = await get_master_count()
+    master_results = []
     if master_count > 0:
         master_results = await search_master(q, market, limit=20)
-        if master_results:
-            return {"results": master_results}
+
+    # yfinance 결과 병합 (ticer 완전 일치를 맨 앞에)
+    if yf_exact_task is not None:
+        yf_exact = await yf_exact_task
+        if yf_exact:
+            existing_syms = {r["symbol"] for r in master_results}
+            # 정확 일치(심볼 == 쿼리)를 최상단에 배치
+            exact_match = [r for r in yf_exact if r["symbol"] == q_upper and r["symbol"] not in existing_syms]
+            other_yf = [r for r in yf_exact if r["symbol"] != q_upper and r["symbol"] not in existing_syms]
+            merged = exact_match + master_results + other_yf
+            return {"results": merged[:20]}
+
+    if master_results:
+        return {"results": master_results}
 
     # 2순위: fallback (하드코딩 + yfinance)
     results = []
@@ -96,8 +122,8 @@ async def search_symbols(q: str, market: str = ""):
                     "market_type": "US",
                     "display": f"{name} ({ticker})",
                 })
-        # 하드코딩에 없으면 yfinance로 실시간 검색 시도
-        if len(results) < 15 and len(q) >= 2 and q_upper not in found_us:
+        # 하드코딩에 없으면 yfinance로 실시간 검색 시도 (1글자 티커도 허용)
+        if len(results) < 15 and q_upper not in found_us:
             yf_results = await _search_yfinance(q_upper)
             for r in yf_results:
                 if r["symbol"] not in found_us and len(results) < 15:

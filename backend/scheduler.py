@@ -54,9 +54,9 @@ def setup_scheduler():
         replace_existing=True,
     )
 
-    # 전체 시장 스캔 — 매 1시간 (평일, KST 9:30~15:30)
+    # 국내 시장 스캔 — 평일 매시 :30 (9:30~15:30 KST) · 코스피200+코스닥150+KRX섹터 (~351종목)
     scheduler.add_job(
-        _scheduled_full_market_scan,
+        _scheduled_full_market_scan_kr,
         trigger="cron",
         hour="9,10,11,12,13,14,15",
         minute=30,
@@ -65,14 +65,14 @@ def setup_scheduler():
         max_instances=1,
         coalesce=True,
         misfire_grace_time=600,
-        id="full_market_scan",
-        name="전체 시장 스캔",
+        id="full_market_scan_kr",
+        name="국내 시장 스캔 (KR)",
         replace_existing=True,
     )
 
-    # 미국 시장 전체 스캔 — KST 19:50, 03:50 (미국 장 전후, 스캔 후 알림용)
+    # 미국 시장 스캔 — KST 19:50, 03:50 · S&P500+나스닥100+암호화폐 (~522종목)
     scheduler.add_job(
-        _scheduled_full_market_scan,
+        _scheduled_full_market_scan_us,
         trigger="cron",
         hour=19, minute=50,
         day_of_week="mon-fri",
@@ -85,7 +85,7 @@ def setup_scheduler():
         replace_existing=True,
     )
     scheduler.add_job(
-        _scheduled_full_market_scan,
+        _scheduled_full_market_scan_us,
         trigger="cron",
         hour=3, minute=50,
         day_of_week="tue-sat",  # 월밤~금밤 미국장 = 화~토 새벽
@@ -126,35 +126,51 @@ def setup_scheduler():
         replace_existing=True,
     )
 
-    # 관심종목 SELL 신호 체크 — 평일 10:30, 15:00 KST
+    # 관심종목 KR SELL 체크 — 국내 장중 30분마다 (평일 09:00~15:30 KST)
     scheduler.add_job(
-        _scheduled_sell_alert,
+        _scheduled_sell_alert_kr,
         trigger="cron",
-        hour=10, minute=30,
+        hour="9,10,11,12,13,14,15",
+        minute="0,30",
         day_of_week="mon-fri",
         timezone=KST,
         max_instances=1,
         coalesce=True,
-        misfire_grace_time=300,
-        id="sell_alert_1030",
-        name="SELL 체크 10:30",
-        replace_existing=True,
-    )
-    scheduler.add_job(
-        _scheduled_sell_alert,
-        trigger="cron",
-        hour=15, minute=0,
-        day_of_week="mon-fri",
-        timezone=KST,
-        max_instances=1,
-        coalesce=True,
-        misfire_grace_time=300,
-        id="sell_alert_1500",
-        name="SELL 체크 15:00",
+        misfire_grace_time=120,
+        id="sell_alert_kr",
+        name="KR SELL 체크 (30분마다)",
         replace_existing=True,
     )
 
-    logger.info("스케줄러 등록 완료: 10분 스캔 + KR BUY/SELL (10:30/15:00) + US BUY (20:00/04:00) + 전체 스캔 (매시:30 + 19:50/03:50)")
+    # 관심종목 US SELL 체크 — KST 20:00, 04:00 (미국장 전후)
+    scheduler.add_job(
+        _scheduled_sell_alert_us,
+        trigger="cron",
+        hour=20, minute=0,
+        day_of_week="mon-fri",
+        timezone=KST,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=300,
+        id="sell_alert_us_2000",
+        name="US SELL 체크 20:00",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _scheduled_sell_alert_us,
+        trigger="cron",
+        hour=4, minute=0,
+        day_of_week="tue-sat",
+        timezone=KST,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=300,
+        id="sell_alert_us_0400",
+        name="US SELL 체크 04:00",
+        replace_existing=True,
+    )
+
+    logger.info("스케줄러 등록 완료: 10분 스캔 + KR BUY (10:30/15:00) + US BUY (20:00/04:00) + KR SELL (30분) + US SELL (20:00/04:00) + 국내스캔(9:30~15:30) + 미국스캔(19:50/03:50)")
 
 
 async def _scheduled_scan():
@@ -180,20 +196,36 @@ async def _scheduled_buy_alert():
     logger.info(f"정기 BUY 신호 알림 완료: {result}")
 
 
-async def _scheduled_sell_alert():
-    """스케줄러가 호출하는 관심종목 SELL 신호 체크."""
+async def _scheduled_sell_alert_kr():
+    """KR 관심종목 SELL 체크 — 장중 30분마다."""
     from services.sell_signal_alert import send_scheduled_sell_alert
-    logger.info("관심종목 SELL 체크 시작")
-    result = await send_scheduled_sell_alert()
-    logger.info(f"관심종목 SELL 체크 완료: {result}")
+    logger.info("KR 관심종목 SELL 체크 시작")
+    result = await send_scheduled_sell_alert(market="KR")
+    logger.info(f"KR SELL 체크 완료: {result}")
 
 
-async def _scheduled_full_market_scan():
-    """스케줄러가 호출하는 전체 시장 스캔."""
+async def _scheduled_sell_alert_us():
+    """US 관심종목 SELL 체크 — KST 20:00/04:00."""
+    from services.sell_signal_alert import send_scheduled_sell_alert
+    logger.info("US 관심종목 SELL 체크 시작")
+    result = await send_scheduled_sell_alert(market="US")
+    logger.info(f"US SELL 체크 완료: {result}")
+
+
+async def _scheduled_full_market_scan_kr():
+    """국내 시장 스캔 — 코스피200 + 코스닥150 + KRX섹터 (~351종목)."""
     from services.full_market_scanner import run_full_scan
-    logger.info("전체 시장 스캔 시작 (스케줄)")
-    result = await run_full_scan()
-    logger.info(f"전체 시장 스캔 완료: {result.get('status')} — {result.get('scanned', 0)}개 분석")
+    logger.info("국내 시장 스캔 시작 (KR)")
+    result = await run_full_scan(markets=["KR"])
+    logger.info(f"국내 시장 스캔 완료: {result.get('status')} — {result.get('scanned', 0)}개 분석")
+
+
+async def _scheduled_full_market_scan_us():
+    """미국+암호화폐 스캔 — S&P500 + 나스닥100 + 암호화폐 (~522종목)."""
+    from services.full_market_scanner import run_full_scan
+    logger.info("미국 시장 스캔 시작 (US+CRYPTO)")
+    result = await run_full_scan(markets=["US", "CRYPTO"])
+    logger.info(f"미국 시장 스캔 완료: {result.get('status')} — {result.get('scanned', 0)}개 분석")
 
 
 def is_market_open(market: str) -> bool:
