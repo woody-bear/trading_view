@@ -17,6 +17,18 @@ from indicators.volume import calculate_volume_ratio
 
 SCAN_MIN_CANDLES = 60
 
+# ── 인덱스별 종목 분류 ────────────────────────────────────────
+# NASDAQ 100 (QQQ) 구성 종목
+_NASDAQ100_SYMBOLS: set[str] = {
+    "AAPL", "MSFT", "NVDA", "AMZN", "META", "TSLA", "AVGO", "COST", "GOOGL", "NFLX",
+    "AMD", "ADBE", "QCOM", "TXN", "INTU", "CSCO", "AMGN", "AMAT", "SBUX", "ISRG",
+    "MU", "LRCX", "REGN", "VRTX", "PANW", "GILD", "ADI", "KLAC", "CRWD", "SNPS",
+    "CDNS", "MRVL", "MCHP", "PAYX", "DDOG", "NXPI", "WDAY", "ON", "DXCM", "BIIB",
+    "ILMN", "ABNB", "ANSS", "INTC", "MNST", "ZS", "PYPL", "ARM", "ADP", "BKNG",
+    "SMCI", "PLTR", "COIN", "NET", "SOFI", "EA", "TTWO", "SWKS", "QRVO", "TER",
+    "ENTG", "ACLS", "GTLB", "ZM", "OKTA",
+}
+
 
 @dataclass
 class ScanResult:
@@ -203,38 +215,284 @@ def _get_us_stocks() -> dict[str, str]:
         "ARM": "Arm", "SMCI": "Super Micro", "MU": "Micron", "MRVL": "Marvell",
         "SHOP": "Shopify", "SQ": "Block", "COIN": "Coinbase", "UBER": "Uber",
         "ABNB": "Airbnb", "PYPL": "PayPal", "SOFI": "SoFi",
+        # ── 추가 기술/소프트웨어 ──
+        "INTU": "Intuit", "WDAY": "Workday", "VEEV": "Veeva", "DDOG": "Datadog",
+        "ZS": "Zscaler", "OKTA": "Okta", "HUBS": "HubSpot", "ZM": "Zoom",
+        "TWLO": "Twilio", "DOCN": "DigitalOcean", "RBLX": "Roblox",
+        "EA": "Electronic Arts", "TTWO": "Take-Two Interactive", "U": "Unity",
+        "ADP": "Automatic Data Processing", "PAYX": "Paychex", "PAYC": "Paycom",
+        "CDNS": "Cadence Design", "SNPS": "Synopsys", "ANSS": "ANSYS",
+        "DELL": "Dell Technologies", "HPQ": "HP Inc", "HPE": "HP Enterprise",
+        "WDC": "Western Digital", "STX": "Seagate", "NTAP": "NetApp",
+        "ESTC": "Elastic", "GTLB": "GitLab", "DXCM": "DexCom",
+        # ── 반도체 ──
+        "TXN": "Texas Inst", "QCOM": "Qualcomm", "LRCX": "Lam Research",
+        "AMAT": "Applied Materials", "KLAC": "KLA", "ON": "ON Semi",
+        "ADI": "Analog Devices", "MPWR": "Monolithic Power",
+        "NXPI": "NXP Semiconductors", "MCHP": "Microchip Technology",
+        "SWKS": "Skyworks", "QRVO": "Qorvo", "TER": "Teradyne",
+        "ENTG": "Entegris", "WOLF": "Wolfspeed", "ACLS": "Axcelis",
         # ── 금융 ──
         "JPM": "JPMorgan", "V": "Visa", "MA": "Mastercard", "GS": "Goldman",
         "BAC": "Bank of America", "WFC": "Wells Fargo", "MS": "Morgan Stanley",
         "C": "Citigroup", "BLK": "BlackRock", "SCHW": "Schwab",
         "AXP": "AmEx", "BX": "Blackstone", "KKR": "KKR",
+        "SPGI": "S&P Global", "MCO": "Moody's", "ICE": "Intercontinental Exchange",
+        "CME": "CME Group", "NDAQ": "Nasdaq Inc",
+        "PGR": "Progressive", "AFL": "Aflac", "MET": "MetLife", "PRU": "Prudential",
+        "USB": "US Bancorp", "PNC": "PNC Financial", "TFC": "Truist",
+        "COF": "Capital One", "DFS": "Discover Financial",
+        "FIS": "Fidelity Natl Info", "FISV": "Fiserv", "GPN": "Global Payments",
+        "APO": "Apollo Global", "ARES": "Ares Management",
         # ── 헬스케어 ──
         "UNH": "UnitedHealth", "LLY": "Eli Lilly", "MRK": "Merck",
         "ABBV": "AbbVie", "PFE": "Pfizer", "MRNA": "Moderna",
         "JNJ": "Johnson&Johnson", "TMO": "Thermo Fisher", "ABT": "Abbott",
         "AMGN": "Amgen", "GILD": "Gilead", "ISRG": "Intuitive Surgical",
         "VRTX": "Vertex", "REGN": "Regeneron", "MDT": "Medtronic",
-        # ── 소비재 ──
+        "BMY": "Bristol-Myers Squibb", "ELV": "Elevance Health",
+        "CVS": "CVS Health", "CI": "Cigna", "HUM": "Humana", "CNC": "Centene",
+        "SYK": "Stryker", "BSX": "Boston Scientific", "EW": "Edwards Lifesciences",
+        "BIIB": "Biogen", "ILMN": "Illumina", "ALNY": "Alnylam",
+        "IQV": "IQVIA", "A": "Agilent", "MCK": "McKesson", "CAH": "Cardinal Health",
+        # ── 소비재 (임의) ──
         "KO": "Coca-Cola", "PEP": "PepsiCo", "PG": "P&G", "COST": "Costco",
         "WMT": "Walmart", "HD": "Home Depot", "MCD": "McDonald's",
         "NKE": "Nike", "SBUX": "Starbucks", "TGT": "Target",
         "LOW": "Lowe's", "TJX": "TJX", "DIS": "Disney",
+        "BKNG": "Booking Holdings", "EXPE": "Expedia", "ABNB": "Airbnb",
+        "MAR": "Marriott", "HLT": "Hilton", "H": "Hyatt",
+        "RCL": "Royal Caribbean", "CCL": "Carnival",
+        "MGM": "MGM Resorts", "WYNN": "Wynn Resorts", "LVS": "Las Vegas Sands",
+        "CMG": "Chipotle", "YUM": "Yum Brands", "DPZ": "Domino's",
+        "ROST": "Ross Stores", "ULTA": "Ulta Beauty", "BBY": "Best Buy",
+        "LYFT": "Lyft", "DASH": "DoorDash",
+        # ── 소비재 (필수) ──
+        "PM": "Philip Morris", "MO": "Altria", "CL": "Colgate-Palmolive",
+        "MDLZ": "Mondelez", "KHC": "Kraft Heinz", "GIS": "General Mills",
+        "MNST": "Monster Beverage", "STZ": "Constellation Brands", "KR": "Kroger",
         # ── 산업재 ──
         "CAT": "Caterpillar", "BA": "Boeing", "GE": "GE", "HON": "Honeywell",
         "UPS": "UPS", "RTX": "RTX", "DE": "Deere", "LMT": "Lockheed Martin",
         "MMM": "3M", "UNP": "Union Pacific",
+        "FDX": "FedEx", "NSC": "Norfolk Southern", "CSX": "CSX",
+        "ETN": "Eaton", "EMR": "Emerson Electric", "ITW": "Illinois Tool Works",
+        "PH": "Parker Hannifin", "ROK": "Rockwell Automation",
+        "LHX": "L3Harris", "NOC": "Northrop Grumman", "GD": "General Dynamics",
+        "WM": "Waste Management", "RSG": "Republic Services",
+        "CARR": "Carrier Global", "OTIS": "Otis Worldwide",
         # ── 에너지 ──
         "XOM": "Exxon", "CVX": "Chevron", "COP": "ConocoPhillips",
         "SLB": "Schlumberger", "EOG": "EOG Resources",
-        # ── 통신/미디어 ──
+        "OXY": "Occidental Petroleum", "DVN": "Devon Energy",
+        "MPC": "Marathon Petroleum", "VLO": "Valero Energy", "PSX": "Phillips 66",
+        "HAL": "Halliburton", "BKR": "Baker Hughes",
+        "WMB": "Williams", "KMI": "Kinder Morgan", "OKE": "ONEOK",
+        "LNG": "Cheniere Energy",
+        # ── 통신/미디어/소셜 ──
         "T": "AT&T", "VZ": "Verizon", "TMUS": "T-Mobile", "CMCSA": "Comcast",
-        # ── 반도체 ──
-        "TXN": "Texas Inst", "QCOM": "Qualcomm", "LRCX": "Lam Research",
-        "AMAT": "Applied Materials", "KLAC": "KLA", "ON": "ON Semi",
-        "ADI": "Analog Devices", "MPWR": "Monolithic Power",
-        # ── 기타 ──
+        "CHTR": "Charter Communications",
+        "SNAP": "Snap", "PINS": "Pinterest", "SPOT": "Spotify", "RDDT": "Reddit",
+        "MTCH": "Match Group",
+        # ── 유틸리티/재생에너지 ──
+        "NEE": "NextEra Energy", "AEP": "AEP", "D": "Dominion Energy",
+        "SO": "Southern Company", "DUK": "Duke Energy",
+        "ENPH": "Enphase", "FSLR": "First Solar", "PLUG": "Plug Power",
+        "BE": "Bloom Energy",
+        # ── 리츠 ──
+        "O": "Realty Income", "AMT": "American Tower", "CCI": "Crown Castle",
+        "EQIX": "Equinix", "DLR": "Digital Realty",
+        "PSA": "Public Storage", "PLD": "Prologis",
+        "SPG": "Simon Property", "VICI": "VICI Properties",
+        # ── 전기차/모빌리티 ──
         "F": "Ford", "GM": "GM", "RIVN": "Rivian", "NIO": "NIO",
-        "ENPH": "Enphase", "FSLR": "First Solar",
+        "LCID": "Lucid Motors", "XPEV": "XPeng", "LI": "Li Auto",
+
+        # ════════════════════════════════════════════════════
+        # 확장 종목 (+600: S&P500 전체 + 국제 ADR + 성장주)
+        # ════════════════════════════════════════════════════
+
+        # ── NASDAQ 100 완성 (누락분) ──
+        "ADSK": "Autodesk", "FAST": "Fastenal", "IDXX": "IDEXX Labs",
+        "VRSK": "Verisk Analytics", "CPRT": "Copart", "ODFL": "Old Dominion Freight",
+        "PCAR": "PACCAR", "FANG": "Diamondback Energy", "KDP": "Keurig Dr Pepper",
+        "DLTR": "Dollar Tree", "CSGP": "CoStar Group", "SAIA": "Saia",
+        "FTNT": "Fortinet", "LULU": "Lululemon", "GEHC": "GE Healthcare",
+        "TSCO": "Tractor Supply", "EXPE": "Expedia",
+
+        # ── S&P 500 소재(Materials) ──
+        "LIN": "Linde", "APD": "Air Products", "SHW": "Sherwin-Williams",
+        "ECL": "Ecolab", "NEM": "Newmont", "FCX": "Freeport-McMoRan",
+        "CF": "CF Industries", "DOW": "Dow", "DD": "DuPont",
+        "PPG": "PPG Industries", "CE": "Celanese", "EMN": "Eastman Chemical",
+        "RPM": "RPM International", "BALL": "Ball Corp", "PKG": "Packaging Corp",
+        "IP": "International Paper", "AVY": "Avery Dennison", "SEE": "Sealed Air",
+        "ALB": "Albemarle", "FMC": "FMC Corp", "IFF": "Intl Flavors",
+        "MOS": "Mosaic", "CTVA": "Corteva",
+
+        # ── S&P 500 소비재-임의(Consumer Discretionary) 추가 ──
+        "ORLY": "O'Reilly Auto", "AZO": "AutoZone", "TSCO": "Tractor Supply",
+        "DHI": "D.R. Horton", "LEN": "Lennar", "PHM": "PulteGroup",
+        "NVR": "NVR", "TOL": "Toll Brothers", "KMX": "CarMax",
+        "AN": "AutoNation", "PAG": "Penske Auto",
+        "ETSY": "Etsy", "W": "Wayfair", "CHWY": "Chewy",
+        "DKNG": "DraftKings", "PENN": "PENN Entertainment",
+        "LYV": "Live Nation", "PARA": "Paramount", "WBD": "Warner Bros Discovery",
+        "QSR": "Restaurant Brands", "SHAK": "Shake Shack",
+        "ONON": "On Holding", "DECK": "Deckers", "SKX": "Skechers",
+        "PVH": "PVH Corp", "RL": "Ralph Lauren", "VFC": "VF Corp",
+        "HBI": "Hanesbrands", "CPRI": "Capri Holdings",
+        "NWSA": "News Corp", "FOX": "Fox Corp",
+
+        # ── S&P 500 소비재-필수(Consumer Staples) 추가 ──
+        "TSN": "Tyson Foods", "HRL": "Hormel", "K": "Kellanova",
+        "CPB": "Campbell Soup", "MKC": "McCormick", "HSY": "Hershey",
+        "CAG": "ConAgra", "SJM": "J.M. Smucker", "LW": "Lamb Weston",
+        "WBA": "Walgreens Boots", "SFM": "Sprouts Farmers",
+        "SYY": "Sysco", "PFGC": "Performance Food",
+        "BJ": "BJ's Wholesale", "GO": "Grocery Outlet",
+        "EL": "Estee Lauder", "KMB": "Kimberly-Clark", "CHD": "Church & Dwight",
+        "CLX": "Clorox", "SCI": "Service Corp",
+
+        # ── S&P 500 헬스케어 추가 ──
+        "ZBH": "Zimmer Biomet", "BAX": "Baxter", "BDX": "Becton Dickinson",
+        "STE": "Steris", "HOLX": "Hologic", "NTRA": "Natera",
+        "EXAS": "Exact Sciences", "VEEV": "Veeva Systems",
+        "INSP": "Inspire Medical", "PODD": "Insulet",
+        "NBIX": "Neurocrine Bio", "EXEL": "Exelixis",
+        "ITCI": "Intra-Cellular Therapies", "AXSM": "Axsome Therapeutics",
+        "HALO": "Halozyme", "SRPT": "Sarepta Therapeutics",
+        "RARE": "Ultragenyx", "PTCT": "PTC Therapeutics",
+        "MOH": "Molina Healthcare", "HCA": "HCA Healthcare",
+        "THC": "Tenet Healthcare", "UHS": "Universal Health Services",
+        "HIMS": "Hims & Hers", "MTD": "Mettler-Toledo",
+        "ICLR": "ICON", "MEDP": "Medpace",
+        "TECH": "Bio-Techne", "ACAD": "Acadia Pharmaceuticals",
+        "JAZZ": "Jazz Pharmaceuticals", "PRGO": "Perrigo",
+        "MASI": "Masimo", "IRTC": "iRhythm Technologies",
+        "TNDM": "Tandem Diabetes", "DXCM": "DexCom",
+
+        # ── S&P 500 금융 추가 ──
+        "AIG": "AIG", "CB": "Chubb", "HIG": "Hartford Financial",
+        "CINF": "Cincinnati Financial", "GL": "Globe Life",
+        "MKL": "Markel", "WRB": "W.R. Berkley",
+        "ALLY": "Ally Financial", "OMF": "OneMain Financial",
+        "HBAN": "Huntington Bancshares", "KEY": "KeyCorp",
+        "MTB": "M&T Bank", "RF": "Regions Financial",
+        "CFG": "Citizens Financial", "FITB": "Fifth Third Bancorp",
+        "WBS": "Webster Financial", "PNFP": "Pinnacle Financial",
+        "NTRS": "Northern Trust", "STT": "State Street",
+        "MSCI": "MSCI", "BR": "Broadridge", "EFX": "Equifax",
+        "TRU": "TransUnion", "AMP": "Ameriprise Financial",
+        "BEN": "Franklin Resources", "IVZ": "Invesco",
+        "TROW": "T. Rowe Price", "RJF": "Raymond James",
+        "LNC": "Lincoln National", "UNM": "Unum Group",
+        "WTW": "Willis Towers Watson", "AON": "Aon",
+        "MMC": "Marsh & McLennan",
+        "AFRM": "Affirm", "UPST": "Upstart", "HOOD": "Robinhood",
+        "LC": "LendingClub", "SFM": "Sprouts Farmers",
+
+        # ── 기술 추가 (엔터프라이즈/클라우드/SaaS) ──
+        "ANET": "Arista Networks", "GDDY": "GoDaddy",
+        "CTSH": "Cognizant", "EPAM": "EPAM Systems",
+        "JNPR": "Juniper Networks", "FFIV": "F5",
+        "VRSN": "VeriSign", "AKAM": "Akamai Technologies",
+        "PTC": "PTC", "AZPN": "Aspen Technology",
+        "BILL": "BILL Holdings", "PCTY": "Paylocity",
+        "SMAR": "Smartsheet", "ASAN": "Asana", "DBX": "Dropbox",
+        "ZI": "ZoomInfo", "BRZE": "Braze",
+        "TTD": "The Trade Desk", "MGNI": "Magnite",
+        "CGNX": "Cognex", "TDY": "Teledyne Technologies",
+        "KLIC": "Kulicke & Soffa", "LSCC": "Lattice Semiconductor",
+        "SITM": "SiTime", "FORM": "FormFactor",
+        "ONTO": "Onto Innovation", "COHR": "Coherent",
+        "MKSI": "MKS Instruments",
+
+        # ── 산업재 추가 ──
+        "EXPD": "Expeditors Intl", "CHRW": "CH Robinson",
+        "JBHT": "JB Hunt Transport", "XPO": "XPO",
+        "SAIA": "Saia", "WERN": "Werner Enterprises",
+        "GWW": "W.W. Grainger", "SNA": "Snap-on",
+        "SWK": "Stanley Black & Decker", "PNR": "Pentair",
+        "IEX": "IDEX", "AME": "Ametek",
+        "TRMB": "Trimble", "GRMN": "Garmin",
+        "AXON": "Axon Enterprise", "PWR": "Quanta Services",
+        "DY": "Dycom Industries", "TT": "Trane Technologies",
+        "JCI": "Johnson Controls", "RRX": "Rexnord",
+        "RKLB": "Rocket Lab", "ACHR": "Archer Aviation",
+        "JOBY": "Joby Aviation",
+
+        # ── 에너지 추가 ──
+        "APA": "APA Corp", "CTRA": "Coterra Energy",
+        "HES": "Hess Corp", "MRO": "Marathon Oil",
+        "OVV": "Ovintiv", "PXD": "Pioneer Natural Resources",
+        "SM": "SM Energy", "MTDR": "Matador Resources",
+        "CHK": "Chesapeake Energy", "RRC": "Range Resources",
+        "AR": "Antero Resources", "EQT": "EQT Corp",
+        "NOG": "Northern Oil & Gas",
+
+        # ── 유틸리티 추가 ──
+        "AES": "AES Corp", "AWK": "American Water Works",
+        "CMS": "CMS Energy", "CNP": "CenterPoint Energy",
+        "DTE": "DTE Energy", "ED": "Consolidated Edison",
+        "EIX": "Edison International", "ES": "Eversource Energy",
+        "ETR": "Entergy", "EXC": "Exelon",
+        "FE": "FirstEnergy", "LNT": "Alliant Energy",
+        "NI": "NiSource", "NRG": "NRG Energy",
+        "PCG": "PG&E", "PPL": "PPL Corp",
+        "SRE": "Sempra Energy", "WEC": "WEC Energy",
+        "XEL": "Xcel Energy",
+
+        # ── 리츠 추가 ──
+        "EQR": "Equity Residential", "ESS": "Essex Property Trust",
+        "CPT": "Camden Property Trust", "MAA": "Mid-America Apartment",
+        "IRM": "Iron Mountain", "WY": "Weyerhaeuser",
+        "EXR": "Extra Space Storage", "CUBE": "CubeSmart",
+        "NNN": "NNN REIT", "WPC": "W.P. Carey",
+        "ADC": "Agree Realty", "STAG": "STAG Industrial",
+        "REXR": "Rexford Industrial", "WELL": "Welltower",
+        "VTR": "Ventas", "PEAK": "Healthpeak Properties",
+        "SBAC": "SBA Communications", "AMH": "American Homes 4 Rent",
+        "INVH": "Invitation Homes", "IIPR": "Innovative Industrial",
+        "COLD": "Americold Realty",
+
+        # ── 국제 ADR (한국 투자자 인기) ──
+        "TSM": "TSMC", "BABA": "Alibaba", "JD": "JD.com",
+        "PDD": "PDD Holdings", "BIDU": "Baidu",
+        "NVO": "Novo Nordisk", "ASML": "ASML Holding",
+        "SAP": "SAP SE", "TM": "Toyota Motor",
+        "SONY": "Sony Group", "HMC": "Honda Motor",
+        "SE": "Sea Limited", "MELI": "MercadoLibre",
+        "NU": "Nu Holdings", "GRAB": "Grab Holdings",
+        "INFY": "Infosys", "WIT": "Wipro",
+        "AZN": "AstraZeneca", "GSK": "GSK",
+        "NVS": "Novartis", "RHHBY": "Roche",
+        "BP": "BP", "SHEL": "Shell",
+        "TD": "Toronto-Dominion", "RY": "Royal Bank Canada",
+        "BNS": "Bank of Nova Scotia", "BMO": "BMO Financial",
+        "UL": "Unilever", "BTI": "British American Tobacco",
+
+        # ── 크립토/블록체인 관련 ──
+        "MSTR": "MicroStrategy", "RIOT": "Riot Platforms",
+        "MARA": "Marathon Digital", "CLSK": "CleanSpark",
+        "HUT": "Hut 8 Mining", "CIFR": "Cipher Mining",
+        "BITF": "Bitfarms", "IREN": "Iris Energy",
+
+        # ── 핀테크/결제 추가 ──
+        "MQ": "Marqeta", "PAYO": "Payoneer",
+        "OPEN": "Opendoor Technologies", "RDFN": "Redfin",
+        "COMP": "Compass",
+
+        # ── 바이오테크 성장주 ──
+        "BNTX": "BioNTech", "NVAX": "Novavax",
+        "ARQT": "Arcutis Biotherapeutics", "RCKT": "Rocket Pharmaceuticals",
+        "ARVN": "Arvinas", "KYMR": "Kymera Therapeutics",
+        "IMVT": "Immunovant", "DAWN": "Day One Biopharmaceuticals",
+        "PRAX": "Praxis Precision Medicine",
+
+        # ── 인기 밈/소매투자자 종목 ──
+        "GME": "GameStop", "AMC": "AMC Entertainment",
+        "BB": "BlackBerry", "NOK": "Nokia",
     }
 
 

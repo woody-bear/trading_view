@@ -72,15 +72,22 @@ def _download_kr_master(market_type: str, url: str) -> list[dict]:
 
 
 def _get_us_hardcoded() -> list[dict]:
-    """미국 종목 하드코딩 (한투 FTP 미제공, 주요 종목 + ETF)."""
+    """미국 종목 하드코딩 (한투 FTP 미제공, 주요 종목 + ETF).
+
+    market_type 분류:
+      NASDAQ100 — QQQ(NASDAQ 100) 구성 종목
+      SP500     — S&P 500 기타 대형주 (NYSE 상장 포함)
+      ETF       — 미국 ETF
+    """
     from routes.search import _US_ETFS
-    from services.market_scanner import _get_us_stocks
+    from services.market_scanner import _get_us_stocks, _NASDAQ100_SYMBOLS
 
     stocks = []
     for sym, name in _get_us_stocks().items():
-        stocks.append({"symbol": sym, "name": name, "market": "US", "market_type": "NASDAQ", "is_etf": False})
+        mtype = "NASDAQ100" if sym in _NASDAQ100_SYMBOLS else "SP500"
+        stocks.append({"symbol": sym, "name": name, "market": "US", "market_type": mtype, "is_etf": False})
     for sym, name in _US_ETFS.items():
-        stocks.append({"symbol": sym, "name": name, "market": "US", "market_type": "NYSE", "is_etf": True})
+        stocks.append({"symbol": sym, "name": name, "market": "US", "market_type": "ETF", "is_etf": True})
     return stocks
 
 
@@ -133,24 +140,37 @@ async def refresh_stock_master() -> dict:
 
 
 async def search_master(query: str, market: str = "", limit: int = 20) -> list[dict]:
-    """stock_master 테이블에서 종목 검색."""
+    """stock_master 테이블에서 종목 검색. 심볼 완전일치 → 심볼 시작 → 이름/심볼 포함 순으로 정렬."""
     async with async_session() as session:
-        # 마스터 로드 여부 확인
         count = await session.scalar(select(func.count()).select_from(StockMaster))
         if not count:
             return []
 
-        q = select(StockMaster)
+        q_upper = query.upper()
+
+        base = select(StockMaster)
         if market:
-            q = q.where(StockMaster.market == market)
+            base = base.where(StockMaster.market == market)
 
-        # 이름 또는 심볼로 검색
-        q = q.where(
-            (StockMaster.name.contains(query)) | (StockMaster.symbol.contains(query.upper()))
+        # 우선순위 1: 심볼 완전 일치
+        exact = base.where(StockMaster.symbol == q_upper).limit(limit)
+        exact_rows = (await session.execute(exact)).scalars().all()
+
+        # 우선순위 2: 심볼 앞자리 일치 (예: "rea" → "REAL")
+        prefix = base.where(
+            StockMaster.symbol.startswith(q_upper),
+            StockMaster.symbol != q_upper,
         ).limit(limit)
+        prefix_rows = (await session.execute(prefix)).scalars().all()
 
-        result = await session.execute(q)
-        rows = result.scalars().all()
+        # 우선순위 3: 이름 또는 심볼 포함 (대소문자 무시, 이미 수집한 것 제외)
+        seen = {r.symbol for r in exact_rows + prefix_rows}
+        contains = base.where(
+            (StockMaster.name.ilike(f'%{query}%')) | (StockMaster.symbol.contains(q_upper))
+        ).limit(limit)
+        contains_rows = [r for r in (await session.execute(contains)).scalars().all() if r.symbol not in seen]
+
+        rows = (exact_rows + prefix_rows + contains_rows)[:limit]
 
         return [
             {
@@ -169,3 +189,63 @@ async def get_master_count() -> int:
     """마스터 테이블 종목 수."""
     async with async_session() as session:
         return await session.scalar(select(func.count()).select_from(StockMaster)) or 0
+
+
+async def get_all_symbols() -> dict:
+    """큐레이션 스캔 대상 종목 목록 + 카테고리별 집계 반환.
+
+    코스피200, 코스닥150, KRX반도체/2차전지 추가 + S&P500 + 나스닥100 단독 종목만 포함.
+    """
+    from services.scan_symbols_list import (
+        ALL_KR_SYMBOLS, ALL_US_TICKERS, KOSPI200_SYMBOLS, KOSDAQ150_SYMBOLS, NASDAQ100_EXTRA_TICKERS
+    )
+
+    async with async_session() as session:
+        # KR: stock_master 기반
+        kr_rows = (await session.execute(
+            select(StockMaster).where(
+                StockMaster.market == "KR",
+                StockMaster.symbol.in_(ALL_KR_SYMBOLS),
+            ).order_by(StockMaster.market_type, StockMaster.symbol)
+        )).scalars().all()
+
+        # US: stock_master 우선, 없으면 ticker 직접 포함
+        us_rows = (await session.execute(
+            select(StockMaster).where(
+                StockMaster.market == "US",
+                StockMaster.symbol.in_(ALL_US_TICKERS),
+            )
+        )).scalars().all()
+        us_map: dict[str, StockMaster] = {r.symbol: r for r in us_rows}
+
+        breakdown = {"kospi": 0, "kospi_etf": 0, "kosdaq": 0, "nasdaq100": 0, "sp500": 0, "us_etf": 0}
+        symbols = []
+
+        for r in kr_rows:
+            if r.market_type == "KOSPI" and not r.is_etf:
+                breakdown["kospi"] += 1
+            elif r.market_type == "KOSPI" and r.is_etf:
+                breakdown["kospi_etf"] += 1
+            elif r.market_type == "KOSDAQ":
+                breakdown["kosdaq"] += 1
+            symbols.append({
+                "symbol": r.symbol,
+                "name": r.name,
+                "market": r.market,
+                "market_type": r.market_type,
+                "is_etf": r.is_etf,
+            })
+
+        for ticker in sorted(ALL_US_TICKERS):
+            r = us_map.get(ticker)
+            mtype = "NASDAQ100" if ticker in NASDAQ100_EXTRA_TICKERS else "SP500"
+            breakdown["nasdaq100" if ticker in NASDAQ100_EXTRA_TICKERS else "sp500"] += 1
+            symbols.append({
+                "symbol": ticker,
+                "name": r.name if r else ticker,
+                "market": "US",
+                "market_type": r.market_type if r else mtype,
+                "is_etf": r.is_etf if r else False,
+            })
+
+        return {"total": len(symbols), "breakdown": breakdown, "symbols": symbols}
