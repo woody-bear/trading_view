@@ -8,12 +8,12 @@ import { UserMenu } from './components/UserMenu'
 import { useWebSocket } from './hooks/useWebSocket'
 import { useAuthStore } from './store/authStore'
 import Dashboard from './pages/Dashboard'
-import Forex from './pages/Forex'
 import Scan from './pages/Scan'
 import Settings from './pages/Settings'
 import SignalDetail from './pages/SignalDetail'
 import AlertHistory from './pages/AlertHistory'
-import TopPicks from './pages/TopPicks'
+import BuyList from './pages/BuyList'
+import Scrap from './pages/Scrap'
 import AuthCallback from './pages/AuthCallback'
 import Toast from './components/ui/Toast'
 
@@ -33,8 +33,8 @@ function AppInner() {
           <span className="text-lg font-bold text-[var(--gold)]">추세추종 연구소</span>
         </a>
         <div className="flex items-center gap-6 ml-6">
-          <a href="/picks" className="text-[var(--gold)] hover:text-yellow-300 text-sm font-semibold">추천</a>
-          <a href="/forex" className="text-emerald-400 hover:text-emerald-300 text-sm font-semibold">환율</a>
+          <a href="/buy-list" className="text-cyan-400 hover:text-cyan-300 text-sm font-semibold">BUY조회종목리스트</a>
+          <a href="/scrap" className="text-[var(--gold)] hover:text-yellow-300 text-sm font-semibold">BUY사례스크랩</a>
         </div>
         <div className="ml-auto flex items-center gap-3">
           <a href="/settings" className="text-[var(--muted)] hover:text-[var(--gold)] transition" title="설정">
@@ -49,12 +49,12 @@ function AppInner() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/scan" element={<Scan />} />
-          <Route path="/picks" element={<TopPicks />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/alerts" element={<AlertHistory />} />
+          <Route path="/buy-list" element={<BuyList />} />
+          <Route path="/scrap" element={<Scrap />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/:symbol" element={<SignalDetail />} />
-          <Route path="/forex" element={<Forex />} />
         </Routes>
       </main>
 

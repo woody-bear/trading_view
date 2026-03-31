@@ -166,6 +166,21 @@ async def get_full_scan_history(limit: int = 10):
     return {"history": history}
 
 
+@router.get("/scan/full/snapshot/{snapshot_id}/buy-items")
+async def get_snapshot_buy_items(snapshot_id: int):
+    """특정 스캔 스냅샷의 차트 BUY 신호 종목 목록."""
+    from services.full_market_scanner import get_snapshot_buy_items
+    items = await get_snapshot_buy_items(snapshot_id)
+    return {"snapshot_id": snapshot_id, "items": items, "count": len(items)}
+
+
+@router.get("/scan/symbols")
+async def get_scan_symbols():
+    """전체 스캔 대상 종목 목록 + 카테고리별 집계 반환."""
+    from services.stock_master import get_all_symbols
+    return await get_all_symbols()
+
+
 def _to_dict(r: ScanResult) -> dict:
     sq_labels = {0: "NO SQ", 1: "LOW SQ", 2: "MID SQ", 3: "MAX SQ"}
     trend_labels = {"BULL": "상승추세", "BEAR": "하락추세", "NEUTRAL": "횡보"}

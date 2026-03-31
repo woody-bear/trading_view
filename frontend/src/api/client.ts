@@ -92,9 +92,21 @@ export const fetchFullScanStatus = () => api.get('/scan/full/status').then(r => 
 export const triggerFullScan = () => api.post('/scan/full/trigger').then(r => r.data)
 export const fetchFullScanHistory = (limit: number = 10) =>
   api.get('/scan/full/history', { params: { limit } }).then(r => r.data.history)
+export const fetchSnapshotBuyItems = (snapshotId: number) =>
+  api.get(`/scan/full/snapshot/${snapshotId}/buy-items`).then(r => r.data)
 
 // 재무 데이터
 export const fetchFinancials = (symbol: string, market: string) =>
   api.get(`/financials/${symbol}`, { params: { market } }).then(r => r.data)
+
+// BUY 사인조회 — 전체 스캔 대상 종목 목록
+export const fetchScanSymbols = () => api.get('/scan/symbols').then(r => r.data)
+
+// 패턴 케이스 스크랩
+export const fetchPatternCases = (params?: { pattern_type?: string; market?: string }) =>
+  api.get('/pattern-cases', { params }).then(r => r.data)
+export const createPatternCase = (data: any) => api.post('/pattern-cases', data).then(r => r.data)
+export const updatePatternCase = (id: number, data: any) => api.patch(`/pattern-cases/${id}`, data).then(r => r.data)
+export const deletePatternCase = (id: number) => api.delete(`/pattern-cases/${id}`)
 
 export default api

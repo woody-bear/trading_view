@@ -289,3 +289,37 @@ class UserPositionState(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
+class PatternCase(Base):
+    """BUY 신호 우수 사례 스크랩 — 승률 좋은 조건 기록."""
+    __tablename__ = "pattern_case"
+    __table_args__ = (
+        Index("idx_pattern_case_date", "signal_date"),
+        Index("idx_pattern_case_type", "pattern_type"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    symbol: Mapped[str] = mapped_column(String(20), nullable=False)
+    stock_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    market: Mapped[str] = mapped_column(String(10), nullable=False)
+    market_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    pattern_type: Mapped[str] = mapped_column(String(30), nullable=False, default="custom")
+    signal_date: Mapped[str] = mapped_column(String(10), nullable=False)
+    entry_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    exit_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    result_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    hold_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    rsi: Mapped[float | None] = mapped_column(Float, nullable=True)
+    bb_pct_b: Mapped[float | None] = mapped_column(Float, nullable=True)
+    bb_width: Mapped[float | None] = mapped_column(Float, nullable=True)
+    macd_hist: Mapped[float | None] = mapped_column(Float, nullable=True)
+    volume_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ema_alignment: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    squeeze_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    conditions_met: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tags: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+

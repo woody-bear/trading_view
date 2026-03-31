@@ -1,14 +1,13 @@
 """BUY 신호 텔레그램 정기 알림 서비스 — 전체 시장 스캔(scan_snapshot) 기반."""
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from loguru import logger
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from database import async_session
 from models import AlertLog, ScanSnapshot, ScanSnapshotItem, UserAlertConfig
-from sqlalchemy import select
 
 
 async def get_recent_buy_signals() -> list[dict]:
@@ -113,6 +112,20 @@ async def send_scheduled_buy_alert() -> dict:
     from services.telegram_bot import TelegramService
 
     try:
+        # ── 중복 발송 방지: 최근 3분 이내 scheduled_buy 발송 이력 확인 ──
+        async with async_session() as session:
+            cutoff = datetime.utcnow() - timedelta(minutes=3)
+            recent_count = await session.scalar(
+                select(func.count(AlertLog.id)).where(
+                    AlertLog.alert_type == "scheduled_buy",
+                    AlertLog.success.is_(True),
+                    AlertLog.sent_at >= cutoff,
+                )
+            )
+            if recent_count and recent_count > 0:
+                logger.warning(f"BUY 알림 중복 방지: 최근 3분 이내 이미 {recent_count}건 발송됨 — 건너뜀")
+                return {"status": "skipped", "reason": "duplicate_guard", "recent_count": recent_count}
+
         # 활성 user_alert_config 목록 조회
         async with async_session() as session:
             result = await session.execute(
