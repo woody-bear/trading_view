@@ -152,6 +152,8 @@ BUY/SELL/NEUTRAL. 조건: BB %B, RSI, MACD 전환, 거래량. 민감도 3단계(
 - N/A (DB 변경 없음, 상태 저장 없음) (007-position-guide)
 - Python 3.12 (backend) + TypeScript 5.x / React 18 (frontend) + FastAPI, SQLAlchemy 2.0 async, asyncpg, PyJWT, @supabase/supabase-js v2, Zustand, Tailwind CSS (008-google-auth-personalization)
 - Supabase PostgreSQL (이미 전환 완료) (008-google-auth-personalization)
+- Python 3.12 (backend) / TypeScript 5.x React 18 (frontend) + FastAPI, SQLAlchemy 2.0 async (backend) / React Query, Tailwind CSS (frontend) (009-buy-scan-watchlist)
+- SQLite WAL — stock_master 테이블 읽기 전용 + ScanSnapshot 기존 읽기 (009-buy-scan-watchlist)
 
 ## Recent Changes
 - 002-fix-chart-usability: Added TypeScript 5.x (React 18) + Python 3.12 (변경 없음) + React 18, lightweight-charts v5, Zustand, React Query, Tailwind CSS
