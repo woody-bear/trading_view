@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, ChevronRight, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { addSymbol, deleteSymbol, fetchBatchPrices, fetchFullScanLatest, fetchScanStatus, fetchSignals, fetchUnifiedCache, runUnifiedScan, searchSymbols } from '../api/client'
+import { addSymbol, deleteSymbol, fetchBatchPrices, fetchFullScanLatest, fetchFullScanStatus, fetchScanStatus, fetchSignals, fetchUnifiedCache, runUnifiedScan, searchSymbols } from '../api/client'
 import SentimentPanel from '../components/SentimentPanel'
 import SignalCard from '../components/SignalCard'
 import { usePriceFlash } from '../hooks/usePriceFlash'
@@ -120,7 +120,7 @@ export default function Dashboard() {
     <div className="p-3 md:p-6 max-w-7xl mx-auto">
 
       {/* ── 종목 검색 + 추가 ── */}
-      <div ref={searchBoxRef} className="relative mb-3 md:mb-5 sticky top-0 z-30 md:static bg-[var(--bg)] pt-1 pb-1 md:pt-0 md:pb-0">
+      <div ref={searchBoxRef} className="relative mb-3 md:mb-5 sticky top-0 z-30 md:relative bg-[var(--bg)] pt-1 pb-1 md:pt-0 md:pb-0">
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
           <input
@@ -128,7 +128,7 @@ export default function Dashboard() {
             onChange={(e) => setSearchQuery(e.target.value)}
             onFocus={() => searchResults.length && setShowDropdown(true)}
             placeholder="종목 검색 (예: 삼성전자, AAPL, BTC)"
-            autoComplete="off"
+            autoComplete="new-password"
             className="w-full pl-9 pr-8 py-2 bg-[var(--card)] border border-[var(--border)] rounded-lg text-white text-sm placeholder:text-slate-500 focus:border-blue-500/50 focus:outline-none"
           />
           {searchQuery && (
@@ -254,6 +254,38 @@ function isAllMarketsClosed(): boolean {
   return !isMarketOpen('KR') && !isMarketOpen('US')
 }
 
+// ── 시간대별 BUY 신호 표시 모드 ───────────────────────────────
+// 06:00~15:00 KST: 국내장 (KR 80% + US 20%)
+// 20:00~06:00 KST: 미국장 (US 100%)
+// 15:00~20:00 KST: 전환 시간 (전체 표시)
+function getKSTHour(): number {
+  return (new Date().getUTCHours() + 9) % 24
+}
+
+type BuyDisplayMode = 'KR' | 'US' | 'ALL'
+
+function getBuyDisplayMode(): { mode: BuyDisplayMode; label: string } {
+  const h = getKSTHour()
+  if (h >= 6 && h < 15) return { mode: 'KR', label: '국내장 · KR 80% + US 20%' }
+  if (h >= 20 || h < 6)  return { mode: 'US', label: '미국장 · US 100%' }
+  return { mode: 'ALL', label: '전환 시간 · 전체 표시' }
+}
+
+function filterBuyByMode(items: any[], mode: BuyDisplayMode): any[] {
+  const isKR = (i: any) => i.market === 'KR' || i.market_type === 'KOSPI' || i.market_type === 'KOSDAQ'
+  const isUS = (i: any) => i.market === 'US'
+    || i.market_type === 'NASDAQ' || i.market_type === 'NASDAQ100'
+    || i.market_type === 'NYSE' || i.market_type === 'SP500' || i.market_type === 'ETF'
+  if (mode === 'US') return items.filter(isUS)
+  if (mode === 'KR') {
+    const kr = items.filter(isKR)
+    const us = items.filter(isUS)
+    const usLimit = Math.max(1, Math.round(kr.length * 0.25))  // KR 수의 25% = 전체의 ~20%
+    return [...kr, ...us.slice(0, usLimit)]
+  }
+  return items  // ALL
+}
+
 function fmtScanTime(isoStr: string | null | undefined): string {
   if (!isoStr) return ''
   try {
@@ -345,6 +377,8 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
   }, [picks, maxSq, buyItems, overheatItems])
 
   const [scanElapsed, setScanElapsed] = useState(0)
+  const [fullScanRunning, setFullScanRunning] = useState(false)
+  const fullScanPollTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const runScan = async () => {
     setScanning(true)
@@ -390,6 +424,11 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
         }).catch(() => runScan())
       }
     }).catch(() => { runScan() })
+
+    // full market scan 진행 중 확인 → 실시간 chart_buy 폴링
+    fetchFullScanStatus().then(fs => {
+      if (fs?.running) setFullScanRunning(true)
+    }).catch(() => {})
   }, [])
 
   // 스캔 중일 때 상태 폴링 (3초 간격)
@@ -423,6 +462,26 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
     }, 3000)
     return () => clearInterval(poll)
   }, [scanning])
+
+  // full market scan 진행 중일 때 5초마다 chart_buy 실시간 업데이트
+  useEffect(() => {
+    if (!fullScanRunning) {
+      if (fullScanPollTimer.current) { clearInterval(fullScanPollTimer.current); fullScanPollTimer.current = null }
+      return
+    }
+    fullScanPollTimer.current = setInterval(async () => {
+      try {
+        const fs = await fetchFullScanStatus()
+        if (!fs?.running) {
+          setFullScanRunning(false)
+          return
+        }
+        const snap = await fetchFullScanLatest()
+        if (snap?.chart_buy) setBuyItems(snap.chart_buy.items || [])
+      } catch {}
+    }, 5000)
+    return () => { if (fullScanPollTimer.current) clearInterval(fullScanPollTimer.current) }
+  }, [fullScanRunning])
 
   const hasPicks = picks && (picks.kospi?.length > 0 || picks.kosdaq?.length > 0 || picks.us?.length > 0 || picks.crypto?.length > 0)
   const allClosed = isAllMarketsClosed()
@@ -467,27 +526,36 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
       )}
 
       {/* 1. 차트 BUY 신호 */}
-      <div className="mb-2">
-        <div className="flex items-center gap-2 mb-3">
-          <h2 className="text-sm font-bold text-green-400">차트 BUY 신호</h2>
-          <span className="text-[9px] text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">일봉 3일 이내 + 데드크로스 제외 · 한국 2 + 미국 2</span>
-          {Object.keys(livePrices).length > 0 && (
-            <span className="text-[9px] text-green-400 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-              실시간 가격 반영중
-            </span>
-          )}
-        </div>
-        {buyItems.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-            {[...buyItems].sort((a: any, b: any) => (b.trend === 'BULL' ? 1 : 0) - (a.trend === 'BULL' ? 1 : 0)).map((item: any, i: number) => (
-              <BuyCard key={item.symbol} item={item} index={i} livePrice={livePrices[item.symbol]} nav={nav} />
-            ))}
+      {(() => {
+        const { mode, label } = getBuyDisplayMode()
+        const displayItems = filterBuyByMode(
+          [...buyItems].sort((a: any, b: any) => (b.trend === 'BULL' ? 1 : 0) - (a.trend === 'BULL' ? 1 : 0)),
+          mode
+        )
+        return (
+          <div className="mb-2">
+            <div className="flex items-center gap-2 mb-3">
+              <h2 className="text-sm font-bold text-green-400">차트 BUY 신호</h2>
+              <span className="text-[9px] text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">일봉 3일 이내 + 데드크로스 제외 · {label}</span>
+              {Object.keys(livePrices).length > 0 && (
+                <span className="text-[9px] text-green-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+                  실시간 가격 반영중
+                </span>
+              )}
+            </div>
+            {displayItems.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                {displayItems.map((item: any, i: number) => (
+                  <BuyCard key={item.symbol} item={item} index={i} livePrice={livePrices[item.symbol]} nav={nav} />
+                ))}
+              </div>
+            ) : !scanning ? (
+              <p className="text-[var(--muted)] text-xs text-center py-4">3일 이내 BUY 신호 종목이 없습니다</p>
+            ) : null}
           </div>
-        ) : !scanning ? (
-          <p className="text-[var(--muted)] text-xs text-center py-4">3일 이내 BUY 신호 종목이 없습니다</p>
-        ) : null}
-      </div>
+        )
+      })()}
 
       {/* 2. 투자과열 */}
       {overheatItems.length > 0 && (
