@@ -7,10 +7,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { setSession, setLoading } = useAuthStore()
 
   useEffect(() => {
-    // 초기 세션 확인
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // 초기 세션 확인 (5초 타임아웃 — Supabase 미응답 시 무한 로딩 방지)
+    Promise.race([
+      supabase.auth.getSession(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
+    ]).then((result) => {
+      const session = result && 'data' in result ? result.data.session : null
       setSession(session)
       if (session) syncUser(session.access_token)
+      setLoading(false)
+    }).catch(() => {
       setLoading(false)
     })
 
@@ -18,10 +24,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         setSession(session)
-        if (event === 'SIGNED_IN' && session) {
+        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
           await syncUser(session.access_token)
         } else if (event === 'SIGNED_OUT') {
-          setLoading(false)
+          setSession(null)
         }
         setLoading(false)
       }

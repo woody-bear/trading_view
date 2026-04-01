@@ -3,11 +3,19 @@ import { supabase } from '../lib/supabase'
 
 const api = axios.create({ baseURL: '/api' })
 
-// Bearer 토큰 자동 주입
+// Bearer 토큰 자동 주입 (Supabase 초기화 지연에도 블록되지 않도록 타임아웃 보호)
 api.interceptors.request.use(async (config) => {
-  const { data: { session } } = await supabase.auth.getSession()
-  if (session?.access_token) {
-    config.headers.Authorization = `Bearer ${session.access_token}`
+  try {
+    const result = await Promise.race([
+      supabase.auth.getSession(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000)),
+    ])
+    const session = result && 'data' in result ? result.data.session : null
+    if (session?.access_token) {
+      config.headers.Authorization = `Bearer ${session.access_token}`
+    }
+  } catch {
+    // auth 실패 시 토큰 없이 요청 진행
   }
   return config
 })
@@ -99,8 +107,8 @@ export const fetchSnapshotBuyItems = (snapshotId: number) =>
 export const fetchFinancials = (symbol: string, market: string) =>
   api.get(`/financials/${symbol}`, { params: { market } }).then(r => r.data)
 
-// BUY 사인조회 — 전체 스캔 대상 종목 목록
-export const fetchScanSymbols = () => api.get('/scan/symbols').then(r => r.data)
+// BUY 사인조회 — 전체 스캔 대상 종목 목록 (인증 불필요, 인터셉터 우회)
+export const fetchScanSymbols = () => fetch('/api/scan/symbols').then(r => r.json())
 
 // 패턴 케이스 스크랩
 export const fetchPatternCases = (params?: { pattern_type?: string; market?: string }) =>
@@ -108,5 +116,35 @@ export const fetchPatternCases = (params?: { pattern_type?: string; market?: str
 export const createPatternCase = (data: any) => api.post('/pattern-cases', data).then(r => r.data)
 export const updatePatternCase = (id: number, data: any) => api.patch(`/pattern-cases/${id}`, data).then(r => r.data)
 export const deletePatternCase = (id: number) => api.delete(`/pattern-cases/${id}`)
+export const checkPatternCaseDuplicate = (symbol: string, signalDate: string) =>
+  api.get('/pattern-cases/check', { params: { symbol, signal_date: signalDate } }).then(r => r.data as { exists: boolean; id: number | null })
+export const fetchIndicatorsAt = (symbol: string, market: string, date: string) =>
+  api.get('/chart/indicators-at', { params: { symbol, market, date } }).then(r => r.data)
+
+// 401 응답 시: 토큰 갱신 후 원래 요청 재시도 → 갱신 실패 시만 signOut
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true
+      try {
+        const { data, error: refreshError } = await supabase.auth.refreshSession()
+        if (refreshError || !data.session) {
+          // 갱신 불가 → 로그아웃 (로그인 버튼 표시)
+          await supabase.auth.signOut()
+          return Promise.reject(error)
+        }
+        // 새 토큰으로 원래 요청 재시도
+        originalRequest.headers.Authorization = `Bearer ${data.session.access_token}`
+        return api(originalRequest)
+      } catch {
+        await supabase.auth.signOut()
+        return Promise.reject(error)
+      }
+    }
+    return Promise.reject(error)
+  }
+)
 
 export default api

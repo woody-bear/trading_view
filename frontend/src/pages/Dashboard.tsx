@@ -22,7 +22,7 @@ const sqLabels: Record<number, string> = { 0: 'NO SQ', 1: 'LOW SQ', 2: 'MID SQ',
 export default function Dashboard() {
   const qc = useQueryClient()
   const nav = useNavigate()
-  const { data, isLoading } = useQuery<Signal[]>({ queryKey: ['signals'], queryFn: fetchSignals })
+  const { data, isLoading, isError, refetch } = useQuery<Signal[]>({ queryKey: ['signals'], queryFn: fetchSignals })
   const { signals, setSignals } = useSignalStore()
   const { user } = useAuthStore()
   const { addToast } = useToastStore()
@@ -181,7 +181,20 @@ export default function Dashboard() {
 
         {isLoading && <p className="text-[var(--muted)] text-sm">로딩 중...</p>}
 
-        {signals.length === 0 && !isLoading && (
+        {isError && signals.length === 0 && (
+          <div className="text-center py-8 text-[var(--muted)]">
+            <p className="mb-2 text-sm">관심종목을 불러오지 못했습니다</p>
+            <button
+              onClick={() => refetch()}
+              className="flex items-center gap-1.5 mx-auto px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-lg transition"
+            >
+              <RefreshCw size={12} />
+              다시 불러오기
+            </button>
+          </div>
+        )}
+
+        {signals.length === 0 && !isLoading && !isError && (
           <div className="text-center py-8 text-[var(--muted)]">
             <p className="mb-1">등록된 종목이 없습니다</p>
             <p className="text-xs">위 검색창에서 종목을 추가하세요</p>
@@ -255,20 +268,53 @@ function isAllMarketsClosed(): boolean {
 }
 
 // ── 시간대별 BUY 신호 표시 모드 ───────────────────────────────
-// 06:00~15:00 KST: 국내장 (KR 80% + US 20%)
-// 20:00~06:00 KST: 미국장 (US 100%)
-// 15:00~20:00 KST: 전환 시간 (전체 표시)
+// KR 스캔: 평일 09:30~15:30 KST (매시 :30)  → 코스피200+코스닥150+KRX섹터 ~354종목
+// US 스캔: 평일 19:50 / 화~토 03:50 KST     → S&P500+나스닥100+암호화폐 ~522종목
 function getKSTHour(): number {
   return (new Date().getUTCHours() + 9) % 24
+}
+function getKSTWeekday(): number {
+  // 0=일 1=월 ... 6=토 (KST 기준)
+  const now = new Date()
+  const kst = new Date(now.getTime() + 9 * 3600000)
+  return kst.getUTCDay()
 }
 
 type BuyDisplayMode = 'KR' | 'US' | 'ALL'
 
 function getBuyDisplayMode(): { mode: BuyDisplayMode; label: string } {
   const h = getKSTHour()
-  if (h >= 6 && h < 15) return { mode: 'KR', label: '국내장 · KR 80% + US 20%' }
-  if (h >= 20 || h < 6)  return { mode: 'US', label: '미국장 · US 100%' }
-  return { mode: 'ALL', label: '전환 시간 · 전체 표시' }
+  const m = new Date().getUTCMinutes()  // KST분 = UTC분
+  const wd = getKSTWeekday()  // 0=일~6=토
+  const isWeekday = wd >= 1 && wd <= 5
+  const isTueSat = wd >= 2 && wd <= 6
+
+  // 국내장 스캔 시간 (평일 09:30~16:10, 최근 슬롯 계산)
+  if (isWeekday && h >= 9 && h < 17) {
+    const krSlots = [9, 10, 11, 12, 13, 14, 15]
+    const nowMin = h * 60 + m
+    const lastSlot = krSlots.filter(sh => sh * 60 + 30 <= nowMin).pop()
+    const slotLabel = lastSlot !== undefined ? `${lastSlot}:30 스캔 · ` : ''
+    return { mode: 'KR', label: `🇰🇷 국내장 · ${slotLabel}코스피200+코스닥150` }
+  }
+
+  // 미국 저녁 스캔 시간대 (평일 19:50 전후)
+  if (isWeekday && h >= 19 && h < 23) {
+    return { mode: 'US', label: '🇺🇸 미국장 · 19:50 스캔 · S&P500+나스닥100' }
+  }
+
+  // 미국 새벽 스캔 시간대 (화~토 03:50 전후, 00:00~07:00)
+  if (isTueSat && h < 7) {
+    return { mode: 'US', label: '🇺🇸 미국장 · 03:50 스캔 · S&P500+나스닥100' }
+  }
+
+  // 전환 시간 (장 마감 후, 미국 스캔 전: 17:00~19:50)
+  if (h >= 17 && h < 20) {
+    return { mode: 'ALL', label: '전체 · 국내 마감 후 대기중 (미국 스캔 19:50)' }
+  }
+
+  // 기본: 미국장 데이터 기준 (주말 등)
+  return { mode: 'US', label: '🇺🇸 미국장 · 최근 스캔 기준' }
 }
 
 function filterBuyByMode(items: any[], mode: BuyDisplayMode): any[] {
@@ -398,32 +444,39 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
     if (autoLoaded.current) return
     autoLoaded.current = true
 
-    // 1차: full_market_scanner 스냅샷 (DB 즉시 반환)
-    fetchFullScanLatest().then(r => {
-      if (r?.status !== 'no_data' && r?.picks) {
-        applyResult(r)
-      } else {
-        // 2차: unified_scanner 캐시 fallback
-        fetchUnifiedCache().then(r2 => applyResult(r2)).catch(() => {})
-      }
-    }).catch(() => {
-      fetchUnifiedCache().then(r => applyResult(r)).catch(() => {})
-    })
+    // 1차: full_market_scanner 스냅샷, 없으면 unified 캐시 fallback
+    // 데이터 로드 성공 여부를 반환해 스캔 실행 여부 판단에 사용
+    const loadData: Promise<boolean> = fetchFullScanLatest()
+      .then(r => {
+        if (r?.status !== 'no_data' && r?.picks) {
+          applyResult(r)
+          return true
+        }
+        return fetchUnifiedCache()
+          .then(r2 => { applyResult(r2); return true })
+          .catch(() => false)
+      })
+      .catch(() =>
+        fetchUnifiedCache()
+          .then(r => { applyResult(r); return true })
+          .catch(() => false)
+      )
 
-    // 스캔 상태 확인
-    fetchScanStatus().then(status => {
-      if (status.scan_time) setScanTime(status.scan_time)
-      if (status.scanning) {
-        setScanning(true)
-        setScanMsg('전체 시장 스캔 중...')
-        setScanElapsed(status.elapsed_seconds || 0)
-      } else if (!status.has_cache) {
-        // unified 캐시 없으면 unified 스캔 실행
-        fetchFullScanLatest().then(r => {
-          if (r?.status === 'no_data') runScan()
-        }).catch(() => runScan())
-      }
-    }).catch(() => { runScan() })
+    // 스캔 상태 + 데이터 로드를 함께 기다린 후 스캔 실행 여부 결정
+    // → fetchScanStatus 실패만으로 runScan()을 트리거하지 않음 (레이스 컨디션 방지)
+    Promise.all([loadData, fetchScanStatus().catch(() => null)])
+      .then(([hasData, status]) => {
+        if (!status) return  // API 오류 시 스캔 미실행
+        if (status.scan_time) setScanTime(status.scan_time)
+        if (status.scanning) {
+          setScanning(true)
+          setScanMsg('전체 시장 스캔 중...')
+          setScanElapsed(status.elapsed_seconds || 0)
+        } else if (!hasData) {
+          // 데이터가 전혀 없을 때만 스캔 실행
+          runScan()
+        }
+      })
 
     // full market scan 진행 중 확인 → 실시간 chart_buy 폴링
     fetchFullScanStatus().then(fs => {
@@ -534,9 +587,14 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
         )
         return (
           <div className="mb-2">
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
               <h2 className="text-sm font-bold text-green-400">차트 BUY 신호</h2>
-              <span className="text-[9px] text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">일봉 3일 이내 + 데드크로스 제외 · {label}</span>
+              <span className="text-[9px] text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">일봉 3일 이내 + 데드크로스 제외</span>
+              <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${
+                mode === 'KR' ? 'bg-blue-500/15 text-blue-300' :
+                mode === 'US' ? 'bg-emerald-500/15 text-emerald-300' :
+                'bg-[var(--bg)] text-[var(--muted)]'
+              }`}>{label}</span>
               {Object.keys(livePrices).length > 0 && (
                 <span className="text-[9px] text-green-400 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />

@@ -18,7 +18,7 @@ import AuthCallback from './pages/AuthCallback'
 import Toast from './components/ui/Toast'
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: 60000, refetchOnWindowFocus: false } },
+  defaultOptions: { queries: { staleTime: 60000, refetchOnWindowFocus: false, retry: 1 } },
 })
 
 function AppInner() {
