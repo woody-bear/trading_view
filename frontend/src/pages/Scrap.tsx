@@ -1,6 +1,8 @@
-import { BookMarked, ChevronDown, ChevronUp, Edit3, Plus, Trash2, X, TrendingUp, TrendingDown, Minus } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { BookMarked, ChevronDown, ChevronUp, Edit3, Plus, Trash2, X, TrendingUp, TrendingDown, Minus, BarChart2 } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { fetchPatternCases, createPatternCase, updatePatternCase, deletePatternCase } from '../api/client'
+import { useAuthStore } from '../store/authStore'
 
 // ── 타입 ────────────────────────────────────────────────────────
 
@@ -27,6 +29,7 @@ interface PatternCase {
   conditions_met: number | null
   tags: string[]
   notes: string | null
+  source: string
   created_at: string
 }
 
@@ -35,6 +38,7 @@ const PATTERN_TYPES: { key: string; label: string; color: string }[] = [
   { key: 'squeeze_breakout',  label: '스퀴즈 이탈',   color: 'text-yellow-400' },
   { key: 'oversold_bounce',   label: '과매도 반등',   color: 'text-cyan-400' },
   { key: 'custom',            label: '직접 입력',     color: 'text-purple-400' },
+  { key: 'chart',             label: '차트 BUY',      color: 'text-green-400' },
 ]
 
 const PATTERN_LABEL: Record<string, string> = {
@@ -59,18 +63,132 @@ const EMPTY_FORM = {
   tags: '', notes: '',
 }
 
+// ── 툴팁 ─────────────────────────────────────────────────────────
+
+function Tooltip({ text, children }: { text: string; children: React.ReactNode }) {
+  return (
+    <div className="relative group/tip inline-block">
+      {children}
+      <div className="pointer-events-none absolute bottom-full right-0 mb-1.5 w-56 bg-[#1a2035] border border-[var(--border)] rounded-lg px-3 py-2 text-[11px] text-white/85 leading-relaxed hidden group-hover/tip:block z-50 shadow-xl whitespace-pre-line">
+        {text}
+        <div className="absolute top-full right-3 border-4 border-transparent border-t-[#1a2035]" />
+      </div>
+    </div>
+  )
+}
+
+function rsiTooltip(v: number) {
+  if (v < 30) return `RSI ${v.toFixed(1)} — 극도 과매도\n강한 반등 후보. 매수 최적 구간.`
+  if (v < 45) return `RSI ${v.toFixed(1)} — 과매도권\n매수 적합 구간 (30~45). BUY 시그널 핵심 조건.`
+  if (v < 55) return `RSI ${v.toFixed(1)} — 중립\n매수 가능하지만 모멘텀 확인 필요.`
+  if (v < 70) return `RSI ${v.toFixed(1)} — 과매수 주의\n추격 매수 위험. 조정 후 진입 고려.`
+  return `RSI ${v.toFixed(1)} — 과매수\n매수 위험 구간. 단기 고점 가능성.`
+}
+
+function bbPctBTooltip(v: number) {
+  if (v < 0) return `BB %B ${v.toFixed(1)}% — 하단 밴드 이탈\n극단적 과매도. 강한 반등 신호.`
+  if (v < 20) return `BB %B ${v.toFixed(1)}% — 하단 밴드 근접\n매수 최적 구간. 하단 지지 테스트 중.`
+  if (v < 35) return `BB %B ${v.toFixed(1)}% — 하단 접근\n매수 고려 구간. 하단 밴드 방향으로 진행 중.`
+  if (v < 65) return `BB %B ${v.toFixed(1)}% — 중간 구간\n중립. 상·하단 방향성 확인 필요.`
+  return `BB %B ${v.toFixed(1)}% — 상단 밴드 근접\n과매수 구간. 매수 부적합.`
+}
+
+function bbwTooltip(v: number) {
+  if (v < 10) return `BBW ${v.toFixed(1)}% — 강한 밴드 수축\n변동성 압축 극단. 스퀴즈 Lv3 수준.\n폭발적 방향성 이탈 임박.`
+  if (v < 30) return `BBW ${v.toFixed(1)}% — 밴드 수축 중\n에너지 축적 단계. 이탈 방향 주목.`
+  if (v < 60) return `BBW ${v.toFixed(1)}% — 일반 변동성\n특별한 수축 없음. 일반 매매 환경.`
+  return `BBW ${v.toFixed(1)}% — 밴드 확장\n변동성이 이미 방출 중. 추세 진행 중.`
+}
+
+function macdTooltip(v: number) {
+  if (v < -500) return `MACD Hist ${v.toFixed(0)} — 강한 하락 모멘텀\n음수값 크지만 회복 시 강한 매수 신호.\n히스토그램 상승 반전 여부가 핵심.`
+  if (v < 0) return `MACD Hist ${v.toFixed(0)} — 약한 하락 모멘텀\n음수 + 상승 전환 시 BUY 시그널 조건 충족.`
+  if (v === 0) return `MACD Hist 0 — 제로 크로스\n매수·매도 전환점.`
+  return `MACD Hist +${v.toFixed(0)} — 상승 모멘텀\n양수 구간. 상승 추세 유지 중.`
+}
+
+function volumeTooltip(v: number) {
+  if (v < 1.0) return `거래량 ${v.toFixed(2)}x — 거래량 부족\n신호 신뢰도 낮음. 관망 권장.`
+  if (v < 1.5) return `거래량 ${v.toFixed(2)}x — 보통 수준\n유효 신호 기준(1.5x) 미달. 참고 수준.`
+  if (v < 3.0) return `거래량 ${v.toFixed(2)}x — 유효 거래량\n매수 세력 유입 확인. BUY 조건 충족.`
+  return `거래량 ${v.toFixed(2)}x — 강한 거래량 폭발\n세력 개입 가능성. 강한 방향성 신호.`
+}
+
+function emaTooltip(v: string) {
+  if (v === 'BULL') return `EMA 배열: BULL (정배열)\nEMA20 > EMA50 > EMA200\n상승 추세 구조. 매수 유리한 배열.`
+  if (v === 'BEAR') return `EMA 배열: BEAR (역배열)\nEMA20 < EMA50 < EMA200\n하락 추세. 매수 위험. 데드크로스 상태.`
+  return `EMA 배열: NEUTRAL (횡보)\n추세 방향성 불명확. 돌파 방향 확인 필요.`
+}
+
+function squeezeTooltip(v: number) {
+  const desc: Record<number, string> = {
+    0: `Lv0 — 수축 없음\nBB 폭이 넓음. 변동성이 이미 확장 중이거나\n평범한 상태. 스퀴즈 조건 미충족.`,
+    1: `Lv1 — 약한 수축\nBB가 약하게 수축 중. 에너지 축적 시작.\n이탈 시 소폭 상승 기대.`,
+    2: `Lv2 — 중간 수축\nBB가 의미있게 수축. 폭발 준비 단계.\n이탈 방향에 강한 모멘텀 예상.`,
+    3: `Lv3 — 강한 수축\nBB가 극도로 수축. 폭발 직전.\n이탈 시 강한 방향성 발생 가능성 높음.`,
+  }
+  return desc[v] ?? `스퀴즈 Lv${v}`
+}
+
+function conditionsTooltip(v: number) {
+  if (v <= 1) return `${v}/4 조건 충족 — 신호 약함\nBUY 조건 불충분. 단독 진입 부적합.`
+  if (v === 2) return `${v}/4 조건 충족 — 참고 수준\n기본 조건은 갖춤. 다른 신호와 병행 확인 권장.`
+  if (v === 3) return `${v}/4 조건 충족 — 매수 고려\n권장 기준(3개+) 충족. 진입 적합.`
+  return `${v}/4 조건 충족 — 강한 매수 신호\n전 조건 충족. 최상의 진입 환경.`
+}
+
 // ── 지표 테이블 ──────────────────────────────────────────────────
 
 function IndicatorTable({ c }: { c: PatternCase }) {
   const rows = [
-    { label: 'RSI', value: c.rsi?.toFixed(1), good: c.rsi != null && c.rsi >= 30 && c.rsi <= 55, hint: '30~55 매수권' },
-    { label: 'BB %B', value: c.bb_pct_b != null ? `${c.bb_pct_b.toFixed(1)}%` : null, good: c.bb_pct_b != null && c.bb_pct_b < 35, hint: '< 35% 하단밴드' },
-    { label: 'BBW', value: c.bb_width != null ? `${c.bb_width.toFixed(1)}%` : null, good: null, hint: '변동성 폭' },
-    { label: 'MACD hist', value: c.macd_hist?.toFixed(0), good: c.macd_hist != null && c.macd_hist < 0, hint: '음수 + 회복 중' },
-    { label: '거래량 배율', value: c.volume_ratio != null ? `${c.volume_ratio.toFixed(2)}x` : null, good: c.volume_ratio != null && c.volume_ratio >= 1.5, hint: '≥ 1.5x 유효' },
-    { label: 'EMA 배열', value: c.ema_alignment, good: c.ema_alignment === 'BULL', hint: 'BULL = 정배열' },
-    { label: '스퀴즈 레벨', value: c.squeeze_level != null ? `Lv${c.squeeze_level}` : null, good: null, hint: '0~3' },
-    { label: '충족 조건수', value: c.conditions_met != null ? `${c.conditions_met}/4` : null, good: c.conditions_met != null && c.conditions_met >= 3, hint: '3개+ 권장' },
+    {
+      label: 'RSI', hint: '30~55 매수권',
+      value: c.rsi?.toFixed(1),
+      good: c.rsi != null && c.rsi >= 30 && c.rsi <= 55,
+      tooltip: c.rsi != null ? rsiTooltip(c.rsi) : null,
+    },
+    {
+      label: 'BB %B', hint: '< 35% 하단밴드',
+      value: c.bb_pct_b != null ? `${c.bb_pct_b.toFixed(1)}%` : null,
+      good: c.bb_pct_b != null && c.bb_pct_b < 35,
+      tooltip: c.bb_pct_b != null ? bbPctBTooltip(c.bb_pct_b) : null,
+    },
+    {
+      label: 'BBW', hint: '변동성 폭',
+      value: c.bb_width != null ? `${c.bb_width.toFixed(1)}%` : null,
+      good: null,
+      tooltip: c.bb_width != null ? bbwTooltip(c.bb_width) : null,
+    },
+    {
+      label: 'MACD hist', hint: '음수 + 회복 중',
+      value: c.macd_hist?.toFixed(0),
+      good: c.macd_hist != null && c.macd_hist < 0,
+      tooltip: c.macd_hist != null ? macdTooltip(c.macd_hist) : null,
+    },
+    {
+      label: '거래량 배율', hint: '≥ 1.5x 유효',
+      value: c.volume_ratio != null ? `${c.volume_ratio.toFixed(2)}x` : null,
+      good: c.volume_ratio != null && c.volume_ratio >= 1.5,
+      tooltip: c.volume_ratio != null ? volumeTooltip(c.volume_ratio) : null,
+    },
+    {
+      label: 'EMA 배열', hint: 'BULL = 정배열',
+      value: c.ema_alignment,
+      good: c.ema_alignment === 'BULL',
+      tooltip: c.ema_alignment ? emaTooltip(c.ema_alignment) : null,
+    },
+    {
+      label: '스퀴즈 레벨', hint: 'Lv0~3',
+      value: c.squeeze_level != null ? `Lv${c.squeeze_level}` : null,
+      good: null,
+      tooltip: c.squeeze_level != null ? squeezeTooltip(c.squeeze_level) : null,
+    },
+    {
+      label: '충족 조건수', hint: '3개+ 권장',
+      value: c.conditions_met != null ? `${c.conditions_met}/4` : null,
+      good: c.conditions_met != null && c.conditions_met >= 3,
+      tooltip: c.conditions_met != null ? conditionsTooltip(c.conditions_met) : null,
+    },
   ].filter(r => r.value != null)
 
   return (
@@ -89,7 +207,13 @@ function IndicatorTable({ c }: { c: PatternCase }) {
               <td className="px-3 py-1.5 text-[11px] text-[var(--muted)]">{r.label}</td>
               <td className={`px-3 py-1.5 text-right text-[12px] font-mono font-semibold ${
                 r.good === true ? 'text-green-400' : r.good === false ? 'text-orange-400' : 'text-white'
-              }`}>{r.value}</td>
+              }`}>
+                {r.tooltip ? (
+                  <Tooltip text={r.tooltip}>
+                    <span className="underline decoration-dotted decoration-white/30 cursor-help">{r.value}</span>
+                  </Tooltip>
+                ) : r.value}
+              </td>
               <td className="px-3 py-1.5 text-[10px] text-[var(--muted)]/60">{r.hint}</td>
             </tr>
           ))}
@@ -107,6 +231,11 @@ function CaseAccordion({ c, onEdit, onDelete }: {
   onDelete: (id: number) => void
 }) {
   const [open, setOpen] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [notesDraft, setNotesDraft] = useState(c.notes ?? '')
+  const [notesStatus, setNotesStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const notesTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const nav = useNavigate()
 
   const resultColor = c.result_pct == null ? 'text-[var(--muted)]'
     : c.result_pct > 0 ? 'text-green-400' : 'text-red-400'
@@ -114,16 +243,36 @@ function CaseAccordion({ c, onEdit, onDelete }: {
   const marketLabel = c.market === 'KR' ? '🇰🇷' : '🇺🇸'
   const ptColor = PATTERN_COLOR[c.pattern_type] || PATTERN_COLOR.custom
 
+  const handleNotesChange = (value: string) => {
+    setNotesDraft(value)
+    setNotesStatus('idle')
+    if (notesTimer.current) clearTimeout(notesTimer.current)
+    notesTimer.current = setTimeout(async () => {
+      setNotesStatus('saving')
+      try {
+        await updatePatternCase(c.id, { notes: value })
+        setNotesStatus('saved')
+        setTimeout(() => setNotesStatus('idle'), 3000)
+      } catch {
+        setNotesStatus('idle')
+      }
+    }, 1500)
+  }
+
   return (
     <div className="border border-[var(--border)] rounded-lg overflow-hidden mb-2">
       {/* 헤더 */}
       <div
         className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/3 transition-colors select-none"
-        onClick={() => setOpen(o => !o)}
+        onClick={() => { if (!confirmDelete) setOpen(o => !o) }}
       >
         {/* 패턴 뱃지 */}
         <span className={`text-[10px] px-2 py-0.5 rounded border font-semibold shrink-0 ${ptColor}`}>
           {PATTERN_LABEL[c.pattern_type] ?? c.pattern_type}
+        </span>
+        {/* 출처 뱃지 */}
+        <span className="text-[9px] px-1.5 py-0.5 bg-[var(--border)]/60 rounded text-[var(--muted)] shrink-0">
+          {c.source === 'chart' ? '📊 차트' : '✏️ 수동'}
         </span>
 
         {/* 제목 & 종목 */}
@@ -160,6 +309,31 @@ function CaseAccordion({ c, onEdit, onDelete }: {
           ))}
         </div>
 
+        {/* 삭제 버튼 (항상 노출) */}
+        <div className="shrink-0" onClick={e => e.stopPropagation()}>
+          {confirmDelete ? (
+            <div className="flex items-center gap-1">
+              <span className="text-[11px] text-red-400">삭제?</span>
+              <button
+                onClick={() => onDelete(c.id)}
+                className="text-[11px] text-red-400 hover:text-red-300 px-1.5 py-0.5 border border-red-500/40 rounded"
+              >확인</button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="text-[11px] text-[var(--muted)] hover:text-white px-1.5 py-0.5 border border-[var(--border)] rounded"
+              >취소</button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="p-1.5 text-[var(--muted)] hover:text-red-400 transition-colors rounded hover:bg-red-500/10"
+              title="삭제"
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
+        </div>
+
         {/* 열기/닫기 */}
         <div className="text-[var(--muted)] shrink-0">
           {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -194,13 +368,21 @@ function CaseAccordion({ c, onEdit, onDelete }: {
           {/* 지표 테이블 */}
           <IndicatorTable c={c} />
 
-          {/* 분석 메모 */}
-          {c.notes && (
-            <div className="px-4 py-3 border-t border-[var(--border)]/50">
-              <div className="text-[10px] text-[var(--muted)] mb-1">분석 메모</div>
-              <p className="text-[12px] text-white/80 leading-relaxed whitespace-pre-wrap">{c.notes}</p>
+          {/* 메모 인라인 편집 (T014) */}
+          <div className="px-4 py-3 border-t border-[var(--border)]/50">
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="text-[10px] text-[var(--muted)]">분석 메모</div>
+              {notesStatus === 'saving' && <span className="text-[10px] text-[var(--muted)]">저장 중...</span>}
+              {notesStatus === 'saved' && <span className="text-[10px] text-green-400">저장됨</span>}
             </div>
-          )}
+            <textarea
+              className="w-full bg-[var(--bg)] border border-[var(--border)] rounded px-2.5 py-2 text-[12px] text-white/90 focus:outline-none focus:border-[var(--gold)] resize-none leading-relaxed"
+              rows={3}
+              value={notesDraft}
+              onChange={e => handleNotesChange(e.target.value)}
+              placeholder="매수 이유, 패턴 특징, 향후 활용 방안..."
+            />
+          </div>
 
           {/* 태그 + 액션 */}
           <div className="px-4 py-3 border-t border-[var(--border)]/50 flex items-center justify-between">
@@ -209,18 +391,19 @@ function CaseAccordion({ c, onEdit, onDelete }: {
                 <span key={t} className="text-[10px] px-1.5 py-0.5 bg-[var(--border)]/60 rounded text-[var(--muted)]">#{t}</span>
               ))}
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
+              {/* 차트 보기 버튼 */}
+              <button
+                onClick={e => { e.stopPropagation(); nav(`/${c.symbol}?market=${c.market_type || c.market}&highlightDate=${c.signal_date}`) }}
+                className="flex items-center gap-1 text-[11px] text-[var(--muted)] hover:text-blue-400 transition-colors px-2 py-1"
+              >
+                <BarChart2 size={12} /> 차트
+              </button>
               <button
                 onClick={() => onEdit(c)}
                 className="flex items-center gap-1 text-[11px] text-[var(--muted)] hover:text-[var(--gold)] transition-colors px-2 py-1"
               >
                 <Edit3 size={12} /> 수정
-              </button>
-              <button
-                onClick={() => onDelete(c.id)}
-                className="flex items-center gap-1 text-[11px] text-[var(--muted)] hover:text-red-400 transition-colors px-2 py-1"
-              >
-                <Trash2 size={12} /> 삭제
               </button>
             </div>
           </div>
@@ -459,6 +642,7 @@ function CaseFormModal({
 // ── 메인 페이지 ───────────────────────────────────────────────────
 
 export default function Scrap() {
+  const { user } = useAuthStore()
   const [cases, setCases] = useState<PatternCase[]>([])
   const [loading, setLoading] = useState(true)
   const [activeType, setActiveType] = useState('all')
@@ -477,7 +661,10 @@ export default function Scrap() {
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    if (user) load()
+    else setLoading(false)
+  }, [user])
 
   const filtered = useMemo(() =>
     activeType === 'all' ? cases : cases.filter(c => c.pattern_type === activeType),
@@ -514,7 +701,6 @@ export default function Scrap() {
   }
 
   const handleDelete = async (id: number) => {
-    if (!window.confirm('이 케이스를 삭제하시겠습니까?')) return
     await deletePatternCase(id)
     setCases(prev => prev.filter(c => c.id !== id))
   }
@@ -573,7 +759,13 @@ export default function Scrap() {
       </div>
 
       {/* 사례 목록 */}
-      {loading ? (
+      {!user ? (
+        <div className="text-center py-16">
+          <BookMarked size={36} className="text-[var(--border)] mx-auto mb-3" />
+          <p className="text-sm text-[var(--muted)] mb-1">로그인 후 나만의 BUY 사례를 관리할 수 있습니다</p>
+          <p className="text-xs text-[var(--muted)]/60">우측 상단 메뉴에서 Google 로그인</p>
+        </div>
+      ) : loading ? (
         <div className="flex justify-center py-16">
           <div className="text-sm text-[var(--muted)]">불러오는 중...</div>
         </div>

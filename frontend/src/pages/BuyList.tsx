@@ -1,4 +1,4 @@
-import { Bell, CheckCircle, Clock, Loader2, RefreshCw, Search, TrendingUp, X, Zap } from 'lucide-react'
+import { Bell, CheckCircle, ChevronDown, ChevronUp, Clock, Loader2, RefreshCw, Search, TrendingUp, X, Zap } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fetchFullScanHistory, fetchFullScanLatest, fetchFullScanStatus, fetchScanSymbols, fetchSnapshotBuyItems, triggerFullScan } from '../api/client'
@@ -11,6 +11,7 @@ interface StockSymbol {
   market: string
   market_type: string
   is_etf: boolean
+  indices?: string[]
 }
 
 interface Breakdown {
@@ -19,6 +20,7 @@ interface Breakdown {
   kosdaq: number
   nasdaq100: number
   sp500: number
+  russell1000: number
   us_etf: number
 }
 
@@ -106,6 +108,95 @@ function buildScanSlots(history: any[], status: any | null): ScanSlot[] {
   return slots
 }
 
+// ── 조회 조건 패널 ───────────────────────────────────────────
+
+function ScanConditionPanel() {
+  const [open, setOpen] = useState(false)
+
+  const COND_BLOCKS = [
+    {
+      title: '📊 차트 BUY 신호',
+      color: 'text-green-400',
+      border: 'border-green-500/20',
+      bg: 'bg-green-500/5',
+      rows: [
+        { label: '기준 봉', value: '일봉 (1D)' },
+        { label: '신호 유효기간', value: '3일 이내' },
+        { label: '데드크로스 제외', value: 'EMA20 < EMA50 → 종목 제외' },
+        { label: '사전 필터', value: 'RSI < 55 또는 스퀴즈 Lv ≥ 1' },
+        { label: 'BUY 판정', value: 'Pine Script 시뮬레이션 — BUY / SQZ BUY 마커' },
+      ],
+    },
+    {
+      title: '⭐ 추천 종목',
+      color: 'text-yellow-400',
+      border: 'border-yellow-500/20',
+      bg: 'bg-yellow-500/5',
+      rows: [
+        { label: '스퀴즈', value: 'Lv 1 이상 (밴드 수축 중)' },
+        { label: 'EMA 배열', value: 'BULL 정배열 (EMA20 > EMA50 > EMA200)' },
+        { label: '점수 산정', value: 'SQ×25 + BULL+15 + RSI<40+10 + BB<30%+5 + MACD>0+5 + Vol>1+5' },
+      ],
+    },
+    {
+      title: '🔥 투자과열 신호',
+      color: 'text-orange-400',
+      border: 'border-orange-500/20',
+      bg: 'bg-orange-500/5',
+      rows: [
+        { label: '대상', value: '국내 개별주 (ETF 제외)' },
+        { label: '조건 A', value: 'RSI ≥ 70' },
+        { label: '조건 B', value: 'RSI ≥ 65 + 거래량비율 ≥ 2.0x (OR)' },
+      ],
+    },
+  ]
+
+  return (
+    <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg mb-4 overflow-hidden">
+      <button
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/3 transition-colors"
+        onClick={() => setOpen(o => !o)}
+      >
+        <span className="text-sm font-semibold text-white">신호 조회 조건</span>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-[var(--muted)]">
+            {open ? '접기' : '펼쳐서 상세 조건 보기'}
+          </span>
+          {open ? <ChevronUp size={14} className="text-[var(--muted)]" /> : <ChevronDown size={14} className="text-[var(--muted)]" />}
+        </div>
+      </button>
+
+      {open && (
+        <div className="border-t border-[var(--border)] p-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+          {COND_BLOCKS.map(block => (
+            <div key={block.title} className={`rounded-lg border ${block.border} ${block.bg} p-3`}>
+              <div className={`text-[11px] font-bold mb-2 ${block.color}`}>{block.title}</div>
+              <table className="w-full text-[10px]">
+                <tbody>
+                  {block.rows.map(row => (
+                    <tr key={row.label} className="border-b border-white/5 last:border-0">
+                      <td className="py-1 pr-2 text-[var(--muted)] whitespace-nowrap align-top w-24">{row.label}</td>
+                      <td className="py-1 text-white/80 leading-relaxed">{row.value}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── 지수 뱃지 ────────────────────────────────────────────────
+
+const INDEX_BADGE: Record<string, { label: string; cls: string }> = {
+  SP500:      { label: 'S&P500',    cls: 'bg-emerald-500/20 text-emerald-300' },
+  NASDAQ100:  { label: 'NQ100',     cls: 'bg-blue-500/20 text-blue-300' },
+  RUSSELL1000:{ label: 'R1000',     cls: 'bg-orange-500/20 text-orange-300' },
+}
+
 // ── 카테고리 테이블 컴포넌트 ─────────────────────────────────
 
 function SymbolTable({ title, items, onRowClick }: {
@@ -125,7 +216,7 @@ function SymbolTable({ title, items, onRowClick }: {
               <th className="text-left px-3 py-2 text-[10px] text-[var(--muted)] w-10">#</th>
               <th className="text-left px-3 py-2 text-[10px] text-[var(--muted)] w-24">코드</th>
               <th className="text-left px-3 py-2 text-[10px] text-[var(--muted)]">종목명</th>
-              <th className="text-left px-3 py-2 text-[10px] text-[var(--muted)] w-14">구분</th>
+              <th className="text-left px-3 py-2 text-[10px] text-[var(--muted)]">지수</th>
             </tr>
           </thead>
           <tbody>
@@ -139,9 +230,17 @@ function SymbolTable({ title, items, onRowClick }: {
                 <td className="px-3 py-2 text-[11px] text-[var(--gold)] font-mono">{item.symbol}</td>
                 <td className="px-3 py-2 text-[12px] text-white">{item.name}</td>
                 <td className="px-3 py-2">
-                  {item.is_etf && (
-                    <span className="text-[9px] px-1 py-0.5 rounded bg-purple-500/20 text-purple-400">ETF</span>
-                  )}
+                  <div className="flex flex-wrap gap-1">
+                    {item.is_etf && (
+                      <span className="text-[9px] px-1 py-0.5 rounded bg-purple-500/20 text-purple-400">ETF</span>
+                    )}
+                    {item.indices && item.indices.map(idx => {
+                      const b = INDEX_BADGE[idx]
+                      return b ? (
+                        <span key={idx} className={`text-[9px] px-1 py-0.5 rounded ${b.cls}`}>{b.label}</span>
+                      ) : null
+                    })}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -277,7 +376,6 @@ export default function BuyList() {
   const nav = useNavigate()
   const [symbols, setSymbols] = useState<StockSymbol[]>([])
   const [breakdown, setBreakdown] = useState<Breakdown | null>(null)
-  const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'KR' | 'US'>('KR')
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -290,7 +388,7 @@ export default function BuyList() {
   const [autoInfo, setAutoInfo] = useState<{ type: 'prev' | 'trigger'; label: string } | null>(null)
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // 종목 목록 먼저 로드 (빠름 ~0.2s)
+  // 종목 목록 로드 (인증 불필요, plain fetch)
   useEffect(() => {
     fetchScanSymbols()
       .then(symData => {
@@ -298,7 +396,6 @@ export default function BuyList() {
         setBreakdown(symData.breakdown || null)
       })
       .catch(e => console.error('fetchScanSymbols error:', e))
-      .finally(() => setLoading(false))
   }, [])
 
   // 스캔 상황판 별도 로드 + 빈 상황판 자동 처리
@@ -393,19 +490,20 @@ export default function BuyList() {
     )
   }, [symbols, searchQuery])
 
-  // 카테고리별 분류 (방법 3: NASDAQ100 / S&P500 / ETF)
+  // 카테고리별 분류
   const byCategory = useMemo(() => ({
-    kospi:      filteredSymbols.filter(s => s.market_type === 'KOSPI' && !s.is_etf),
-    kospiEtf:   filteredSymbols.filter(s => s.market_type === 'KOSPI' && s.is_etf),
-    kosdaq:     filteredSymbols.filter(s => s.market_type === 'KOSDAQ'),
-    nasdaq100:  filteredSymbols.filter(s => s.market_type === 'NASDAQ100'),
-    sp500:      filteredSymbols.filter(s => s.market_type === 'SP500'),
-    usEtf:      filteredSymbols.filter(s => s.market_type === 'ETF' || s.market_type === 'NYSE'),
+    kospi:       filteredSymbols.filter(s => s.market_type === 'KOSPI' && !s.is_etf),
+    kospiEtf:    filteredSymbols.filter(s => s.market_type === 'KOSPI' && s.is_etf),
+    kosdaq:      filteredSymbols.filter(s => s.market_type === 'KOSDAQ'),
+    nasdaq100:   filteredSymbols.filter(s => s.market_type === 'NASDAQ100'),
+    sp500:       filteredSymbols.filter(s => s.market_type === 'SP500'),
+    russell1000: filteredSymbols.filter(s => s.market_type === 'RUSSELL1000'),
+    usEtf:       filteredSymbols.filter(s => s.market_type === 'ETF' || s.market_type === 'NYSE'),
   }), [filteredSymbols])
 
   const hasSearchResult = filteredSymbols.length > 0
   const krTotal = (breakdown?.kospi ?? 0) + (breakdown?.kospi_etf ?? 0) + (breakdown?.kosdaq ?? 0)
-  const usTotal = (breakdown?.nasdaq100 ?? 0) + (breakdown?.sp500 ?? 0) + (breakdown?.us_etf ?? 0)
+  const usTotal = (breakdown?.nasdaq100 ?? 0) + (breakdown?.sp500 ?? 0) + (breakdown?.russell1000 ?? 0) + (breakdown?.us_etf ?? 0)
   const total = breakdown ? krTotal + usTotal : 0
 
   const handleRowClick = (item: StockSymbol) => {
@@ -416,17 +514,6 @@ export default function BuyList() {
   // KR 슬롯과 US 슬롯 분리
   const krSlots = scanSlots.filter(s => s.market === 'KR')
   const usSlots = scanSlots.filter(s => s.market === 'US')
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="text-center">
-          <Loader2 size={28} className="animate-spin text-[var(--gold)] mx-auto mb-3" />
-          <p className="text-sm text-[var(--muted)]">종목 데이터를 불러오는 중...</p>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="p-3 md:p-6 max-w-7xl mx-auto">
@@ -475,7 +562,7 @@ export default function BuyList() {
             {[
               { label: 'S&P 500', count: breakdown?.sp500 ?? 0, color: 'bg-emerald-500/20 text-emerald-300' },
               { label: '나스닥100 단독', count: breakdown?.nasdaq100 ?? 0, color: 'bg-green-500/20 text-green-300' },
-              { label: '암호화폐', count: 10, color: 'bg-yellow-500/20 text-yellow-300' },
+              { label: 'Russell1000 단독', count: breakdown?.russell1000 ?? 0, color: 'bg-orange-500/20 text-orange-300' },
             ].map(b => (
               <span key={b.label} className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${b.color}`}>
                 {b.label} {b.count > 0 ? `${b.count}` : ''}
@@ -484,6 +571,9 @@ export default function BuyList() {
           </div>
         </div>
       </div>
+
+      {/* ── 조회 조건 ── */}
+      <ScanConditionPanel />
 
       {/* ── 자동 처리 안내 배너 ── */}
       {autoInfo && (
@@ -535,7 +625,7 @@ export default function BuyList() {
         <div>
           <div className="flex items-center gap-2 mb-2">
             <span className="text-[10px] text-emerald-400 font-semibold">🇺🇸 미국+암호화폐 스캔</span>
-            <span className="text-[9px] text-[var(--muted)]">19:50 / 03:50 KST · S&P500+나스닥100+암호화폐 10개</span>
+            <span className="text-[9px] text-[var(--muted)]">19:50 / 03:50 KST · S&P500+나스닥100+Russell1000+암호화폐</span>
           </div>
           <div className="flex gap-2">
             {usSlots.map(slot => <SlotCard key={slot.time} slot={slot} onClick={() => setSelectedSlot(slot)} />)}
@@ -649,6 +739,7 @@ export default function BuyList() {
               {byCategory.kosdaq.length > 0 && <SymbolTable title="코스닥" items={byCategory.kosdaq} onRowClick={handleRowClick} />}
               {byCategory.nasdaq100.length > 0 && <SymbolTable title="NASDAQ 100 (QQQ)" items={byCategory.nasdaq100} onRowClick={handleRowClick} />}
               {byCategory.sp500.length > 0 && <SymbolTable title="S&P 500" items={byCategory.sp500} onRowClick={handleRowClick} />}
+              {byCategory.russell1000.length > 0 && <SymbolTable title="Russell 1000 단독" items={byCategory.russell1000} onRowClick={handleRowClick} />}
               {byCategory.usEtf.length > 0 && <SymbolTable title="미국 ETF" items={byCategory.usEtf} onRowClick={handleRowClick} />}
             </>
           ) : (
@@ -665,10 +756,11 @@ export default function BuyList() {
           <SymbolTable title="코스피 ETF" items={byCategory.kospiEtf} onRowClick={handleRowClick} />
         </>
       ) : (
-        // 미국 탭 (NASDAQ 100 / S&P 500 / ETF)
+        // 미국 탭 (NASDAQ 100 / S&P 500 / Russell1000 / ETF)
         <>
           <SymbolTable title="NASDAQ 100 (QQQ)" items={byCategory.nasdaq100} onRowClick={handleRowClick} />
           <SymbolTable title="S&P 500" items={byCategory.sp500} onRowClick={handleRowClick} />
+          <SymbolTable title="Russell 1000 단독" items={byCategory.russell1000} onRowClick={handleRowClick} />
           <SymbolTable title="미국 ETF" items={byCategory.usEtf} onRowClick={handleRowClick} />
         </>
       )}

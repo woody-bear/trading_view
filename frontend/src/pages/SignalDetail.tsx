@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Check, Plus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { addSymbol, fetchQuickChart, fetchSignalBySymbol, fetchSignals, getSensitivity, setSensitivity } from '../api/client'
+import { addSymbol, checkPatternCaseDuplicate, createPatternCase, fetchIndicatorsAt, fetchPatternCases, fetchQuickChart, fetchSignalBySymbol, fetchSignals, getSensitivity, setSensitivity } from '../api/client'
 import { fmtPrice as _fmtPrice } from '../utils/format'
 import ChartEmptyState from '../components/charts/ChartEmptyState'
 import ChartErrorBoundary from '../components/charts/ChartErrorBoundary'
@@ -19,6 +19,7 @@ import { useRealtimePrice } from '../hooks/useRealtimePrice'
 import { useSignalStore } from '../stores/signalStore'
 import { useBuyPoint } from '../hooks/useBuyPoint'
 import { useToastStore } from '../stores/toastStore'
+import { useAuthStore } from '../store/authStore'
 
 const stateLabel: Record<string, string> = { BUY: '매수', SELL: '매도', NEUTRAL: '대기' }
 const stateDesc: Record<string, string> = {
@@ -174,7 +175,23 @@ export default function SignalDetail() {
   // 실시간 가격 SSE (1초 간격)
   const { livePrice, connected: realtimeConnected, connectionStatus, reconnect } = useRealtimePrice(lookupSymbol, s.market)
   const { addToast } = useToastStore()
+  const { user } = useAuthStore()
   const { buyPoint, toggleBuyPoint } = useBuyPoint(lookupSymbol)
+
+  // 스크랩된 BUY 날짜 Set — 마커 골드 색상 + 오버레이 "저장됨" 표시용
+  const [scrapedDates, setScrapedDates] = useState<Set<string>>(new Set())
+  const { data: patternCases } = useQuery({
+    queryKey: ['pattern-cases-symbol', lookupSymbol],
+    queryFn: () => fetchPatternCases({}),
+    enabled: !!lookupSymbol && !!user,
+  })
+  useEffect(() => {
+    if (!patternCases) return
+    const dates = (patternCases as any[])
+      .filter((c) => c.symbol === lookupSymbol)
+      .map((c) => c.signal_date as string)
+    setScrapedDates(new Set(dates))
+  }, [patternCases, lookupSymbol])
   const currentPrice = livePrice?.price ?? s.price
   const currentChangePct = livePrice?.change_pct ?? s.change_pct
   const { flashClass } = usePriceFlash(currentPrice)
@@ -296,6 +313,49 @@ export default function SignalDetail() {
     },
   ]
 
+  const handleScrapSave = async (_markerTime: number, date: string) => {
+    if (!user) return
+    try {
+      const dup = await checkPatternCaseDuplicate(lookupSymbol, date)
+      if (dup.exists) {
+        addToast('info', `이미 스크랩된 사례입니다 (${lookupSymbol} · ${date})`)
+        return
+      }
+      const ind = await fetchIndicatorsAt(lookupSymbol, guessMarket, date)
+      const patternType =
+        ind.squeeze_level >= 1 ? 'squeeze_breakout'
+        : ind.rsi != null && ind.rsi < 40 ? 'oversold_bounce'
+        : 'custom'
+      await createPatternCase({
+        title: `${s.display_name} ${date} BUY`,
+        symbol: lookupSymbol,
+        stock_name: s.display_name || lookupSymbol,
+        market: guessMarket,
+        market_type: guessMarket,
+        pattern_type: patternType,
+        signal_date: date,
+        entry_price: ind.close,
+        rsi: ind.rsi,
+        bb_pct_b: ind.bb_pct_b,
+        bb_width: ind.bb_width,
+        macd_hist: ind.macd_hist,
+        volume_ratio: ind.volume_ratio,
+        ema_alignment: ind.ema_alignment,
+        squeeze_level: ind.squeeze_level,
+        conditions_met: ind.conditions_met,
+        source: 'chart',
+      })
+      setScrapedDates(prev => new Set([...prev, date]))
+      addToast('success', `BUY 사례가 저장되었습니다 (${date})`)
+    } catch (e: any) {
+      if (e.response?.status === 409) {
+        addToast('info', '이미 스크랩된 사례입니다')
+      } else {
+        addToast('error', '사례 저장에 실패했습니다')
+      }
+    }
+  }
+
   return (
     <div className="p-3 md:p-6">
       {/* 모바일 상단 헤더 */}
@@ -367,6 +427,8 @@ export default function SignalDetail() {
                 markerTime,
               })
             }}
+            scrapedDates={scrapedDates}
+            onScrapSave={user ? handleScrapSave : undefined}
           />
         </ChartErrorBoundary>
       )}

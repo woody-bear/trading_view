@@ -31,15 +31,26 @@ interface BuyPoint {
   markerTime: number
 }
 
+interface OverlayState {
+  visible: boolean
+  x: number
+  y: number
+  markerTime: number
+  date: string
+  isScraped: boolean
+}
+
 interface Props {
   data: ChartData
   watchlistId?: number
   realtimePrice?: RealtimePrice | null
   buyPoint?: BuyPoint | null
   onBuyMarkerClick?: (point: { price: number; markerTime: number }) => void
+  scrapedDates?: Set<string>
+  onScrapSave?: (markerTime: number, date: string) => void
 }
 
-export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPoint, onBuyMarkerClick }: Props) {
+export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPoint, onBuyMarkerClick, scrapedDates, onScrapSave }: Props) {
   const mainRef = useRef<HTMLDivElement>(null)
   const rsiRef = useRef<HTMLDivElement>(null)
   const macdRef = useRef<HTMLDivElement>(null)
@@ -51,7 +62,14 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
   const priceLineRef = useRef<any>(null)
   const onBuyMarkerClickRef = useRef(onBuyMarkerClick)
   onBuyMarkerClickRef.current = onBuyMarkerClick
+  const onScrapSaveRef = useRef(onScrapSave)
+  onScrapSaveRef.current = onScrapSave
+  const scrapedDatesRef = useRef(scrapedDates)
+  scrapedDatesRef.current = scrapedDates
   const [markerWarning, setMarkerWarning] = useState(false)
+  const overlayRef = useRef<HTMLDivElement>(null)
+  const overlayStateRef = useRef<OverlayState>({ visible: false, x: 0, y: 0, markerTime: 0, date: '', isScraped: false })
+  const overlayHoveredRef = useRef(false)
 
   useEffect(() => {
     if (!mainRef.current || !data.candles?.length) return
@@ -127,25 +145,63 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
     // BUY/SELL 마커
     if (data.markers?.length) {
       try {
-        const markersWithIds = data.markers.map(m => ({
-          time: m.time as any,
-          position: m.position as any,
-          color: m.color,
-          shape: m.shape as any,
-          text: m.text,
-          size: 2,
-          id: `${m.position}-${m.time}`,
-        }))
+        const markersWithIds = data.markers.map(m => {
+          const isBuyMarker = m.text === 'BUY' || m.text === 'SQZ BUY'
+          const markerDate = new Date(m.time * 1000).toISOString().slice(0, 10)
+          const isScraped = isBuyMarker && (scrapedDatesRef.current?.has(markerDate) ?? false)
+          return {
+            time: m.time as any,
+            position: m.position as any,
+            color: isScraped ? '#f59e0b' : m.color,
+            shape: m.shape as any,
+            text: m.text,
+            size: 2,
+            id: `${m.position}-${m.time}`,
+          }
+        })
         const markersPlugin = createSeriesMarkers(candleSeries, markersWithIds)
 
         // 마커 호버 색상 강조 (PC 전용)
         const hasHover = window.matchMedia('(hover: hover)').matches
+
+        const showOverlay = (x: number, y: number, markerTime: number, date: string, isScraped: boolean) => {
+            const div = overlayRef.current
+            if (!div) return
+            // 이미 같은 마커 표시 중이면 위치 업데이트 안 함 (버튼 클릭 가능하도록)
+            if (overlayStateRef.current.visible && overlayStateRef.current.markerTime === markerTime) return
+            overlayStateRef.current = { visible: true, x, y, markerTime, date, isScraped }
+            const left = Math.max(4, Math.min(x - 60, el.clientWidth - 140))
+            const top = Math.max(4, y - 44)
+            div.style.left = `${left}px`
+            div.style.top = `${top}px`
+            div.style.display = 'block'
+            // 버튼/텍스트 업데이트
+            const btn = div.querySelector('[data-scrap-btn]') as HTMLButtonElement | null
+            const saved = div.querySelector('[data-scrap-saved]') as HTMLElement | null
+            if (btn) btn.style.display = isScraped ? 'none' : 'block'
+            if (saved) saved.style.display = isScraped ? 'block' : 'none'
+            // 버튼 클릭 핸들러 교체
+            if (btn && !isScraped) {
+              btn.onclick = () => {
+                onScrapSaveRef.current?.(markerTime, date)
+                if (div) div.style.display = 'none'
+              }
+            }
+          }
+          const hideOverlay = () => {
+            if (overlayHoveredRef.current) return  // 버튼 위에 마우스 있으면 숨기지 않음
+            const div = overlayRef.current
+            if (div) div.style.display = 'none'
+            overlayStateRef.current.visible = false
+          }
+
         if (hasHover) {
           const originalColors = new Map(markersWithIds.map(m => [m.id, m.color]))
-          const highlightColors: Record<string, string> = { '#22c55e': '#4ade80', '#ef4444': '#f87171' }
+          const highlightColors: Record<string, string> = { '#22c55e': '#4ade80', '#ef4444': '#f87171', '#f59e0b': '#fbbf24' }
           mainChart.subscribeCrosshairMove((param: any) => {
             if (!param.time) {
               markersPlugin.setMarkers(markersWithIds.map(m => ({ ...m, color: originalColors.get(m.id) || m.color })))
+              hideOverlay()
               return
             }
             const matched = markersWithIds.find(m => m.time === param.time)
@@ -155,8 +211,35 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
                   ? { ...m, color: highlightColors[originalColors.get(m.id) || ''] || m.color }
                   : { ...m, color: originalColors.get(m.id) || m.color }
               ))
+              const isBuy = matched.text === 'BUY' || matched.text === 'SQZ BUY'
+              if (isBuy && onScrapSaveRef.current) {
+                const markerDate = new Date(matched.time * 1000).toISOString().slice(0, 10)
+                const isScraped = scrapedDatesRef.current?.has(markerDate) ?? false
+                showOverlay(param.point?.x ?? el.clientWidth / 2, param.point?.y ?? 60, matched.time, markerDate, isScraped)
+              } else {
+                hideOverlay()
+              }
             } else {
               markersPlugin.setMarkers(markersWithIds.map(m => ({ ...m, color: originalColors.get(m.id) || m.color })))
+              hideOverlay()
+            }
+          })
+        }
+
+        // 모바일 BUY 마커 탭 → 스크랩 오버레이 2초 표시 (T008)
+        if (!hasHover) {
+          let hideTimer: ReturnType<typeof setTimeout>
+          mainChart.subscribeClick((param: any) => {
+            if (!param.time || !onScrapSaveRef.current) return
+            const clickedBuy = markersWithIds.find(
+              m => m.time === param.time && (m.text === 'BUY' || m.text === 'SQZ BUY')
+            )
+            if (clickedBuy) {
+              const markerDate = new Date(clickedBuy.time * 1000).toISOString().slice(0, 10)
+              const isScraped = scrapedDatesRef.current?.has(markerDate) ?? false
+              showOverlay(param.point?.x ?? el.clientWidth / 2, param.point?.y ?? 60, clickedBuy.time, markerDate, isScraped)
+              clearTimeout(hideTimer)
+              hideTimer = setTimeout(() => hideOverlay(), 2000)
             }
           })
         }
@@ -381,7 +464,35 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
       <SqueezeGuide />
       <SignalGuide />
       {(data as any).current && <UBBPanel data={data} />}
-      <div ref={mainRef} className="w-full rounded-t-lg overflow-hidden border border-[var(--border)]" />
+      <div className="relative">
+        <div ref={mainRef} className="w-full rounded-t-lg overflow-hidden border border-[var(--border)]" />
+        {/* 스크랩 오버레이 — DOM ref로 직접 제어 (React re-render 우회) */}
+        <div
+          ref={overlayRef}
+          style={{ position: 'absolute', display: 'none', pointerEvents: 'auto', zIndex: 50 }}
+          onMouseEnter={() => { overlayHoveredRef.current = true }}
+          onMouseLeave={() => {
+            overlayHoveredRef.current = false
+            const div = overlayRef.current
+            if (div) div.style.display = 'none'
+            overlayStateRef.current.visible = false
+          }}
+        >
+          <button
+            data-scrap-btn
+            className="bg-green-900/90 border border-green-600/60 rounded-lg px-3 py-1.5 text-green-300 text-xs font-medium shadow-lg whitespace-nowrap hover:bg-green-800/90 transition-colors"
+          >
+            이 BUY 사례 저장
+          </button>
+          <div
+            data-scrap-saved
+            style={{ display: 'none' }}
+            className="bg-yellow-900/90 border border-yellow-600/60 rounded-lg px-3 py-1.5 text-yellow-300 text-xs font-medium shadow-lg whitespace-nowrap"
+          >
+            저장됨 ✓
+          </div>
+        </div>
+      </div>
       <div className="flex items-center gap-2 px-3 py-1 bg-[#1e293b] border-x border-[var(--border)]">
         <span className="text-[10px] text-[var(--muted)]">RSI (14)</span>
       </div>
