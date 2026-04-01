@@ -63,6 +63,17 @@ async def search_symbols(q: str, market: str = ""):
         import asyncio
         yf_exact_task = asyncio.create_task(_search_yfinance(q_upper))
 
+    # 큐레이션 종목 우선 정렬용 세트 (BUY 조회종목리스트)
+    from services.scan_symbols_list import ALL_US_TICKERS, ALL_KR_SYMBOLS
+    _curated = ALL_US_TICKERS | ALL_KR_SYMBOLS
+
+    def _prioritize(results: list[dict]) -> list[dict]:
+        """큐레이션 종목을 먼저, 심볼 완전 일치를 최상단으로 정렬 (기존 순서 유지)."""
+        exact  = [r for r in results if r["symbol"] == q_upper and r["symbol"] in _curated]
+        curate = [r for r in results if r["symbol"] != q_upper and r["symbol"] in _curated]
+        others = [r for r in results if r["symbol"] not in _curated]
+        return exact + curate + others
+
     # 1순위: stock_master DB 검색 (전종목)
     from services.stock_master import search_master, get_master_count
     master_count = await get_master_count()
@@ -70,19 +81,17 @@ async def search_symbols(q: str, market: str = ""):
     if master_count > 0:
         master_results = await search_master(q, market, limit=20)
 
-    # yfinance 결과 병합 (ticer 완전 일치를 맨 앞에)
+    # yfinance 결과 병합 (심볼 완전 일치를 맨 앞에, 큐레이션 우선)
     if yf_exact_task is not None:
         yf_exact = await yf_exact_task
         if yf_exact:
             existing_syms = {r["symbol"] for r in master_results}
-            # 정확 일치(심볼 == 쿼리)를 최상단에 배치
-            exact_match = [r for r in yf_exact if r["symbol"] == q_upper and r["symbol"] not in existing_syms]
-            other_yf = [r for r in yf_exact if r["symbol"] != q_upper and r["symbol"] not in existing_syms]
-            merged = exact_match + master_results + other_yf
+            new_yf = [r for r in yf_exact if r["symbol"] not in existing_syms]
+            merged = _prioritize(master_results + new_yf)
             return {"results": merged[:20]}
 
     if master_results:
-        return {"results": master_results}
+        return {"results": _prioritize(master_results)}
 
     # 2순위: fallback (하드코딩 + yfinance)
     results = []
@@ -143,7 +152,7 @@ async def search_symbols(q: str, market: str = ""):
                     "display": f"{name} ({sym})",
                 })
 
-    return {"results": results[:20]}
+    return {"results": _prioritize(results)[:20]}
 
 
 _CRYPTO_PAIRS: dict[str, str] = {
@@ -303,24 +312,25 @@ _US_ETFS: dict[str, str] = {
 # ── yfinance 실시간 검색 (fallback) ──────────────────────────
 
 async def _search_yfinance(query: str) -> list[dict]:
-    """yfinance search API로 미국 종목 실시간 검색."""
+    """yfinance Search API로 미국 종목 실시간 검색 (yf.Search 사용, 빠름)."""
     try:
         import yfinance as yf
 
         def _search():
             results = []
             try:
-                # yfinance의 search 기능 사용
-                ticker = yf.Ticker(query)
-                info = ticker.info
-                if info and info.get("symbol"):
-                    name = info.get("shortName") or info.get("longName") or query
+                search = yf.Search(query, max_results=8)
+                for q in getattr(search, "quotes", []):
+                    sym = q.get("symbol", "")
+                    if not sym or "." in sym:  # 해외 거래소 (BRK.A 등) 제외
+                        continue
+                    name = q.get("shortname") or q.get("longname") or sym
                     results.append({
-                        "symbol": info["symbol"],
+                        "symbol": sym,
                         "name": name,
                         "market": "US",
                         "market_type": "US",
-                        "display": f"{name} ({info['symbol']})",
+                        "display": f"{name} ({sym})",
                     })
             except Exception:
                 pass

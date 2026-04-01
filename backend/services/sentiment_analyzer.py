@@ -17,14 +17,13 @@ _CNN_HEADERS = {
 
 
 def _fetch_index(ticker: str, period: str = "5d") -> dict | None:
-    """yfinance로 지수 데이터 조회 (동기)."""
+    """yfinance Ticker.history로 지수 데이터 조회 (동기, thread-safe)."""
     import yfinance as yf
     try:
-        df = yf.download(ticker, period=period, progress=False, auto_adjust=True)
+        t = yf.Ticker(ticker)
+        df = t.history(period=period, auto_adjust=True)
         if df is None or df.empty or len(df) < 2:
             return None
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.droplevel(1)  # 티커 레벨 제거
         current = float(df["Close"].iloc[-1])
         prev = float(df["Close"].iloc[-2])
         change = current - prev
@@ -41,8 +40,8 @@ def _fetch_index(ticker: str, period: str = "5d") -> dict | None:
         return None
 
 
-async def fetch_market_indices() -> dict:
-    """VIX, 코스피, S&P500, 나스닥, USD/KRW 순차 조회 (yfinance 동시 호출 충돌 방지)."""
+def _fetch_all_indices() -> dict:
+    """VIX, 코스피, S&P500, 나스닥, USD/KRW 순차 조회 (yfinance thread-safety 문제 회피)."""
     tickers = [
         ("vix", "^VIX", "VIX"),
         ("kospi", "^KS11", "코스피"),
@@ -50,20 +49,28 @@ async def fetch_market_indices() -> dict:
         ("nasdaq", "^IXIC", "나스닥"),
         ("usdkrw", "USDKRW=X", "USD/KRW"),
     ]
-
-    results = {}
+    result = {}
     for key, ticker, name in tickers:
-        try:
-            data = await asyncio.to_thread(_fetch_index, ticker)
-            if data is None:
-                results[key] = {"name": name, "value": 0, "change": 0, "change_pct": 0, "direction": "flat"}
-            else:
-                results[key] = {"name": name, **data}
-        except Exception as e:
-            logger.debug(f"지표 조회 실패 [{name}]: {e}")
-            results[key] = {"name": name, "value": 0, "change": 0, "change_pct": 0, "direction": "flat"}
+        data = _fetch_index(ticker)
+        if data:
+            result[key] = {"name": name, **data}
+        else:
+            result[key] = {"name": name, "value": 0, "change": 0, "change_pct": 0, "direction": "flat"}
+    return result
 
-    return results
+
+async def fetch_market_indices() -> dict:
+    """VIX, 코스피, S&P500, 나스닥, USD/KRW 조회 (단일 스레드로 순차 실행)."""
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(_fetch_all_indices), timeout=20
+        )
+    except Exception as e:
+        logger.debug(f"시장 지표 조회 실패: {e}")
+        return {
+            k: {"name": n, "value": 0, "change": 0, "change_pct": 0, "direction": "flat"}
+            for k, n in [("vix","VIX"),("kospi","코스피"),("sp500","S&P 500"),("nasdaq","나스닥"),("usdkrw","USD/KRW")]
+        }
 
 
 def _fetch_cnn_fear_greed() -> dict | None:
@@ -158,13 +165,26 @@ def determine_sentiment(fear_greed: float, sp500_pct: float, kospi_pct: float) -
 
 async def get_sentiment_overview() -> dict:
     """시장 방향성 종합 조회 — CNN Fear & Greed (우선) + 주요 지표 + 분위기."""
-    indices = await fetch_market_indices()
+    # 지수 조회 + CNN 공포지수를 동시에 실행, 전체 12초 timeout
+    try:
+        indices, cnn = await asyncio.wait_for(
+            asyncio.gather(
+                fetch_market_indices(),
+                asyncio.to_thread(_fetch_cnn_fear_greed),
+            ),
+            timeout=12,
+        )
+    except asyncio.TimeoutError:
+        logger.warning("시장 지표 조회 timeout — 기본값 반환")
+        indices = {
+            k: {"name": n, "value": 0, "change": 0, "change_pct": 0, "direction": "flat"}
+            for k, n in [("vix","VIX"),("kospi","코스피"),("sp500","S&P 500"),("nasdaq","나스닥"),("usdkrw","USD/KRW")]
+        }
+        cnn = None
 
     sp_pct = indices["sp500"].get("change_pct", 0)
     ks_pct = indices["kospi"].get("change_pct", 0)
 
-    # CNN Fear & Greed 우선, 실패 시 VIX 기반 fallback
-    cnn = await asyncio.to_thread(_fetch_cnn_fear_greed)
     if cnn:
         score = cnn["score"]
         label = cnn["label"]

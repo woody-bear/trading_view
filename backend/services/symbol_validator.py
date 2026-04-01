@@ -27,7 +27,9 @@ async def _validate_kr(symbol: str) -> dict | None:
 async def _validate_us(symbol: str) -> dict | None:
     if not re.match(r"^[A-Z]{1,5}$", symbol):
         return None
-    return await asyncio.to_thread(_yf_info, symbol)
+    result = await asyncio.to_thread(_yf_info, symbol)
+    # yfinance 조회 실패해도 심볼 형식이 올바르면 허용 (이름은 나중에 채워짐)
+    return result or {"display_name": symbol}
 
 
 async def _validate_crypto(symbol: str) -> dict | None:
