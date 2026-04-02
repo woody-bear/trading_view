@@ -14,6 +14,7 @@ export interface Signal {
   symbol: string
   display_name: string | null
   market: string
+  market_type?: string
   signal_state: 'BUY' | 'SELL' | 'NEUTRAL'
   confidence: number
   signal_grade: string

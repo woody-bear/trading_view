@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import get_optional_user, get_user_id
 from database import get_session
-from models import CurrentSignal, Watchlist
+from models import CurrentSignal, StockMaster, Watchlist
 from services.scanner import run_scan
 
 router = APIRouter(tags=["signals"])
@@ -37,6 +37,13 @@ async def get_signals(
     result = await session.execute(query)
     rows = result.all()
 
+    # Batch-fetch market_type from stock_master
+    symbols = [w.symbol for _, w in rows]
+    mt_result = await session.execute(
+        select(StockMaster.symbol, StockMaster.market_type).where(StockMaster.symbol.in_(symbols))
+    )
+    market_type_map = {r.symbol: r.market_type for r in mt_result}
+
     signals = []
     for cs, w in rows:
         signals.append({
@@ -44,6 +51,7 @@ async def get_signals(
             "symbol": w.symbol,
             "display_name": w.display_name,
             "market": w.market,
+            "market_type": market_type_map.get(w.symbol) or w.market,
             "signal_state": cs.signal_state,
             "confidence": cs.confidence,
             "signal_grade": _grade(cs.confidence),

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Signal } from '../types'
 import { fmtPrice } from '../utils/format'
+import { indicatorBadges, marketBadge, signalStrengthBadge } from '../utils/indicatorLabels'
 
 const sqColors = ['#22c55e', '#eab308', '#f97316', '#ef4444']
 const sqLabels = ['NO SQ', 'LOW SQ', 'MID SQ', 'MAX SQ']
@@ -54,22 +55,46 @@ export default function SignalCard({ signal: s, index }: { signal: Signal; index
         </div>
       </div>
 
-      {/* Row 2: 가격 + 지표 */}
-      <div className="flex items-center justify-between">
+      {/* Row 2: 가격 + 등락 | 모바일: 행 분리, PC: 한 줄 */}
+      <div className="md:flex md:items-center md:justify-between mt-1.5 md:mt-0">
         <div className="flex items-baseline gap-2 md:gap-1.5">
-          <span className={`text-xl md:text-sm font-mono font-bold transition-colors duration-300 ${flashClass}`}>
+          <span className={`text-2xl md:text-sm font-mono font-bold transition-colors duration-300 ${flashClass}`}>
             {fmtPrice(s.price, s.market)}
           </span>
-          <span className={`text-[13px] md:text-[10px] font-mono font-semibold ${s.change_pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+          <span className={`text-sm md:text-[10px] font-mono font-semibold ${s.change_pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
             {s.change_pct >= 0 ? '+' : ''}{s.change_pct?.toFixed(2)}%
           </span>
         </div>
-        <div className="flex items-center gap-3 md:gap-2 text-[13px] md:text-[9px]">
+        <div className="flex items-center gap-4 md:gap-2 text-xs md:text-[9px] mt-1.5 md:mt-0">
           <span className="text-[var(--muted)]">RSI <span className={`font-mono font-semibold ${s.rsi < 30 ? 'text-green-400' : s.rsi > 70 ? 'text-red-400' : 'text-white'}`}>{s.rsi?.toFixed(0)}</span></span>
           <span className="text-[var(--muted)]">%B <span className="font-mono font-semibold text-white">{s.bb_pct_b != null ? (s.bb_pct_b * 100).toFixed(0) : '—'}%</span></span>
           <span className="text-[var(--muted)]">Vol <span className="font-mono font-semibold text-white">{s.volume_ratio?.toFixed(1)}x</span></span>
         </div>
       </div>
+
+      {/* Row 3: 시장 배지 + 신호 강도 + 지표 라벨 */}
+      {(() => {
+        const fixed = [
+          marketBadge(s.market_type || s.market),
+          signalStrengthBadge(s.signal_state, s.signal_grade),
+        ].filter((b): b is NonNullable<typeof b> => b !== null)
+        const indicators = indicatorBadges({
+          squeeze_level: s.squeeze_level,
+          rsi: s.rsi,
+          bb_pct_b: s.bb_pct_b,
+          volume_ratio: s.volume_ratio,
+          macd_hist: s.macd_hist,
+        })
+        const allBadges = [...fixed, ...indicators]
+        if (allBadges.length === 0) return null
+        return (
+          <div className="flex flex-wrap gap-1.5 md:gap-1 mt-2 md:mt-1">
+            {allBadges.map(b => (
+              <span key={b.label} className={`text-xs md:text-[8px] px-2 md:px-1.5 py-0.5 rounded ${b.cls}`}>{b.label}</span>
+            ))}
+          </div>
+        )
+      })()}
     </div>
   )
 }
