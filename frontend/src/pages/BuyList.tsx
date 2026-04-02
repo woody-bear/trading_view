@@ -370,6 +370,27 @@ function SlotCard({ slot, onClick }: { slot: ScanSlot; onClick?: () => void }) {
   )
 }
 
+// ── 스냅 섹션 헤더 ──────────────────────────────────────────
+
+function SnapHdr({ title, color, currentSection, total }: {
+  title: string; color: string; currentSection: number; total: number
+}) {
+  return (
+    <div className="flex items-center justify-between px-3 pt-3 pb-2 shrink-0 border-b border-[var(--border)]/50">
+      <h2 className={`text-base font-bold ${color}`}>{title}</h2>
+      <div className="flex gap-1.5">
+        {Array.from({ length: total }, (_, i) => (
+          <div key={i} className={`h-1.5 rounded-full transition-all ${
+            i === currentSection
+              ? `w-4 ${color.replace('text-', 'bg-')}`
+              : 'w-1.5 bg-white/20'
+          }`} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── 메인 페이지 ──────────────────────────────────────────────
 
 export default function BuyList() {
@@ -387,6 +408,8 @@ export default function BuyList() {
   const [selectedSlot, setSelectedSlot] = useState<ScanSlot | null>(null)
   const [autoInfo, setAutoInfo] = useState<{ type: 'prev' | 'trigger'; label: string } | null>(null)
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null)
+  const snapRef = useRef<HTMLDivElement>(null)
+  const [currentSection, setCurrentSection] = useState(0)
 
   // 종목 목록 로드 (인증 불필요, plain fetch)
   useEffect(() => {
@@ -480,6 +503,18 @@ export default function BuyList() {
     return () => { if (pollTimer.current) clearInterval(pollTimer.current) }
   }, [scanStatus?.running, refreshStatus])
 
+  // 모바일 스냅 섹션 인덱스 추적
+  useEffect(() => {
+    const el = snapRef.current
+    if (!el) return
+    const onScroll = () => {
+      const h = el.clientHeight
+      if (h > 0) setCurrentSection(Math.round(el.scrollTop / h))
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [])
+
   // 종목 검색 필터 (클라이언트 사이드)
   const filteredSymbols = useMemo(() => {
     if (!searchQuery.trim()) return symbols
@@ -515,8 +550,166 @@ export default function BuyList() {
   const krSlots = scanSlots.filter(s => s.market === 'KR')
   const usSlots = scanSlots.filter(s => s.market === 'US')
 
+  const sH = 'calc(100dvh - 52px)'
+
   return (
-    <div className="p-3 md:p-6 max-w-7xl mx-auto">
+    <>
+      {/* ── Mobile snap layout ── */}
+      <div
+        ref={snapRef}
+        className="md:hidden fixed inset-x-0 top-0"
+        style={{ bottom: '52px', overflowY: 'scroll', scrollSnapType: 'y mandatory', WebkitOverflowScrolling: 'touch' } as any}
+      >
+        {/* Section 1: 스캔 현황 (KR) */}
+        <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
+          <SnapHdr title="스캔 현황 (KR)" color="text-blue-400" currentSection={currentSection} total={3} />
+          <div className="flex-1 overflow-y-auto px-3 pb-3 pt-2 space-y-3" style={{ overscrollBehaviorY: 'contain' } as any}>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-2.5 text-center">
+                <div className="text-xl font-bold text-white font-mono">{total.toLocaleString()}</div>
+                <div className="text-[10px] text-[var(--muted)]">총 스캔</div>
+              </div>
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-2.5 text-center">
+                <div className="text-xl font-bold text-blue-400 font-mono">{krTotal.toLocaleString()}</div>
+                <div className="text-[10px] text-[var(--muted)]">국내</div>
+              </div>
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-2.5 text-center">
+                <div className="text-xl font-bold text-emerald-400 font-mono">{usTotal.toLocaleString()}</div>
+                <div className="text-[10px] text-[var(--muted)]">미국</div>
+              </div>
+            </div>
+            <ScanConditionPanel />
+            {autoInfo && (
+              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs ${
+                autoInfo.type === 'trigger'
+                  ? 'bg-orange-500/10 border border-orange-500/30 text-orange-300'
+                  : 'bg-blue-500/10 border border-blue-500/30 text-blue-300'
+              }`}>
+                <Zap size={12} className="shrink-0" />
+                <span>{autoInfo.label}</span>
+                <button onClick={() => setAutoInfo(null)} className="ml-auto opacity-60 hover:opacity-100"><X size={12} /></button>
+              </div>
+            )}
+            <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] text-blue-400 font-semibold">🇰🇷 국내 스캔 (평일 매시 :30)</span>
+                {scanStatus?.running && (
+                  <span className="text-[9px] text-orange-400 flex items-center gap-0.5">
+                    <RefreshCw size={9} className="animate-spin" /> 진행중
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-4 gap-1.5">
+                {krSlots.map(slot => <SlotCard key={slot.time} slot={slot} onClick={() => setSelectedSlot(slot)} />)}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Section 2: 스캔 현황 (US) + 텔레그램 */}
+        <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
+          <SnapHdr title="스캔 현황 (US)" color="text-emerald-400" currentSection={currentSection} total={3} />
+          <div className="flex-1 overflow-y-auto px-3 pb-3 pt-2 space-y-3" style={{ overscrollBehaviorY: 'contain' } as any}>
+            <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3">
+              <div className="text-[10px] text-emerald-400 font-semibold mb-2">🇺🇸 미국+암호화폐 (19:50 / 03:50)</div>
+              <div className="flex gap-2">
+                {usSlots.map(slot => <SlotCard key={slot.time} slot={slot} onClick={() => setSelectedSlot(slot)} />)}
+              </div>
+            </div>
+            <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3">
+              <div className="flex items-center gap-2 mb-3">
+                <Bell size={13} className="text-sky-400" />
+                <span className="text-sm font-semibold text-white">텔레그램 자동 알림</span>
+              </div>
+              <div className="space-y-1">
+                {([
+                  { time: '평일 10:30', label: '국내 BUY 신호', color: 'text-green-400' },
+                  { time: '평일 15:00', label: '국내 BUY 신호', color: 'text-green-400' },
+                  { time: '평일 20:00', label: '미국 BUY 신호', color: 'text-emerald-400' },
+                  { time: '화~토 04:00', label: '미국 장중 BUY', color: 'text-emerald-400' },
+                  { time: '09:00~15:30', label: '국내 SELL 체크 (30분마다)', color: 'text-yellow-400' },
+                  { time: '평일 20:00 / 04:00', label: '미국 SELL 체크', color: 'text-orange-400' },
+                ] as const).map((row, idx) => (
+                  <div key={idx} className="flex items-center gap-3 py-1 border-b border-[var(--border)]/30 last:border-0">
+                    <span className={`font-mono text-[10px] font-semibold shrink-0 w-[80px] ${row.color}`}>{row.time}</span>
+                    <span className="text-[11px] text-[var(--muted)]">{row.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Section 3: 종목 목록 */}
+        <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
+          <SnapHdr title="종목 목록" color="text-cyan-400" currentSection={currentSection} total={3} />
+          <div className="flex-1 overflow-y-auto px-3 pb-3 pt-2" style={{ overscrollBehaviorY: 'contain' } as any}>
+            <div className="relative mb-3">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+              <input
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="종목명 또는 코드 검색..."
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                data-form-type="other"
+                name="buy-symbol-search-m"
+                className="w-full pl-9 pr-8 py-2 bg-[var(--card)] border border-[var(--border)] rounded-lg text-white text-sm placeholder:text-slate-500 focus:border-cyan-500/50 focus:outline-none"
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-white">
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+            {!searchQuery && (
+              <div className="flex border-b border-[var(--border)] mb-3">
+                {(['KR', 'US'] as const).map(tab => (
+                  <button key={tab} onClick={() => setActiveTab(tab)}
+                    className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${
+                      activeTab === tab ? 'border-[var(--gold)] text-[var(--gold)]' : 'border-transparent text-[var(--muted)] hover:text-white'
+                    }`}>
+                    {tab === 'KR' ? `국내 (${krTotal.toLocaleString()})` : `미국 (${usTotal.toLocaleString()})`}
+                  </button>
+                ))}
+              </div>
+            )}
+            {searchQuery ? (
+              hasSearchResult ? (
+                <>
+                  {byCategory.kospi.length > 0 && <SymbolTable title="코스피" items={byCategory.kospi} onRowClick={handleRowClick} />}
+                  {byCategory.kospiEtf.length > 0 && <SymbolTable title="코스피 ETF" items={byCategory.kospiEtf} onRowClick={handleRowClick} />}
+                  {byCategory.kosdaq.length > 0 && <SymbolTable title="코스닥" items={byCategory.kosdaq} onRowClick={handleRowClick} />}
+                  {byCategory.nasdaq100.length > 0 && <SymbolTable title="NASDAQ 100" items={byCategory.nasdaq100} onRowClick={handleRowClick} />}
+                  {byCategory.sp500.length > 0 && <SymbolTable title="S&P 500" items={byCategory.sp500} onRowClick={handleRowClick} />}
+                  {byCategory.russell1000.length > 0 && <SymbolTable title="Russell 1000" items={byCategory.russell1000} onRowClick={handleRowClick} />}
+                  {byCategory.usEtf.length > 0 && <SymbolTable title="미국 ETF" items={byCategory.usEtf} onRowClick={handleRowClick} />}
+                </>
+              ) : (
+                <div className="text-center py-10 text-[var(--muted)] text-sm">"{searchQuery}"에 해당하는 종목이 없습니다</div>
+              )
+            ) : activeTab === 'KR' ? (
+              <>
+                <SymbolTable title="코스피" items={byCategory.kospi} onRowClick={handleRowClick} />
+                <SymbolTable title="코스닥" items={byCategory.kosdaq} onRowClick={handleRowClick} />
+                <SymbolTable title="코스피 ETF" items={byCategory.kospiEtf} onRowClick={handleRowClick} />
+              </>
+            ) : (
+              <>
+                <SymbolTable title="NASDAQ 100 (QQQ)" items={byCategory.nasdaq100} onRowClick={handleRowClick} />
+                <SymbolTable title="S&P 500" items={byCategory.sp500} onRowClick={handleRowClick} />
+                <SymbolTable title="Russell 1000 단독" items={byCategory.russell1000} onRowClick={handleRowClick} />
+                <SymbolTable title="미국 ETF" items={byCategory.usEtf} onRowClick={handleRowClick} />
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── PC layout ── */}
+      <div className="hidden md:block p-3 md:p-6 max-w-7xl mx-auto">
       {/* 페이지 제목 */}
       <div className="flex items-center gap-2 mb-4">
         <TrendingUp size={20} className="text-cyan-400" />
@@ -632,11 +825,6 @@ export default function BuyList() {
           </div>
         </div>
       </div>
-
-      {/* ── 슬롯 BUY 종목 모달 ── */}
-      {selectedSlot && (
-        <SlotBuyModal slot={selectedSlot} onClose={() => setSelectedSlot(null)} nav={nav} />
-      )}
 
       {/* ── 텔레그램 알림 스케줄 ── */}
       <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3 md:p-4 mb-4">
@@ -764,6 +952,12 @@ export default function BuyList() {
           <SymbolTable title="미국 ETF" items={byCategory.usEtf} onRowClick={handleRowClick} />
         </>
       )}
-    </div>
+      </div>
+
+      {/* ── 슬롯 BUY 종목 모달 (mobile + PC 공용) ── */}
+      {selectedSlot && (
+        <SlotBuyModal slot={selectedSlot} onClose={() => setSelectedSlot(null)} nav={nav} />
+      )}
+    </>
   )
 }

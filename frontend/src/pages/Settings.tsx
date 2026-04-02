@@ -1,5 +1,5 @@
 import { Check, Database, Loader2, MessageCircle, Play, Send, Settings as SettingsIcon, TrendingUp, Wifi, WifiOff } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { fetchFullScanHistory, fetchFullScanStatus, getKIS, getSensitivity, getTelegram, setKIS, setSensitivity, setTelegram, testBuyAlert, testKIS, testTelegram, triggerFullScan } from '../api/client'
 import { useToastStore } from '../stores/toastStore'
 import { useAuthStore } from '../store/authStore'
@@ -25,8 +25,29 @@ const SENSITIVITIES = [
   },
 ]
 
+function SnapHdr({ title, color, currentSection, total }: {
+  title: string; color: string; currentSection: number; total: number
+}) {
+  return (
+    <div className="flex items-center justify-between px-3 pt-3 pb-2 shrink-0 border-b border-[var(--border)]/50">
+      <h2 className={`text-base font-bold ${color}`}>{title}</h2>
+      <div className="flex gap-1.5">
+        {Array.from({ length: total }, (_, i) => (
+          <div key={i} className={`h-1.5 rounded-full transition-all ${
+            i === currentSection
+              ? `w-4 ${color.replace('text-', 'bg-')}`
+              : 'w-1.5 bg-white/20'
+          }`} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function Settings() {
   const { user } = useAuthStore()
+  const snapRef = useRef<HTMLDivElement>(null)
+  const [currentSection, setCurrentSection] = useState(0)
   const [currentSens, setCurrentSens] = useState('strict')
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
@@ -65,6 +86,17 @@ export default function Settings() {
     scanned_count: number; total_symbols: number; last_completed_at: string | null;
   } | null>(null)
   const [scanTriggering, setScanTriggering] = useState(false)
+
+  useEffect(() => {
+    const el = snapRef.current
+    if (!el) return
+    const onScroll = () => {
+      const h = el.clientHeight
+      if (h > 0) setCurrentSection(Math.round(el.scrollTop / h))
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [])
 
   useEffect(() => {
     getSensitivity().then(d => setCurrentSens(d.current)).catch(() => {})
@@ -234,8 +266,236 @@ export default function Settings() {
     } finally { setKisTesting(false) }
   }
 
+  const sH = 'calc(100dvh - 52px)'
+
+  // ── 공통 섹션 내용 블록 ──────────────────────────────────────
+  const profileBlock = (
+    <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 flex items-center justify-between">
+      {user ? (
+        <>
+          <div>
+            <p className="text-sm font-medium text-white">{user.user_metadata?.full_name ?? user.user_metadata?.name ?? user.email}</p>
+            <p className="text-xs text-[var(--muted)]">{user.email}</p>
+          </div>
+          <UserMenu />
+        </>
+      ) : (
+        <>
+          <p className="text-sm text-[var(--muted)]">로그인하면 개인화 기능을 사용할 수 있습니다</p>
+          <LoginButton />
+        </>
+      )}
+    </div>
+  )
+
+  const sensitivityBlock = (
+    <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
+      <h2 className="text-white font-semibold mb-1">BUY/SELL 신호 민감도</h2>
+      <p className="text-xs text-[var(--muted)] mb-3">민감도가 높을수록 신호가 자주 발생합니다</p>
+      <div className="space-y-2">
+        {SENSITIVITIES.map(s => (
+          <button key={s.value} onClick={() => handleSensChange(s.value)} disabled={saving}
+            className={`w-full text-left px-4 py-3 rounded-lg transition ${
+              currentSens === s.value ? `${s.bg} border ${s.border}` : 'bg-[var(--bg)] border border-transparent hover:border-[var(--border)]'
+            } disabled:opacity-50`}>
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${currentSens === s.value ? s.color.replace('text-', 'bg-') : 'bg-[var(--border)]'}`} />
+                <span className={`text-sm font-bold ${currentSens === s.value ? s.color : 'text-[var(--muted)]'}`}>{s.label}</span>
+              </div>
+              <span className="text-xs text-[var(--muted)]">{s.desc}</span>
+            </div>
+            <div className="text-[10px] text-[var(--muted)] ml-4 font-mono">{s.detail}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+
+  const telegramBlock = (
+    <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
+      <h2 className="text-white font-semibold mb-1 flex items-center gap-2">
+        <MessageCircle size={16} className="text-sky-400" /> 텔레그램 알림
+      </h2>
+      <p className="text-xs text-[var(--muted)] mb-3">BUY/SELL 신호 전환 시 텔레그램으로 실시간 알림을 받습니다</p>
+      {tgMsg && (
+        <div className={`mb-3 text-xs px-3 py-2 rounded-lg flex items-center gap-2 ${
+          tgMsgType === 'ok' ? 'text-green-400 bg-green-400/10' : 'text-red-400 bg-red-400/10'
+        }`}>
+          {tgMsgType === 'ok' ? <Check size={14} /> : null} {tgMsg}
+        </div>
+      )}
+      <div className="space-y-3">
+        <div>
+          <label className="block text-xs text-[var(--muted)] mb-1">Bot Token</label>
+          <input type="text" value={tgToken} onChange={e => setTgToken(e.target.value)}
+            placeholder={tgTokenHint || '123456:ABC-DEF...'} autoComplete="off"
+            className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder-[var(--muted)] focus:border-sky-500 focus:outline-none" />
+          <p className="text-[10px] text-[var(--muted)] mt-1">{tgConfigured ? '변경 시에만 새 토큰 입력 (현재 설정됨)' : '@BotFather에서 봇 생성 후 발급'}</p>
+        </div>
+        <div>
+          <label className="block text-xs text-[var(--muted)] mb-1">Chat ID</label>
+          <input type="text" value={tgChatId} onChange={e => setTgChatId(e.target.value)}
+            placeholder="-1001234567890" autoComplete="off"
+            className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder-[var(--muted)] focus:border-sky-500 focus:outline-none" />
+        </div>
+        <div className="flex gap-2 pt-1">
+          <button onClick={handleTgSave} disabled={tgSaving}
+            className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white text-sm rounded-lg transition disabled:opacity-50">
+            {tgSaving ? '저장 중...' : '저장'}
+          </button>
+          <button onClick={handleTgTest} disabled={tgTesting || !tgConfigured}
+            className="px-4 py-2 bg-[var(--bg)] border border-[var(--border)] hover:border-sky-500 text-[var(--muted)] hover:text-white text-sm rounded-lg transition disabled:opacity-50 flex items-center gap-1">
+            <Send size={14} />{tgTesting ? '발송 중...' : '테스트 발송'}
+          </button>
+        </div>
+        {tgConfigured && <div className="text-[10px] text-green-400 flex items-center gap-1 mt-1"><Check size={12} /> 텔레그램 연동됨</div>}
+      </div>
+    </div>
+  )
+
+  const kisBlock = (
+    <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
+      <h2 className="text-white font-semibold mb-1 flex items-center gap-2">
+        <TrendingUp size={16} className="text-orange-400" /> 한국투자증권 API
+      </h2>
+      <p className="text-xs text-[var(--muted)] mb-3">한국 주식 실시간 체결가를 초 단위로 수신합니다</p>
+      {kisMsg && (
+        <div className={`mb-3 text-xs px-3 py-2 rounded-lg flex items-center gap-2 ${
+          kisMsgType === 'ok' ? 'text-green-400 bg-green-400/10' : 'text-red-400 bg-red-400/10'
+        }`}>
+          {kisMsgType === 'ok' ? <Check size={14} /> : null} {kisMsg}
+        </div>
+      )}
+      {kisWs && (
+        <div className={`mb-3 text-xs px-3 py-2 rounded-lg flex items-center gap-2 ${kisWs.connected ? 'text-green-400 bg-green-400/10' : 'text-[var(--muted)] bg-[var(--bg)]'}`}>
+          {kisWs.connected ? <Wifi size={14} /> : <WifiOff size={14} />}
+          WebSocket {kisWs.connected ? '연결됨' : '미연결'} — {kisWs.subscribed}/{kisWs.max} 종목
+        </div>
+      )}
+      <div className="space-y-3">
+        <div>
+          <label className="block text-xs text-[var(--muted)] mb-1">APP KEY</label>
+          <input type="text" value={kisAppKey} onChange={e => setKisAppKey(e.target.value)}
+            placeholder="PSxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autoComplete="off"
+            className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder-[var(--muted)] focus:border-orange-500 focus:outline-none" />
+        </div>
+        <div>
+          <label className="block text-xs text-[var(--muted)] mb-1">APP SECRET</label>
+          <input type="password" value={kisAppSecret} onChange={e => setKisAppSecret(e.target.value)}
+            placeholder="시크릿 키 입력" autoComplete="off"
+            className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder-[var(--muted)] focus:border-orange-500 focus:outline-none" />
+        </div>
+        <div>
+          <label className="block text-xs text-[var(--muted)] mb-1">계좌번호</label>
+          <input type="text" value={kisAccountNo} onChange={e => setKisAccountNo(e.target.value)}
+            placeholder="00000000-01" autoComplete="off"
+            className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder-[var(--muted)] focus:border-orange-500 focus:outline-none" />
+        </div>
+        <div className="flex items-center gap-3">
+          <label className="text-xs text-[var(--muted)]">모의투자 모드</label>
+          <button onClick={() => setKisPaper(!kisPaper)}
+            className={`w-10 h-5 rounded-full transition relative ${kisPaper ? 'bg-orange-500' : 'bg-[var(--border)]'}`}>
+            <div className={`w-4 h-4 bg-white rounded-full absolute top-0.5 transition ${kisPaper ? 'left-5' : 'left-0.5'}`} />
+          </button>
+          <span className="text-xs text-[var(--muted)]">{kisPaper ? 'ON (모의)' : 'OFF (실전)'}</span>
+        </div>
+        <div className="flex gap-2 pt-1">
+          <button onClick={handleKisSave} disabled={kisSaving}
+            className="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white text-sm rounded-lg transition disabled:opacity-50">
+            {kisSaving ? '저장 중...' : '저장'}
+          </button>
+          <button onClick={handleKisTest} disabled={kisTesting || !kisConfigured}
+            className="px-4 py-2 bg-[var(--bg)] border border-[var(--border)] hover:border-orange-500 text-[var(--muted)] hover:text-white text-sm rounded-lg transition disabled:opacity-50 flex items-center gap-1">
+            <Send size={14} />{kisTesting ? '테스트 중...' : '연결 테스트'}
+          </button>
+        </div>
+        {kisConfigured && <div className="text-[10px] text-green-400 flex items-center gap-1 mt-1"><Check size={12} /> 한투 API 연동됨</div>}
+      </div>
+    </div>
+  )
+
   return (
-    <div className="p-6 max-w-xl mx-auto">
+    <>
+      {/* ── Mobile snap layout ── */}
+      <div
+        ref={snapRef}
+        className="md:hidden fixed inset-x-0 top-0"
+        style={{ bottom: '52px', overflowY: 'scroll', scrollSnapType: 'y mandatory', WebkitOverflowScrolling: 'touch' } as any}
+      >
+        {/* Section 1: 프로필 + 신호 민감도 */}
+        <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
+          <SnapHdr title="신호 설정" color="text-blue-400" currentSection={currentSection} total={3} />
+          <div className="flex-1 overflow-y-auto px-4 pb-4 pt-3 space-y-4" style={{ overscrollBehaviorY: 'contain' } as any}>
+            {profileBlock}
+            {msg && (
+              <div className="text-xs text-green-400 bg-green-400/10 px-3 py-2 rounded-lg flex items-center gap-2">
+                <Check size={14} /> {msg}
+              </div>
+            )}
+            {sensitivityBlock}
+          </div>
+        </div>
+
+        {/* Section 2: 텔레그램 */}
+        <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
+          <SnapHdr title="텔레그램 알림" color="text-sky-400" currentSection={currentSection} total={3} />
+          <div className="flex-1 overflow-y-auto px-4 pb-4 pt-3 space-y-4" style={{ overscrollBehaviorY: 'contain' } as any}>
+            {telegramBlock}
+            {tgConfigured && (
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
+                <h2 className="text-white font-semibold mb-1 flex items-center gap-2">
+                  <MessageCircle size={16} className="text-green-400" /> BUY 신호 정기 알림
+                </h2>
+                <p className="text-xs text-[var(--muted)] mb-3">평일 10:30 / 15:00 국내주식 BUY 신호 자동 발송</p>
+                <button onClick={handleBuyAlertTest} disabled={buyAlertTesting}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition disabled:opacity-50 flex items-center gap-1">
+                  <Send size={14} />{buyAlertTesting ? '전송 중...' : 'BUY 신호 알림 테스트'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Section 3: 한투 API + 스캔 모니터링 */}
+        <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
+          <SnapHdr title="한투 API · 스캔" color="text-orange-400" currentSection={currentSection} total={3} />
+          <div className="flex-1 overflow-y-auto px-4 pb-4 pt-3 space-y-4" style={{ overscrollBehaviorY: 'contain' } as any}>
+            {kisBlock}
+            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
+              <h2 className="text-white font-semibold mb-1 flex items-center gap-2">
+                <Database size={16} className="text-purple-400" /> 전체 시장 스캔
+              </h2>
+              <p className="text-xs text-[var(--muted)] mb-3">국내 3,500+ / 미국 900+ 전종목 스캔</p>
+              {scanStatus?.running && (
+                <div className="mb-3 bg-purple-500/10 border border-purple-500/30 rounded-lg p-3">
+                  <div className="flex items-center gap-2 text-purple-400 text-sm mb-2">
+                    <Loader2 size={14} className="animate-spin" />
+                    스캔 진행 중... {scanStatus.progress_pct}%
+                  </div>
+                  <div className="w-full bg-[var(--bg)] rounded-full h-2">
+                    <div className="bg-purple-500 h-2 rounded-full transition-all" style={{ width: `${scanStatus.progress_pct}%` }} />
+                  </div>
+                </div>
+              )}
+              <div className="flex items-center gap-3">
+                <button onClick={handleFullScanTrigger} disabled={scanTriggering || scanStatus?.running}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm rounded-lg transition disabled:opacity-50 flex items-center gap-1">
+                  <Play size={14} />{scanTriggering ? '시작 중...' : scanStatus?.running ? '진행 중...' : '수동 스캔 실행'}
+                </button>
+                {scanStatus?.last_completed_at && (
+                  <span className="text-xs text-[var(--muted)]">
+                    완료: {new Date(scanStatus.last_completed_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── PC layout ── */}
+      <div className="hidden md:block p-6 max-w-xl mx-auto">
       <h1 className="text-xl font-bold text-white flex items-center gap-2 mb-6">
         <SettingsIcon size={22} className="text-blue-400" /> 설정
       </h1>
@@ -646,6 +906,7 @@ export default function Settings() {
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </>
   )
 }

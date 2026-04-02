@@ -1,14 +1,194 @@
-import { useQueryClient } from '@tanstack/react-query'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { MarketScanBox } from './Dashboard'
+import { fetchFullScanLatest, fetchUnifiedCache } from '../api/client'
+
+function SnapHdr({ title, color, currentSection, total }: {
+  title: string; color: string; currentSection: number; total: number
+}) {
+  return (
+    <div className="flex items-center justify-between px-3 pt-3 pb-2 shrink-0 border-b border-[var(--border)]/50">
+      <h2 className={`text-base font-bold ${color}`}>{title}</h2>
+      <div className="flex gap-1.5">
+        {Array.from({ length: total }, (_, i) => (
+          <div key={i} className={`h-1.5 rounded-full transition-all ${
+            i === currentSection
+              ? `w-4 ${color.replace('text-', 'bg-')}`
+              : 'w-1.5 bg-white/20'
+          }`} />
+        ))}
+      </div>
+    </div>
+  )
+}
 
 export default function Scan() {
   const nav = useNavigate()
   const qc = useQueryClient()
+  const snapRef = useRef<HTMLDivElement>(null)
+  const [currentSection, setCurrentSection] = useState(0)
+  const [scanData, setScanData] = useState<{
+    buyItems: any[]; overheatItems: any[]; picks: any | null
+  }>({ buyItems: [], overheatItems: [], picks: null })
+
+  useEffect(() => {
+    fetchFullScanLatest()
+      .then(r => {
+        if (r?.status !== 'no_data' && r?.picks) {
+          setScanData({
+            buyItems: r.chart_buy?.items || [],
+            overheatItems: r.overheat?.items || [],
+            picks: r.picks,
+          })
+        } else {
+          fetchUnifiedCache().then(r2 => {
+            setScanData({
+              buyItems: r2?.chart_buy?.items || [],
+              overheatItems: r2?.overheat?.items || [],
+              picks: r2?.picks || null,
+            })
+          }).catch(() => {})
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    const el = snapRef.current
+    if (!el) return
+    const onScroll = () => {
+      const h = el.clientHeight
+      if (h > 0) setCurrentSection(Math.round(el.scrollTop / h))
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [])
+
+  const sH = 'calc(100dvh - 52px)'
+
+  const allPicks = scanData.picks ? [
+    ...(scanData.picks.kospi || []),
+    ...(scanData.picks.kosdaq || []),
+    ...(scanData.picks.us || []),
+    ...(scanData.picks.crypto || []),
+  ] : []
 
   return (
-    <div className="p-3 md:p-6 max-w-7xl mx-auto">
-      <MarketScanBox nav={nav} qc={qc} />
-    </div>
+    <>
+      {/* ── Mobile snap layout ── */}
+      <div
+        ref={snapRef}
+        className="md:hidden fixed inset-x-0 top-0"
+        style={{ bottom: '52px', overflowY: 'scroll', scrollSnapType: 'y mandatory', WebkitOverflowScrolling: 'touch' } as any}
+      >
+        {/* Section 1: 차트 BUY 신호 */}
+        <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
+          <SnapHdr title="차트 BUY 신호" color="text-green-400" currentSection={currentSection} total={3} />
+          <div
+            className="flex-1 overflow-y-auto px-3 pb-3 pt-2 space-y-2"
+            style={{ overscrollBehaviorY: 'contain' } as any}
+          >
+            {scanData.buyItems.length === 0 ? (
+              <div className="text-center py-12 text-[var(--muted)] text-sm">BUY 신호 데이터가 없습니다</div>
+            ) : scanData.buyItems.map((item, i) => (
+              <div
+                key={item.symbol}
+                onClick={() => nav(`/${item.symbol}?market=${item.market_type || item.market || 'KR'}`)}
+                className="bg-[var(--card)] border border-green-500/20 rounded-lg p-3 cursor-pointer hover:border-green-500/50 transition active:scale-[0.98]"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[10px] bg-[var(--border)] text-white w-5 h-5 rounded flex items-center justify-center font-mono shrink-0">{i + 1}</span>
+                    <span className="text-white font-bold text-sm truncate">{item.display_name || item.name || item.symbol}</span>
+                    <span className="text-[var(--muted)] text-[10px] shrink-0">{item.symbol}</span>
+                  </div>
+                  <span className="text-[10px] text-green-400 bg-green-400/10 px-2 py-0.5 rounded font-bold shrink-0">BUY</span>
+                </div>
+                {item.signal_date && (
+                  <div className="text-[10px] text-[var(--muted)] mt-1.5">신호일: {item.signal_date}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Section 2: 투자과열 */}
+        <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
+          <SnapHdr title="투자과열 종목" color="text-orange-400" currentSection={currentSection} total={3} />
+          <div
+            className="flex-1 overflow-y-auto px-3 pb-3 pt-2 space-y-2"
+            style={{ overscrollBehaviorY: 'contain' } as any}
+          >
+            {scanData.overheatItems.length === 0 ? (
+              <div className="text-center py-12 text-[var(--muted)] text-sm">투자과열 데이터가 없습니다</div>
+            ) : scanData.overheatItems.map((item, i) => (
+              <div
+                key={item.symbol}
+                onClick={() => nav(`/${item.symbol}?market=${item.market_type || item.market || 'KR'}`)}
+                className="bg-[var(--card)] border border-orange-500/20 rounded-lg p-3 cursor-pointer hover:border-orange-500/50 transition active:scale-[0.98]"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[10px] bg-[var(--border)] text-white w-5 h-5 rounded flex items-center justify-center font-mono shrink-0">{i + 1}</span>
+                    <span className="text-white font-bold text-sm truncate">{item.display_name || item.name || item.symbol}</span>
+                    <span className="text-[var(--muted)] text-[10px] shrink-0">{item.symbol}</span>
+                  </div>
+                  {item.rsi != null && (
+                    <span className="text-[10px] text-orange-400 bg-orange-400/10 px-2 py-0.5 rounded font-mono shrink-0">
+                      RSI {item.rsi.toFixed(0)}
+                    </span>
+                  )}
+                </div>
+                {item.volume_ratio != null && (
+                  <div className="text-[10px] text-[var(--muted)] mt-1.5">거래량 {item.volume_ratio.toFixed(1)}x</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Section 3: 추천종목 */}
+        <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
+          <SnapHdr title="추천종목" color="text-yellow-400" currentSection={currentSection} total={3} />
+          <div
+            className="flex-1 overflow-y-auto px-3 pb-3 pt-2 space-y-2"
+            style={{ overscrollBehaviorY: 'contain' } as any}
+          >
+            {allPicks.length === 0 ? (
+              <div className="text-center py-12 text-[var(--muted)] text-sm">추천 데이터가 없습니다</div>
+            ) : allPicks.map((item: any, i: number) => (
+              <div
+                key={item.symbol}
+                onClick={() => nav(`/${item.symbol}?market=${item.market_type || item.market || 'KR'}`)}
+                className="bg-[var(--card)] border border-yellow-500/20 rounded-lg p-3 cursor-pointer hover:border-yellow-500/50 transition active:scale-[0.98]"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[10px] bg-[var(--border)] text-white w-5 h-5 rounded flex items-center justify-center font-mono shrink-0">{i + 1}</span>
+                    <span className="text-white font-bold text-sm truncate">{item.display_name || item.name || item.symbol}</span>
+                    <span className="text-[var(--muted)] text-[10px] shrink-0">{item.symbol}</span>
+                  </div>
+                  {item.score != null && (
+                    <span className="text-[10px] text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded font-mono shrink-0">{item.score}점</span>
+                  )}
+                </div>
+                {(item.squeeze_level != null || item.rsi != null) && (
+                  <div className="text-[10px] text-[var(--muted)] mt-1.5 flex gap-3">
+                    {item.squeeze_level != null && item.squeeze_level > 0 && <span>SQ Lv{item.squeeze_level}</span>}
+                    {item.rsi != null && <span>RSI {item.rsi.toFixed(0)}</span>}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── PC layout ── */}
+      <div className="hidden md:block p-3 md:p-6 max-w-7xl mx-auto">
+        <MarketScanBox nav={nav} qc={qc} />
+      </div>
+    </>
   )
 }
