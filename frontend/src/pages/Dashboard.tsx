@@ -23,9 +23,14 @@ const sqLabels: Record<number, string> = { 0: 'NO SQ', 1: 'LOW SQ', 2: 'MID SQ',
 export default function Dashboard() {
   const qc = useQueryClient()
   const nav = useNavigate()
-  const { data, isLoading } = useQuery<Signal[]>({ queryKey: ['signals'], queryFn: fetchSignals })
   const { signals, setSignals } = useSignalStore()
-  const { user } = useAuthStore()
+  const { user, loading: authLoading } = useAuthStore()
+  // authLoading이 끝난 뒤 실행 — 세션 확보 전에 요청하면 토큰 없이 빈 배열 반환됨
+  const { data, isLoading } = useQuery<Signal[]>({
+    queryKey: ['signals'],
+    queryFn: fetchSignals,
+    enabled: !authLoading,
+  })
   const { addToast } = useToastStore()
 
   // 검색 상태
