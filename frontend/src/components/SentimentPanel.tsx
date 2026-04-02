@@ -178,12 +178,33 @@ function MiniTrendChart({ dates, values }: { dates: string[]; values: number[] }
 function Skeleton() {
   return (
     <div className="animate-pulse">
-      <div className="flex justify-center mb-3">
-        <div className="w-48 h-24 bg-gray-800 rounded-full" />
+      {/* 섹션 제목 */}
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-4 h-4 bg-blue-900/60 rounded" />
+        <div className="w-16 h-4 bg-gray-800 rounded" />
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+      {/* 반원 게이지 */}
+      <div className="flex flex-col items-center mb-3">
+        <div className="relative w-32 md:w-40 h-16 md:h-20">
+          <div className="absolute bottom-0 left-0 right-0 h-full rounded-t-full bg-gray-800/70" style={{ borderRadius: '100px 100px 0 0' }} />
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-8 h-5 bg-gray-700/60 rounded" />
+        </div>
+        <div className="w-20 h-3 bg-gray-800 rounded mt-2" />
+      </div>
+      {/* 분위기 뱃지 */}
+      <div className="flex justify-center mb-3">
+        <div className="w-24 h-6 bg-gray-800 rounded-full" />
+      </div>
+      {/* 추이 차트 */}
+      <div className="w-full h-12 bg-gray-800/50 rounded mb-3" />
+      {/* 지표 카드 5개 */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-3">
         {[1, 2, 3, 4, 5].map(i => (
-          <div key={i} className="h-16 bg-gray-800 rounded-lg" />
+          <div key={i} className="bg-gray-800/60 border border-gray-700/40 rounded-lg px-3 py-2">
+            <div className="w-12 h-2.5 bg-gray-700 rounded mb-2" />
+            <div className="w-16 h-4 bg-gray-700 rounded mb-1.5" />
+            <div className="w-10 h-2.5 bg-gray-700/60 rounded" />
+          </div>
         ))}
       </div>
     </div>

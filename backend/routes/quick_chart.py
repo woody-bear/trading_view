@@ -204,3 +204,78 @@ def _judge(df, bb, rsi, macd, vol, sq, ema, price, change_pct) -> dict:
         }
     except Exception:
         return {"signal_state": "NEUTRAL", "confidence": 0, "signal_grade": ""}
+
+
+@router.get("/chart/indicators-at")
+async def indicators_at(symbol: str, market: str, date: str):
+    """특정 날짜의 지표값 조회 — BUY 사례 저장 시 호출."""
+    from fastapi import HTTPException
+    from services.chart_cache import get_chart_data
+
+    try:
+        df = await get_chart_data(symbol, market, "1d", 300)
+    except Exception:
+        raise HTTPException(status_code=404, detail="차트 데이터를 불러올 수 없습니다")
+
+    if df is None or df.empty:
+        raise HTTPException(status_code=404, detail="차트 데이터 없음")
+
+    # date 행 찾기 (df.index는 UTC datetime)
+    target_idx = None
+    for i, idx in enumerate(df.index):
+        row_date = idx.strftime("%Y-%m-%d")
+        if row_date == date:
+            target_idx = i
+            break
+
+    if target_idx is None:
+        raise HTTPException(status_code=404, detail=f"해당 날짜 데이터를 찾을 수 없습니다: {date}")
+
+    # 지표 계산 (전체 df 기준, target_idx 위치의 값 추출)
+    def safe(series, idx):
+        if series is None or idx >= len(series):
+            return None
+        v = series.iloc[idx]
+        return None if pd.isna(v) else float(v)
+
+    bb = calculate_bb(df) if len(df) >= 20 else {}
+    rsi_s = calculate_rsi(df) if len(df) >= 14 else None
+    macd = calculate_macd(df) if len(df) >= 26 else {}
+    vol = calculate_volume_ratio(df)
+    sq = detect_squeeze(df)
+    ema = calculate_ema(df)
+
+    e20 = safe(ema.get("ema_20"), target_idx) or 0
+    e50 = safe(ema.get("ema_50"), target_idx) or 0
+    e200 = safe(ema.get("ema_200"), target_idx) or 0
+
+    sq_val = sq.iloc[target_idx] if target_idx < len(sq) else 0
+    sq_level = int(sq_val) if not pd.isna(sq_val) else 0
+
+    # 충족 조건 수 계산 (normal 기준: rsi<35, bb_pct_b<0.15, macd_hist>0, vol>=1.1)
+    rsi_v = safe(rsi_s, target_idx)
+    bb_pct_v = safe(bb.get("pct_b"), target_idx)
+    macd_hist_v = safe(macd.get("histogram"), target_idx)
+    vol_v = safe(vol, target_idx)
+    conditions = sum([
+        rsi_v is not None and rsi_v < 35,
+        bb_pct_v is not None and bb_pct_v < 0.15,
+        macd_hist_v is not None and macd_hist_v > 0,
+        vol_v is not None and vol_v >= 1.1,
+    ])
+
+    close_v = float(df["close"].iloc[target_idx])
+
+    return {
+        "symbol": symbol,
+        "date": date,
+        "rsi": round(rsi_v, 1) if rsi_v is not None else None,
+        "bb_pct_b": round(bb_pct_v, 4) if bb_pct_v is not None else None,
+        "bb_width": round(safe(bb.get("width"), target_idx), 4) if safe(bb.get("width"), target_idx) is not None else None,
+        "macd_hist": round(macd_hist_v, 4) if macd_hist_v is not None else None,
+        "volume_ratio": round(vol_v, 2) if vol_v is not None else None,
+        "ema_alignment": "BULL" if e20 > e50 > e200 else "BEAR" if e20 < e50 < e200 else "NEUTRAL",
+        "squeeze_level": sq_level,
+        "conditions_met": conditions,
+        "close": round(close_v, 2),
+    }

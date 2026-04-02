@@ -47,7 +47,8 @@ async def get_current_user(
     """로그인 필수 엔드포인트용 Dependency. user payload 반환."""
     if not cred:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "로그인이 필요합니다")
-    return _verify_token(cred.credentials)
+    import asyncio
+    return await asyncio.to_thread(_verify_token, cred.credentials)
 
 
 async def get_optional_user(
@@ -56,8 +57,9 @@ async def get_optional_user(
     """로그인 선택 엔드포인트용 Dependency. 비로그인 시 None 반환."""
     if not cred:
         return None
+    import asyncio
     try:
-        return _verify_token(cred.credentials)
+        return await asyncio.to_thread(_verify_token, cred.credentials)
     except HTTPException:
         return None
 

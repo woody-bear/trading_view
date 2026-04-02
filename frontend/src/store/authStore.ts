@@ -29,7 +29,8 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
-      partialize: (state) => ({ user: state.user, session: state.session }),
+      // session(JWT)은 만료 토큰 잔류 문제로 persist 제외 — Supabase가 자체 관리
+      partialize: (state) => ({ user: state.user }),
     }
   )
 )

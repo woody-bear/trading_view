@@ -154,8 +154,13 @@ BUY/SELL/NEUTRAL. 조건: BB %B, RSI, MACD 전환, 거래량. 민감도 3단계(
 - Supabase PostgreSQL (이미 전환 완료) (008-google-auth-personalization)
 - Python 3.12 (backend) / TypeScript 5.x React 18 (frontend) + FastAPI, SQLAlchemy 2.0 async (backend) / React Query, Tailwind CSS (frontend) (009-buy-scan-watchlist)
 - SQLite WAL — stock_master 테이블 읽기 전용 + ScanSnapshot 기존 읽기 (009-buy-scan-watchlist)
+<<<<<<< HEAD
 - TypeScript 5.x (React 18) + Python 3.12 + React 18, Tailwind CSS v4, Zustand, React Query / FastAPI, SQLAlchemy 2.0 async (011-stock-card-redesign)
 - SQLite WAL — stock_master 테이블 읽기 전용 (market_type 조회), 스키마 변경 없음 (011-stock-card-redesign)
+=======
+- Python 3.12 (backend) + TypeScript 5.x / React 18 (frontend) + FastAPI, SQLAlchemy 2.0 async, Alembic / React 18, lightweight-charts v5, React Query, Tailwind CSS, Zustand (010-chart-buy-scrap)
+- SQLite WAL (aiosqlite) — `pattern_case` 테이블 컬럼 2개 추가 (source, user_id) (010-chart-buy-scrap)
+>>>>>>> main
 
 ## Recent Changes
 - 002-fix-chart-usability: Added TypeScript 5.x (React 18) + Python 3.12 (변경 없음) + React 18, lightweight-charts v5, Zustand, React Query, Tailwind CSS

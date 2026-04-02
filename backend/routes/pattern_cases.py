@@ -1,17 +1,38 @@
 """BUY 우수 사례 스크랩 API — CRUD."""
 
 import json
+import uuid
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select, delete
+from sqlalchemy import select
 
 from database import async_session
 from models import PatternCase
 
 router = APIRouter(prefix="/pattern-cases", tags=["pattern-cases"])
+
+
+# ── 사용자 인증 헬퍼 ──────────────────────────────────────────────────────────
+
+def _extract_user_id(authorization: Optional[str]) -> Optional[uuid.UUID]:
+    """Authorization 헤더에서 user_id 추출 (Supabase JWT sub 클레임)."""
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    token = authorization.split(" ", 1)[1]
+    try:
+        import base64
+        parts = token.split(".")
+        if len(parts) != 3:
+            return None
+        payload_padded = parts[1] + "=" * (4 - len(parts[1]) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(payload_padded))
+        sub = payload.get("sub")
+        return uuid.UUID(sub) if sub else None
+    except Exception:
+        return None
 
 
 # ── Schemas ──────────────────────────────────────────────────────────────────
@@ -38,6 +59,7 @@ class PatternCaseCreate(BaseModel):
     conditions_met: Optional[int] = None
     tags: Optional[list[str]] = None
     notes: Optional[str] = None
+    source: str = "manual"
 
 
 class PatternCaseUpdate(BaseModel):
@@ -80,6 +102,8 @@ def _to_dict(case: PatternCase) -> dict:
         "conditions_met": case.conditions_met,
         "tags": tags,
         "notes": case.notes,
+        "source": case.source,
+        "user_id": str(case.user_id) if case.user_id else None,
         "created_at": case.created_at.isoformat() if case.created_at else None,
         "updated_at": case.updated_at.isoformat() if case.updated_at else None,
     }
@@ -87,10 +111,37 @@ def _to_dict(case: PatternCase) -> dict:
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
-@router.get("")
-async def list_cases(pattern_type: Optional[str] = None, market: Optional[str] = None):
+@router.get("/check")
+async def check_duplicate(
+    symbol: str,
+    signal_date: str,
+    authorization: Optional[str] = Header(default=None),
+):
+    """동일 종목·날짜 중복 여부 확인."""
+    user_id = _extract_user_id(authorization)
     async with async_session() as session:
-        q = select(PatternCase).order_by(PatternCase.signal_date.desc())
+        q = select(PatternCase).where(
+            PatternCase.symbol == symbol,
+            PatternCase.signal_date == signal_date,
+        )
+        if user_id:
+            q = q.where(PatternCase.user_id == user_id)
+        result = await session.execute(q)
+        case = result.scalar_one_or_none()
+    return {"exists": case is not None, "id": case.id if case else None}
+
+
+@router.get("")
+async def list_cases(
+    pattern_type: Optional[str] = None,
+    market: Optional[str] = None,
+    authorization: Optional[str] = Header(default=None),
+):
+    user_id = _extract_user_id(authorization)
+    if not user_id:
+        return []  # 비로그인 시 빈 목록 반환
+    async with async_session() as session:
+        q = select(PatternCase).where(PatternCase.user_id == user_id).order_by(PatternCase.signal_date.desc())
         if pattern_type:
             q = q.where(PatternCase.pattern_type == pattern_type)
         if market:
@@ -101,8 +152,23 @@ async def list_cases(pattern_type: Optional[str] = None, market: Optional[str] =
 
 
 @router.post("", status_code=201)
-async def create_case(body: PatternCaseCreate):
+async def create_case(
+    body: PatternCaseCreate,
+    authorization: Optional[str] = Header(default=None),
+):
+    user_id = _extract_user_id(authorization)
     async with async_session() as session:
+        # 중복 체크
+        q = select(PatternCase).where(
+            PatternCase.symbol == body.symbol,
+            PatternCase.signal_date == body.signal_date,
+        )
+        if user_id:
+            q = q.where(PatternCase.user_id == user_id)
+        existing = await session.execute(q)
+        if existing.scalar_one_or_none():
+            raise HTTPException(status_code=409, detail="이미 스크랩된 사례입니다")
+
         tags_json = json.dumps(body.tags, ensure_ascii=False) if body.tags else None
         case = PatternCase(
             title=body.title,
@@ -126,6 +192,8 @@ async def create_case(body: PatternCaseCreate):
             conditions_met=body.conditions_met,
             tags=tags_json,
             notes=body.notes,
+            source=body.source,
+            user_id=user_id,
         )
         session.add(case)
         await session.commit()
@@ -134,12 +202,20 @@ async def create_case(body: PatternCaseCreate):
 
 
 @router.patch("/{case_id}")
-async def update_case(case_id: int, body: PatternCaseUpdate):
+async def update_case(
+    case_id: int,
+    body: PatternCaseUpdate,
+    authorization: Optional[str] = Header(default=None),
+):
+    user_id = _extract_user_id(authorization)
     async with async_session() as session:
         result = await session.execute(select(PatternCase).where(PatternCase.id == case_id))
         case = result.scalar_one_or_none()
         if not case:
             raise HTTPException(status_code=404, detail="Not found")
+        # 본인 사례만 수정 허용
+        if user_id and case.user_id and case.user_id != user_id:
+            raise HTTPException(status_code=403, detail="권한 없음")
 
         if body.title is not None:
             case.title = body.title
@@ -163,11 +239,17 @@ async def update_case(case_id: int, body: PatternCaseUpdate):
 
 
 @router.delete("/{case_id}", status_code=204)
-async def delete_case(case_id: int):
+async def delete_case(
+    case_id: int,
+    authorization: Optional[str] = Header(default=None),
+):
+    user_id = _extract_user_id(authorization)
     async with async_session() as session:
         result = await session.execute(select(PatternCase).where(PatternCase.id == case_id))
         case = result.scalar_one_or_none()
         if not case:
             raise HTTPException(status_code=404, detail="Not found")
+        if user_id and case.user_id and case.user_id != user_id:
+            raise HTTPException(status_code=403, detail="권한 없음")
         await session.delete(case)
         await session.commit()

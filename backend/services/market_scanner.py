@@ -84,17 +84,20 @@ def _check_trend(df: pd.DataFrame, ema: dict) -> str:
 
 
 async def scan_market(market_type: str, top_n: int = 3, min_squeeze: int = 1, trend_only: bool = True) -> list[ScanResult]:
+    """scan_symbols_list 기준 종목 스캔 (full_market_scanner._load_symbols() 공용)."""
     logger.info(f"[{market_type}] 스캔 시작")
 
+    from services.full_market_scanner import _load_symbols
     if market_type in ("KOSPI", "KOSDAQ"):
-        symbols = _get_kr_stocks(market_type)
-        suffix = ".KS" if market_type == "KOSPI" else ".KQ"
-        tickers = [f"{s}{suffix}" for s in symbols.keys()]
+        all_infos = await _load_symbols(["KR"])
+        infos = [s for s in all_infos if s["market_type"] == market_type]
     elif market_type == "US":
-        symbols = {**_get_us_stocks(), **_get_us_etfs()}
-        tickers = list(symbols.keys())
+        infos = await _load_symbols(["US"])
     else:
         return []
+
+    ticker_map = {s["ticker"]: s for s in infos}
+    tickers = list(ticker_map.keys())
 
     logger.info(f"[{market_type}] {len(tickers)}개 다운로드 중...")
     df_all = await asyncio.to_thread(_batch_download, tickers)
@@ -117,10 +120,9 @@ async def scan_market(market_type: str, top_n: int = 3, min_squeeze: int = 1, tr
             ema = calculate_ema(df)
 
             last_sq = int(squeeze.iloc[-1]) if not pd.isna(squeeze.iloc[-1]) else 0
-            if last_sq < min_squeeze:  # min_squeeze 이상만 포함
+            if last_sq < min_squeeze:
                 continue
 
-            # 추세 판정
             trend = _check_trend(df, ema)
             if trend_only and trend != "BULL":
                 continue
@@ -141,15 +143,9 @@ async def scan_market(market_type: str, top_n: int = 3, min_squeeze: int = 1, tr
             if last_macd > 0: score += 5
             if last_vol > 1.0: score += 5
 
-            if market_type in ("KOSPI", "KOSDAQ"):
-                sym = ticker.replace(".KS", "").replace(".KQ", "")
-                name = symbols.get(sym, sym)
-            else:
-                sym = ticker
-                name = symbols.get(ticker, ticker)
-
+            info = ticker_map[ticker]
             results.append(ScanResult(
-                symbol=sym, name=name, market_type=market_type,
+                symbol=info["symbol"], name=info["name"], market_type=market_type,
                 price=price, change_pct=round(change, 2),
                 rsi=round(last_rsi, 1), bb_pct_b=round(last_pctb, 4),
                 bb_width=round(last_bbw, 4), squeeze_level=last_sq,

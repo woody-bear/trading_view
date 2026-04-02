@@ -17,20 +17,19 @@ _last_scan_time: str | None = None
 _scanning = False
 
 
-def _get_all_stocks() -> dict[str, dict]:
-    """전체 시장 종목 목록. {ticker: {name, market, market_type}}"""
-    from services.market_scanner import _get_kr_stocks, _get_us_stocks
-
-    stocks = {}
-    for mtype in ("KOSPI", "KOSDAQ"):
-        suffix = ".KS" if mtype == "KOSPI" else ".KQ"
-        for sym, name in _get_kr_stocks(mtype).items():
-            stocks[f"{sym}{suffix}"] = {"name": name, "symbol": sym, "market": "KR", "market_type": mtype}
-
-    for sym, name in _get_us_stocks().items():
-        stocks[sym] = {"name": name, "symbol": sym, "market": "US", "market_type": "US"}
-
-    return stocks
+async def _get_all_stocks() -> dict[str, dict]:
+    """scan_symbols_list 기준 전체 종목 로드 (full_market_scanner 공용 함수 재사용)."""
+    from services.full_market_scanner import _load_symbols
+    symbol_list = await _load_symbols(["KR", "US"])  # CRYPTO 제외
+    return {
+        s["ticker"]: {
+            "name": s["name"],
+            "symbol": s["symbol"],
+            "market": s["market"],
+            "market_type": s["market_type"],
+        }
+        for s in symbol_list
+    }
 
 
 def _batch_download_daily(tickers: list[str]) -> pd.DataFrame | None:
@@ -67,7 +66,7 @@ async def scan_latest_buy(timeframe: str = "1d") -> list[dict]:
     results = []
 
     try:
-        all_stocks = _get_all_stocks()
+        all_stocks = await _get_all_stocks()
         tickers = list(all_stocks.keys())
         logger.info(f"차트 BUY 스캔 시작: {len(tickers)}개 종목 일봉 다운로드...")
 
