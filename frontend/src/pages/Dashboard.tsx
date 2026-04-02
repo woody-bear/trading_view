@@ -11,6 +11,7 @@ import { useAuthStore } from '../store/authStore'
 import { useToastStore } from '../stores/toastStore'
 import type { Signal } from '../types'
 import { fmtPrice } from '../utils/format'
+import { indicatorBadges, marketBadge } from '../utils/indicatorLabels'
 
 interface SearchResult {
   symbol: string; name: string; market: string; market_type: string; display: string
@@ -33,8 +34,12 @@ export default function Dashboard() {
   const [showDropdown, setShowDropdown] = useState(false)
   const [adding, setAdding] = useState<string | null>(null)
   const [addMsg, setAddMsg] = useState('')
-  const searchBoxRef = useRef<HTMLDivElement>(null)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const snapRef = useRef<HTMLDivElement>(null)
+  const [currentSection, setCurrentSection] = useState(0)
+  const [mobileScan, setMobileScan] = useState<{ buyItems: any[]; overheatItems: any[]; picks: any | null }>({
+    buyItems: [], overheatItems: [], picks: null,
+  })
 
   const deleteMut = useMutation({
     mutationFn: deleteSymbol,
@@ -57,13 +62,38 @@ export default function Dashboard() {
     }, 300)
   }, [searchQuery])
 
-  // 외부 클릭 닫기
+  // 외부 클릭 닫기 (data-search-box 속성으로 모바일/PC 공용 처리)
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target as Node)) setShowDropdown(false)
+      if (!(e.target as Element).closest?.('[data-search-box]')) setShowDropdown(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  // 모바일 스냅 레이아웃용 스캔 데이터 로드
+  useEffect(() => {
+    fetchFullScanLatest().then(r => {
+      if (r?.status !== 'no_data' && r?.picks) {
+        setMobileScan({ buyItems: r.chart_buy?.items || [], overheatItems: r.overheat?.items || [], picks: r.picks })
+      } else {
+        fetchUnifiedCache().then(r2 => {
+          setMobileScan({ buyItems: r2?.chart_buy?.items || [], overheatItems: r2?.overheat?.items || [], picks: r2?.picks || null })
+        }).catch(() => {})
+      }
+    }).catch(() => {})
+  }, [])
+
+  // 모바일 스냅 섹션 인덱스 추적
+  useEffect(() => {
+    const el = snapRef.current
+    if (!el) return
+    const onScroll = () => {
+      const h = el.clientHeight
+      if (h > 0) setCurrentSection(Math.round(el.scrollTop / h))
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
   }, [])
 
   const handleAddFromSearch = async (r: SearchResult) => {
@@ -91,144 +121,270 @@ export default function Dashboard() {
     ;(acc[s.market] ??= []).push(s)
     return acc
   }, {})
-
   const marketLabel: Record<string, string> = { KR: '한국 주식', US: '미국 주식', CRYPTO: '암호화폐' }
-
-  const isMarketOpen = (market: string) => {
+  const isMarketOpenLocal = (market: string) => {
     const now = new Date()
     if (market === 'CRYPTO') return true
     if (market === 'KR') {
       const kst = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }))
-      const day = kst.getDay()
-      const h = kst.getHours(), m = kst.getMinutes()
-      if (day === 0 || day === 6) return false
-      if (h < 9 || (h === 15 && m > 30) || h > 15) return false
-      return true
+      const d = kst.getDay(), h = kst.getHours(), m = kst.getMinutes()
+      if (d === 0 || d === 6) return false
+      return h >= 9 && (h < 15 || (h === 15 && m <= 30))
     }
-    if (market === 'US') {
-      const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }))
-      const day = et.getDay()
-      const h = et.getHours(), m = et.getMinutes()
-      if (day === 0 || day === 6) return false
-      if (h < 9 || (h === 9 && m < 30) || h >= 16) return false
-      return true
-    }
-    return false
+    const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }))
+    const d = et.getDay(), h = et.getHours(), m = et.getMinutes()
+    if (d === 0 || d === 6) return false
+    return (h > 9 || (h === 9 && m >= 30)) && h < 16
   }
 
-  return (
-    <div className="p-3 md:p-6 max-w-7xl mx-auto">
+  // 추천 종목 병합 (모바일용)
+  const allPicks: any[] = mobileScan.picks ? [
+    ...(mobileScan.picks.kospi || []),
+    ...(mobileScan.picks.kosdaq || []),
+    ...(mobileScan.picks.us || []),
+    ...(mobileScan.picks.crypto || []),
+  ] : []
 
-      {/* ── 종목 검색 + 추가 ── */}
-      <div ref={searchBoxRef} className="relative mb-3 md:mb-5 sticky top-0 z-30 md:relative bg-[var(--bg)] pt-1 pb-1 md:pt-0 md:pb-0">
-        <div className="relative">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
-          <input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onFocus={() => searchResults.length && setShowDropdown(true)}
-            placeholder="종목 검색 (예: 삼성전자, AAPL, BTC)"
-            autoComplete="new-password"
-            className="w-full pl-9 pr-8 py-2 bg-[var(--card)] border border-[var(--border)] rounded-lg text-white text-sm placeholder:text-slate-500 focus:border-blue-500/50 focus:outline-none"
-          />
-          {searchQuery && (
-            <button onClick={() => { setSearchQuery(''); setSearchResults([]); setShowDropdown(false) }}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-white">
-              <X size={14} />
-            </button>
-          )}
-        </div>
+  const sH = 'calc(100dvh - 52px)' // 각 스냅 섹션 높이
 
-        {addMsg && (
-          <div className={`mt-2 text-xs px-3 py-1.5 rounded ${addMsg.includes('실패') ? 'text-red-400 bg-red-400/10' : 'text-green-400 bg-green-400/10'}`}>
-            {addMsg}
-          </div>
+  // ── 공용 검색 박스 JSX ──
+  const SearchBox = ({ mobile }: { mobile?: boolean }) => (
+    <div data-search-box className={`relative ${mobile ? 'px-3 pb-2 shrink-0' : 'mb-3 md:mb-5 sticky top-0 z-30 bg-[var(--bg)] pt-1 pb-1'}`}>
+      <div className="relative">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+        <input
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onFocus={() => searchResults.length && setShowDropdown(true)}
+          placeholder="종목 검색 (예: 삼성전자, AAPL, BTC)"
+          autoComplete="new-password"
+          className="w-full pl-9 pr-8 py-2 bg-[var(--card)] border border-[var(--border)] rounded-lg text-white text-sm placeholder:text-slate-500 focus:border-blue-500/50 focus:outline-none"
+        />
+        {searchQuery && (
+          <button onClick={() => { setSearchQuery(''); setSearchResults([]); setShowDropdown(false) }}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-white">
+            <X size={14} />
+          </button>
         )}
+      </div>
+      {addMsg && (
+        <div className={`mt-2 text-xs px-3 py-1.5 rounded ${addMsg.includes('실패') ? 'text-red-400 bg-red-400/10' : 'text-green-400 bg-green-400/10'}`}>
+          {addMsg}
+        </div>
+      )}
+      {showDropdown && searchResults.length > 0 && (
+        <div className={`absolute z-50 mt-1 bg-[#1e293b] border border-[var(--border)] rounded-lg shadow-xl max-h-64 overflow-y-auto ${mobile ? 'left-3 right-3' : 'w-full'}`}>
+          {searchResults.map((r) => (
+            <div key={`${r.market}-${r.symbol}`}
+              className="flex items-center justify-between px-4 py-2.5 hover:bg-[var(--border)] transition">
+              <button onClick={() => nav(`/${r.symbol.replace(/\//g, '_')}?market=${r.market_type || r.market}`)}
+                className="flex-1 text-left">
+                <span className="text-white text-sm">{r.name}</span>
+                <span className="text-[var(--muted)] text-xs ml-2">{r.symbol}</span>
+                <span className="text-[10px] text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded ml-2">{r.market_type}</span>
+              </button>
+              <button onClick={() => handleAddFromSearch(r)} disabled={adding === r.symbol}
+                className="shrink-0 ml-3 flex items-center gap-1 px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-md disabled:opacity-50 transition">
+                <Plus size={12} />
+                {adding === r.symbol ? '추가 중...' : '추가'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 
-        {showDropdown && searchResults.length > 0 && (
-          <div className="absolute z-50 w-full mt-1 bg-[#1e293b] border border-[var(--border)] rounded-lg shadow-xl max-h-64 overflow-y-auto">
-            {searchResults.map((r) => (
-              <div key={`${r.market}-${r.symbol}`}
-                className="flex items-center justify-between px-4 py-2.5 hover:bg-[var(--border)] transition">
-                <button onClick={() => nav(`/${r.symbol.replace(/\//g, '_')}?market=${r.market_type || r.market}`)}
-                  className="flex-1 text-left">
-                  <span className="text-white text-sm">{r.name}</span>
-                  <span className="text-[var(--muted)] text-xs ml-2">{r.symbol}</span>
-                  <span className="text-[10px] text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded ml-2">
-                    {r.market_type}
-                  </span>
-                </button>
+  // ── 섹션 헤더 (제목 + 도트 내비게이터) ──
+  const SectionHeader = ({ title, color }: { title: string; color: string }) => (
+    <div className="flex items-center justify-between px-3 pt-3 pb-2 shrink-0 border-b border-[var(--border)]/50">
+      <h2 className={`text-base font-bold ${color}`}>{title}</h2>
+      <div className="flex gap-1.5">
+        {[0, 1, 2, 3].map(i => (
+          <div key={i} className={`w-1.5 h-1.5 rounded-full transition-all ${i === currentSection ? `w-4 ${color.replace('text-', 'bg-')}` : 'bg-white/20'}`} />
+        ))}
+      </div>
+    </div>
+  )
+
+  return (
+    <>
+      {/* ══ 모바일: 스냅 스크롤 레이아웃 ══ */}
+      <div
+        ref={snapRef}
+        className="md:hidden fixed inset-x-0 top-0"
+        style={{ bottom: '52px', overflowY: 'scroll', scrollSnapType: 'y mandatory', WebkitOverflowScrolling: 'touch' } as any}
+      >
+        {/* ── 섹션 1: 관심종목 ── */}
+        <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
+          <SectionHeader title="관심종목" color="text-white" />
+          <SearchBox mobile />
+          <div className="px-3 shrink-0"><SentimentPanel /></div>
+          <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
+            {isLoading && <p className="text-[var(--muted)] text-sm py-4 text-center">로딩 중...</p>}
+            {signals.length === 0 && !isLoading && (
+              <div className="text-center py-8 text-[var(--muted)]">
+                <p className="mb-1">등록된 종목이 없습니다</p>
+                <p className="text-xs">위 검색창에서 종목을 추가하세요</p>
+              </div>
+            )}
+            {signals.map((s, i) => (
+              <div key={s.watchlist_id} className="relative group">
+                <SignalCard signal={s} index={i + 1} />
                 <button
-                  onClick={() => handleAddFromSearch(r)}
-                  disabled={adding === r.symbol}
-                  className="shrink-0 ml-3 flex items-center gap-1 px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-md disabled:opacity-50 transition"
-                >
-                  <Plus size={12} />
-                  {adding === r.symbol ? '추가 중...' : '추가'}
+                  onClick={(e) => { e.stopPropagation(); if (confirm(`${s.display_name || s.symbol} 삭제?`)) deleteMut.mutate(s.watchlist_id) }}
+                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1 bg-red-500/80 rounded text-white hover:bg-red-600 transition">
+                  <Trash2 size={12} />
                 </button>
               </div>
             ))}
           </div>
-        )}
-      </div>
+        </div>
 
-      {/* ── 시장 방향성 ── */}
-      <SentimentPanel />
-
-      {/* ── 관심종목 ── */}
-      <div className="md:bg-[var(--card)] md:border md:border-[var(--border)] md:rounded-xl md:p-5 mb-4">
-        <h1 className="text-lg md:text-xl font-bold text-white mb-3">관심종목</h1>
-
-        {isLoading && <p className="text-[var(--muted)] text-sm">로딩 중...</p>}
-
-        {signals.length === 0 && !isLoading && (
-          <div className="text-center py-8 text-[var(--muted)]">
-            <p className="mb-1">등록된 종목이 없습니다</p>
-            <p className="text-xs">위 검색창에서 종목을 추가하세요</p>
+        {/* ── 섹션 2: 차트 BUY 신호 ── */}
+        <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
+          <SectionHeader title="차트 BUY 신호" color="text-green-400" />
+          <p className="text-[10px] text-[var(--muted)] px-3 py-1 shrink-0">일봉 3일 이내 · 데드크로스 제외</p>
+          <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
+            {mobileScan.buyItems.length === 0 ? (
+              <p className="text-[var(--muted)] text-sm py-8 text-center">BUY 신호 종목이 없습니다</p>
+            ) : (() => {
+              const { mode } = getBuyDisplayMode()
+              const items = filterBuyByMode(
+                [...mobileScan.buyItems].sort((a: any, b: any) => (b.trend === 'BULL' ? 1 : 0) - (a.trend === 'BULL' ? 1 : 0)),
+                mode
+              )
+              return items.map((item: any, i: number) => (
+                <BuyCard key={item.symbol} item={item} index={i} nav={nav} />
+              ))
+            })()}
           </div>
-        )}
+        </div>
 
-        {['KR', 'US', 'CRYPTO'].map((market) =>
-          grouped[market] ? (
-            <div key={market} className="mb-3 last:mb-0">
-              <div className="flex items-center gap-2 mb-2 md:mb-1.5">
-                <h2 className="text-sm md:text-xs font-semibold text-[var(--muted)]">
-                  {marketLabel[market]} <span className="opacity-60">({grouped[market].length})</span>
-                </h2>
-                {isMarketOpen(market) ? (
-                  <span className="text-[10px] md:text-[9px] text-green-400 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-                    실시간 가격 반영중
-                  </span>
-                ) : (
-                  <span className="text-[10px] md:text-[9px] text-[var(--muted)]">장종료</span>
-                )}
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                {grouped[market].map((s, i) => (
-                  <div key={s.watchlist_id} className="relative group">
-                    <SignalCard signal={s} index={i + 1} />
-                    <button
-                      onClick={(e) => { e.stopPropagation(); if(confirm(`${s.display_name || s.symbol} 삭제?`)) deleteMut.mutate(s.watchlist_id) }}
-                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1 bg-red-500/80 rounded text-white hover:bg-red-600 transition"
-                      title="워치리스트에서 삭제"
-                    >
-                      <Trash2 size={12} />
-                    </button>
+        {/* ── 섹션 3: 투자과열 ── */}
+        <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
+          <SectionHeader title="투자과열 신호" color="text-red-400" />
+          <p className="text-[10px] text-[var(--muted)] px-3 py-1 shrink-0">RSI 70+ 또는 RSI 65+ 거래량 2x · 국내 개별주</p>
+          <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
+            {mobileScan.overheatItems.length === 0 ? (
+              <p className="text-[var(--muted)] text-sm py-8 text-center">투자과열 종목이 없습니다</p>
+            ) : mobileScan.overheatItems.map((item: any, i: number) => (
+              <div key={item.symbol}
+                onClick={() => nav(`/${item.symbol}?market=${item.market_type || item.market}`)}
+                className="bg-[var(--card)] border border-red-500/30 rounded-lg p-4 cursor-pointer hover:border-red-500/60 transition active:scale-[0.98]">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-[11px] bg-red-500/20 text-red-400 w-5 h-5 rounded flex items-center justify-center font-mono shrink-0">{i + 1}</span>
+                    <span className="text-white font-semibold text-base truncate">{item.name}</span>
+                    <span className="text-[var(--muted)] text-xs shrink-0">{item.symbol}</span>
                   </div>
-                ))}
+                  <span className="text-[10px] font-bold text-red-400 bg-red-500/20 px-2 py-0.5 rounded shrink-0">과열</span>
+                </div>
+                <div className="flex items-baseline gap-2 mb-1.5">
+                  <span className="text-xl font-mono font-bold text-white">{item.price?.toLocaleString()}</span>
+                  <span className={`text-sm font-mono font-semibold ${item.change_pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {item.change_pct >= 0 ? '+' : ''}{item.change_pct}%
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 text-xs mb-2">
+                  <span className="text-red-400 font-bold">RSI {item.rsi?.toFixed(0)}</span>
+                  <span className="text-[var(--muted)]">거래량 <span className="text-white font-mono">{item.volume_ratio?.toFixed(1)}x</span></span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {[marketBadge(item.market_type || item.market), ...indicatorBadges({
+                    rsi: item.rsi,
+                    bb_pct_b: item.bb_pct_b != null ? item.bb_pct_b / 100 : undefined,
+                    volume_ratio: item.volume_ratio,
+                    macd_hist: item.macd_hist,
+                  })].map(b => (
+                    <span key={b.label} className={`text-xs px-2 py-0.5 rounded ${b.cls}`}>{b.label}</span>
+                  ))}
+                </div>
               </div>
-            </div>
-          ) : null
-        )}
+            ))}
+          </div>
+        </div>
+
+        {/* ── 섹션 4: 추천 종목 ── */}
+        <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
+          <SectionHeader title="추천 종목" color="text-orange-400" />
+          <p className="text-[10px] text-[var(--muted)] px-3 py-1 shrink-0">스퀴즈 + 상승추세 + 데드크로스 제외 · 시장별 Top 15</p>
+          <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
+            {allPicks.length === 0 ? (
+              <p className="text-[var(--muted)] text-sm py-8 text-center">추천 종목이 없습니다</p>
+            ) : allPicks.map((p: any, i: number) => (
+              <PickCard key={p.symbol} p={p} index={i}
+                onAdd={(p, e) => {
+                  e.stopPropagation()
+                  const market = (p.market_type === 'KOSPI' || p.market_type === 'KOSDAQ') ? 'KR' : 'US'
+                  addSymbol({ market, symbol: p.symbol, timeframe: '1d' })
+                    .then(() => qc.invalidateQueries({ queryKey: ['signals'] }))
+                    .catch(() => {})
+                }}
+                onNavigate={(p) => nav(`/${p.symbol.replace(/\//g, '_')}?market=${p.market_type || 'KR'}`)}
+                adding={false} added={false}
+              />
+            ))}
+          </div>
+        </div>
       </div>
 
-      {/* ── 전체 시장 스캔 (PC만 표시, 모바일은 /scan 탭) ── */}
-      <div className="hidden md:block">
+      {/* ══ PC 레이아웃 (모바일 숨김) ══ */}
+      <div className="hidden md:block p-3 md:p-6 max-w-7xl mx-auto">
+        <SearchBox />
+
+        {/* ── 시장 방향성 ── */}
+        <SentimentPanel />
+
+        {/* ── 관심종목 ── */}
+        <div className="md:bg-[var(--card)] md:border md:border-[var(--border)] md:rounded-xl md:p-5 mb-4">
+          <h1 className="text-lg md:text-xl font-bold text-white mb-3">관심종목</h1>
+          {isLoading && <p className="text-[var(--muted)] text-sm">로딩 중...</p>}
+          {signals.length === 0 && !isLoading && (
+            <div className="text-center py-8 text-[var(--muted)]">
+              <p className="mb-1">등록된 종목이 없습니다</p>
+              <p className="text-xs">위 검색창에서 종목을 추가하세요</p>
+            </div>
+          )}
+          {['KR', 'US', 'CRYPTO'].map((market) =>
+            grouped[market] ? (
+              <div key={market} className="mb-3 last:mb-0">
+                <div className="flex items-center gap-2 mb-2 md:mb-1.5">
+                  <h2 className="text-sm md:text-xs font-semibold text-[var(--muted)]">
+                    {marketLabel[market]} <span className="opacity-60">({grouped[market].length})</span>
+                  </h2>
+                  {isMarketOpenLocal(market) ? (
+                    <span className="text-[10px] md:text-[9px] text-green-400 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+                      실시간 가격 반영중
+                    </span>
+                  ) : (
+                    <span className="text-[10px] md:text-[9px] text-[var(--muted)]">장종료</span>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {grouped[market].map((s, i) => (
+                    <div key={s.watchlist_id} className="relative group">
+                      <SignalCard signal={s} index={i + 1} />
+                      <button
+                        onClick={(e) => { e.stopPropagation(); if (confirm(`${s.display_name || s.symbol} 삭제?`)) deleteMut.mutate(s.watchlist_id) }}
+                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1 bg-red-500/80 rounded text-white hover:bg-red-600 transition"
+                        title="워치리스트에서 삭제">
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null
+          )}
+        </div>
+
+        {/* ── 전체 시장 스캔 ── */}
         <div className="border-t border-[var(--border)] my-8" />
         <MarketScanBox nav={nav} qc={qc} />
       </div>
-    </div>
+    </>
   )
 }
 
@@ -574,28 +730,48 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
               {overheatItems.map((item: any, i: number) => (
                 <div key={item.symbol}
                   onClick={() => nav(`/${item.symbol}?market=${item.market_type || item.market}`)}
-                  className="bg-[var(--bg)] border border-red-500/30 rounded-lg p-3 md:p-2.5 cursor-pointer hover:border-red-500/60 transition active:scale-[0.98]">
-                  <div className="flex items-center justify-between mb-1">
+                  className="bg-[var(--bg)] border border-red-500/30 rounded-lg p-4 md:p-2.5 cursor-pointer hover:border-red-500/60 transition active:scale-[0.98]">
+                  {/* 헤더: 순위 + 이름 + 코드 | 과열 배지 */}
+                  <div className="flex items-center justify-between mb-2 md:mb-1">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="text-[10px] bg-red-500/20 text-red-400 w-5 h-5 rounded flex items-center justify-center font-mono">{i + 1}</span>
-                      <span className="text-white font-semibold text-sm truncate">{item.name}</span>
-                      <span className="text-[var(--muted)] text-[10px]">{item.symbol}</span>
-                      <span className={`text-[8px] px-1 py-0.5 rounded ${item.market_type === 'KOSPI' ? 'text-blue-400 bg-blue-500/15' : 'text-purple-400 bg-purple-500/15'}`}>
-                        {item.market_type === 'KOSPI' ? '코스피' : '코스닥'}
-                      </span>
+                      <span className="text-[11px] bg-red-500/20 text-red-400 w-5 h-5 rounded flex items-center justify-center font-mono shrink-0">{i + 1}</span>
+                      <span className="text-white font-semibold text-base md:text-sm truncate">{item.name}</span>
+                      <span className="text-[var(--muted)] text-xs md:text-[10px] shrink-0">{item.symbol}</span>
                     </div>
-                    <span className="text-[9px] font-bold text-red-400 bg-red-500/20 px-1.5 py-0.5 rounded">과열</span>
+                    <span className="text-[10px] md:text-[9px] font-bold text-red-400 bg-red-500/20 px-2 py-0.5 rounded shrink-0">과열</span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-mono text-white">{item.price?.toLocaleString()}</span>
-                    <div className="flex items-center gap-2 text-[10px]">
-                      <span className={item.change_pct >= 0 ? 'text-green-400' : 'text-red-400'}>
+                  {/* 가격 행 */}
+                  <div className="md:flex md:items-center md:justify-between">
+                    <div className="flex items-baseline gap-2 md:gap-1.5">
+                      <span className="text-xl md:text-sm font-mono font-bold text-white">{item.price?.toLocaleString()}</span>
+                      <span className={`text-sm md:text-[10px] font-mono font-semibold ${item.change_pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                         {item.change_pct >= 0 ? '+' : ''}{item.change_pct}%
                       </span>
+                    </div>
+                    <div className="flex items-center gap-3 md:gap-2 text-xs md:text-[10px] mt-1.5 md:mt-0">
                       <span className="text-red-400 font-bold">RSI {item.rsi?.toFixed(0)}</span>
-                      <span className="text-[var(--muted)]">거래량 {item.volume_ratio?.toFixed(1)}x</span>
+                      <span className="text-[var(--muted)]">거래량 <span className="text-white font-mono">{item.volume_ratio?.toFixed(1)}x</span></span>
                     </div>
                   </div>
+                  {/* 배지 행 */}
+                  {(() => {
+                    const overheatBadges = [
+                      marketBadge(item.market_type || item.market),
+                      ...indicatorBadges({
+                        rsi: item.rsi,
+                        bb_pct_b: item.bb_pct_b != null ? item.bb_pct_b / 100 : undefined,
+                        volume_ratio: item.volume_ratio,
+                        macd_hist: item.macd_hist,
+                      }),
+                    ]
+                    return (
+                      <div className="flex flex-wrap gap-1.5 md:gap-1 mt-2 md:mt-1.5">
+                        {overheatBadges.map(b => (
+                          <span key={b.label} className={`text-xs md:text-[8px] px-2 md:px-1.5 py-0.5 rounded ${b.cls}`}>{b.label}</span>
+                        ))}
+                      </div>
+                    )
+                  })()}
                 </div>
               ))}
             </div>
@@ -636,7 +812,7 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
 interface Pick {
   symbol: string; name: string; price: number; change_pct: number;
   rsi: number; bb_pct_b: number; squeeze_level: number; volume_ratio: number; confidence: number;
-  market_type?: string; trend?: string; trend_label?: string;
+  market_type?: string; trend?: string; trend_label?: string; macd_hist?: number;
 }
 
 function PickSection({ title, picks, nav, qc, livePrices = {} }: { title: string; picks: Pick[]; nav: any; qc: any; livePrices?: Record<string, any> }) {
@@ -712,21 +888,40 @@ function PickCard({ p, index, livePrice, onAdd, onNavigate, adding, added }: {
           )}
         </div>
       </div>
-      <div className="flex items-center justify-between">
+      <div className="md:flex md:items-center md:justify-between mt-1 md:mt-0">
         <div className="flex items-baseline gap-1.5">
-          <span className={`text-lg md:text-sm font-mono font-semibold transition-colors duration-300 ${flashClass}`}>
+          <span className={`text-xl md:text-sm font-mono font-semibold transition-colors duration-300 ${flashClass}`}>
             {fmtPrice(price, p.market_type)}
           </span>
-          <span className={`text-[11px] md:text-[10px] font-mono ${pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+          <span className={`text-sm md:text-[10px] font-mono ${pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
             {pct >= 0 ? '+' : ''}{pct}%
           </span>
         </div>
-        <div className="flex items-center gap-2.5 md:gap-2 text-[11px] md:text-[9px]">
-          <span className="text-[var(--muted)]">RSI <span className="text-white font-mono">{p.rsi}</span></span>
-          <span className="text-[var(--muted)]">%B <span className="text-white font-mono">{p.bb_pct_b}%</span></span>
-          <span className="text-[var(--muted)]">Vol <span className="text-white font-mono">{p.volume_ratio}x</span></span>
+        <div className="flex items-center gap-3 md:gap-2 text-xs md:text-[9px] mt-1.5 md:mt-0">
+          <span className="text-[var(--muted)]">RSI <span className="text-white font-mono font-semibold">{p.rsi}</span></span>
+          <span className="text-[var(--muted)]">%B <span className="text-white font-mono font-semibold">{p.bb_pct_b}%</span></span>
+          <span className="text-[var(--muted)]">Vol <span className="text-white font-mono font-semibold">{p.volume_ratio}x</span></span>
         </div>
       </div>
+      {/* 시장 배지 + 지표 라벨 */}
+      {(() => {
+        const indicators = indicatorBadges({
+          squeeze_level: p.squeeze_level,
+          rsi: p.rsi,
+          bb_pct_b: p.bb_pct_b != null ? p.bb_pct_b / 100 : undefined,
+          volume_ratio: p.volume_ratio,
+          macd_hist: p.macd_hist ?? undefined,
+        })
+        const tags = [marketBadge(p.market_type || 'KR'), ...indicators]
+        if (tags.length === 0) return null
+        return (
+          <div className="flex flex-wrap gap-1.5 md:gap-1 mt-2 md:mt-1">
+            {tags.map(t => (
+              <span key={t.label} className={`text-xs md:text-[8px] px-2 md:px-1.5 py-0.5 rounded ${t.cls}`}>{t.label}</span>
+            ))}
+          </div>
+        )
+      })()}
     </div>
   )
 }
@@ -739,18 +934,19 @@ function BuyCard({ item, index, livePrice, nav }: { item: any; index: number; li
   const pct = livePrice?.change_pct ?? item.change_pct
   const { flashClass } = usePriceFlash(price)
 
-  // 순위 이유 태그 생성
-  const reasons: string[] = []
-  const sq = item.squeeze_level ?? 0
-  if (sq >= 3) reasons.push('MAX SQ')
-  else if (sq >= 2) reasons.push('MID SQ')
-  else if (sq >= 1) reasons.push('LOW SQ')
-  if (item.rsi != null && item.rsi < 30) reasons.push('RSI 과매도')
-  else if (item.rsi != null && item.rsi < 40) reasons.push('RSI 낮음')
-  if (item.bb_pct_b != null && item.bb_pct_b < 20) reasons.push('BB하단')
-  if (item.last_signal === 'SQZ BUY') reasons.push('스퀴즈해소')
-  else reasons.push('BB반전')
-  if (item.trend === 'BULL') reasons.push('상승추세')
+  // 지표 라벨 — 공유 유틸리티 사용 (bb_pct_b: 0-100 스케일 → 0-1로 변환)
+  const mktBadge = marketBadge(item.market_type || item.market)
+  const signalBadge = item.last_signal === 'SQZ BUY'
+    ? { label: '스퀴즈해소', cls: 'text-cyan-400 bg-cyan-400/10', priority: 1 }
+    : { label: 'BB반전', cls: 'text-green-400 bg-green-400/10', priority: 1 }
+  const indicators = indicatorBadges({
+    squeeze_level: item.squeeze_level,
+    rsi: item.rsi,
+    bb_pct_b: item.bb_pct_b != null ? item.bb_pct_b / 100 : undefined,
+    volume_ratio: item.volume_ratio,
+    macd_hist: item.macd_hist,
+  })
+  const reasons = [mktBadge, signalBadge, ...indicators]
 
   return (
     <div onClick={() => nav(`/${item.symbol.replace(/\//g, '_')}?market=${item.market_type || item.market}`)}
@@ -770,29 +966,27 @@ function BuyCard({ item, index, livePrice, nav }: { item: any; index: number; li
           }`}>{item.last_signal}</span>
         </div>
       </div>
-      <div className="flex items-center justify-between">
+      <div className="md:flex md:items-center md:justify-between mt-1 md:mt-0">
         <div className="flex items-baseline gap-1.5">
-          <span className={`text-lg md:text-sm font-mono font-semibold transition-colors duration-300 ${flashClass}`}>
+          <span className={`text-xl md:text-sm font-mono font-semibold transition-colors duration-300 ${flashClass}`}>
             {fmtPrice(price, item.market)}
           </span>
-          <span className={`text-[11px] md:text-[10px] font-mono ${pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+          <span className={`text-sm md:text-[10px] font-mono ${pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
             {pct >= 0 ? '+' : ''}{pct}%
           </span>
         </div>
-        <div className="flex items-center gap-2.5 md:gap-2 text-[11px] md:text-[9px]">
+        <div className="flex items-center gap-3 md:gap-2 text-xs md:text-[9px] mt-1 md:mt-0">
           <span className="text-[var(--muted)]">{item.last_signal_date}</span>
-          {item.rsi != null && <span className="text-[var(--muted)]">RSI <span className="text-white font-mono">{item.rsi?.toFixed(0)}</span></span>}
+          {item.rsi != null && <span className="text-[var(--muted)]">RSI <span className="text-white font-mono font-semibold">{item.rsi?.toFixed(0)}</span></span>}
         </div>
       </div>
-      {reasons.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-1.5 md:mt-1">
-          {reasons.map(r => (
-            <span key={r} className="text-[10px] md:text-[8px] text-yellow-400/80 bg-yellow-400/10 px-1.5 py-0.5 rounded">
-              {r}
-            </span>
-          ))}
-        </div>
-      )}
+      <div className="flex flex-wrap gap-1.5 md:gap-1 mt-2 md:mt-1">
+        {reasons.map(r => (
+          <span key={r.label} className={`text-xs md:text-[8px] px-2 md:px-1.5 py-0.5 rounded ${r.cls}`}>
+            {r.label}
+          </span>
+        ))}
+      </div>
     </div>
   )
 }
