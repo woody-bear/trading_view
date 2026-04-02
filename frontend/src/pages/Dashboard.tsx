@@ -23,7 +23,7 @@ const sqLabels: Record<number, string> = { 0: 'NO SQ', 1: 'LOW SQ', 2: 'MID SQ',
 export default function Dashboard() {
   const qc = useQueryClient()
   const nav = useNavigate()
-  const { data, isLoading, isError, refetch } = useQuery<Signal[]>({ queryKey: ['signals'], queryFn: fetchSignals })
+  const { data, isLoading } = useQuery<Signal[]>({ queryKey: ['signals'], queryFn: fetchSignals })
   const { signals, setSignals } = useSignalStore()
   const { user } = useAuthStore()
   const { addToast } = useToastStore()
@@ -241,7 +241,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-<<<<<<< HEAD
         {/* ── 섹션 2: 차트 BUY 신호 ── */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
           <SectionHeader title="차트 BUY 신호" color="text-green-400" />
@@ -259,34 +258,6 @@ export default function Dashboard() {
                 <BuyCard key={item.symbol} item={item} index={i} nav={nav} />
               ))
             })()}
-=======
-      {/* ── 시장 방향성 ── */}
-      <SentimentPanel />
-
-      {/* ── 관심종목 ── */}
-      <div className="md:bg-[var(--card)] md:border md:border-[var(--border)] md:rounded-xl md:p-5 mb-4">
-        <h1 className="text-lg md:text-xl font-bold text-white mb-3">관심종목</h1>
-
-        {isLoading && <p className="text-[var(--muted)] text-sm">로딩 중...</p>}
-
-        {isError && signals.length === 0 && (
-          <div className="text-center py-8 text-[var(--muted)]">
-            <p className="mb-2 text-sm">관심종목을 불러오지 못했습니다</p>
-            <button
-              onClick={() => refetch()}
-              className="flex items-center gap-1.5 mx-auto px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-lg transition"
-            >
-              <RefreshCw size={12} />
-              다시 불러오기
-            </button>
-          </div>
-        )}
-
-        {signals.length === 0 && !isLoading && !isError && (
-          <div className="text-center py-8 text-[var(--muted)]">
-            <p className="mb-1">등록된 종목이 없습니다</p>
-            <p className="text-xs">위 검색창에서 종목을 추가하세요</p>
->>>>>>> main
           </div>
         </div>
 

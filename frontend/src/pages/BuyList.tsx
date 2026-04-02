@@ -625,11 +625,7 @@ export default function BuyList() {
         <div>
           <div className="flex items-center gap-2 mb-2">
             <span className="text-[10px] text-emerald-400 font-semibold">🇺🇸 미국+암호화폐 스캔</span>
-<<<<<<< HEAD
-            <span className="text-[10px] text-[var(--muted)]">19:50 / 03:50 KST</span>
-=======
             <span className="text-[9px] text-[var(--muted)]">19:50 / 03:50 KST · S&P500+나스닥100+Russell1000+암호화폐</span>
->>>>>>> main
           </div>
           <div className="flex gap-2">
             {usSlots.map(slot => <SlotCard key={slot.time} slot={slot} onClick={() => setSelectedSlot(slot)} />)}
