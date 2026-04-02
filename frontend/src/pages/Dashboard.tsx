@@ -147,8 +147,9 @@ export default function Dashboard() {
 
   const sH = 'calc(100dvh - 52px)' // 각 스냅 섹션 높이
 
-  // ── 공용 검색 박스 JSX ──
-  const SearchBox = ({ mobile }: { mobile?: boolean }) => (
+  // ── 검색 박스 공통 JSX (인라인 사용 — 컴포넌트로 정의하면 매 렌더마다 리마운트됨) ──
+  const searchDropdown = showDropdown && searchResults.length > 0
+  const searchInputJSX = (mobile: boolean) => (
     <div data-search-box className={`relative ${mobile ? 'px-3 pb-2 shrink-0' : 'mb-3 md:mb-5 sticky top-0 z-30 bg-[var(--bg)] pt-1 pb-1'}`}>
       <div className="relative">
         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
@@ -172,7 +173,7 @@ export default function Dashboard() {
           {addMsg}
         </div>
       )}
-      {showDropdown && searchResults.length > 0 && (
+      {searchDropdown && (
         <div className={`absolute z-50 mt-1 bg-[#1e293b] border border-[var(--border)] rounded-lg shadow-xl max-h-64 overflow-y-auto ${mobile ? 'left-3 right-3' : 'w-full'}`}>
           {searchResults.map((r) => (
             <div key={`${r.market}-${r.symbol}`}
@@ -195,18 +196,6 @@ export default function Dashboard() {
     </div>
   )
 
-  // ── 섹션 헤더 (제목 + 도트 내비게이터) ──
-  const SectionHeader = ({ title, color }: { title: string; color: string }) => (
-    <div className="flex items-center justify-between px-3 pt-3 pb-2 shrink-0 border-b border-[var(--border)]/50">
-      <h2 className={`text-base font-bold ${color}`}>{title}</h2>
-      <div className="flex gap-1.5">
-        {[0, 1, 2, 3].map(i => (
-          <div key={i} className={`w-1.5 h-1.5 rounded-full transition-all ${i === currentSection ? `w-4 ${color.replace('text-', 'bg-')}` : 'bg-white/20'}`} />
-        ))}
-      </div>
-    </div>
-  )
-
   return (
     <>
       {/* ══ 모바일: 스냅 스크롤 레이아웃 ══ */}
@@ -217,8 +206,8 @@ export default function Dashboard() {
       >
         {/* ── 섹션 1: 관심종목 ── */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
-          <SectionHeader title="관심종목" color="text-white" />
-          <SearchBox mobile />
+          <SnapSectionHeader title="관심종목" color="text-white" currentSection={currentSection} />
+          {searchInputJSX(true)}
           <div className="px-3 shrink-0"><SentimentPanel /></div>
           <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
             {isLoading && <p className="text-[var(--muted)] text-sm py-4 text-center">로딩 중...</p>}
@@ -243,7 +232,7 @@ export default function Dashboard() {
 
         {/* ── 섹션 2: 차트 BUY 신호 ── */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
-          <SectionHeader title="차트 BUY 신호" color="text-green-400" />
+          <SnapSectionHeader title="차트 BUY 신호" color="text-green-400" currentSection={currentSection} />
           <p className="text-[10px] text-[var(--muted)] px-3 py-1 shrink-0">일봉 3일 이내 · 데드크로스 제외</p>
           <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
             {mobileScan.buyItems.length === 0 ? (
@@ -263,7 +252,7 @@ export default function Dashboard() {
 
         {/* ── 섹션 3: 투자과열 ── */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
-          <SectionHeader title="투자과열 신호" color="text-red-400" />
+          <SnapSectionHeader title="투자과열 신호" color="text-red-400" currentSection={currentSection} />
           <p className="text-[10px] text-[var(--muted)] px-3 py-1 shrink-0">RSI 70+ 또는 RSI 65+ 거래량 2x · 국내 개별주</p>
           <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
             {mobileScan.overheatItems.length === 0 ? (
@@ -307,7 +296,7 @@ export default function Dashboard() {
 
         {/* ── 섹션 4: 추천 종목 ── */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
-          <SectionHeader title="추천 종목" color="text-orange-400" />
+          <SnapSectionHeader title="추천 종목" color="text-orange-400" currentSection={currentSection} />
           <p className="text-[10px] text-[var(--muted)] px-3 py-1 shrink-0">스퀴즈 + 상승추세 + 데드크로스 제외 · 시장별 Top 15</p>
           <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
             {allPicks.length === 0 ? (
@@ -331,7 +320,7 @@ export default function Dashboard() {
 
       {/* ══ PC 레이아웃 (모바일 숨김) ══ */}
       <div className="hidden md:block p-3 md:p-6 max-w-7xl mx-auto">
-        <SearchBox />
+        {searchInputJSX(false)}
 
         {/* ── 시장 방향성 ── */}
         <SentimentPanel />
@@ -385,6 +374,21 @@ export default function Dashboard() {
         <MarketScanBox nav={nav} qc={qc} />
       </div>
     </>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════
+// ── 모바일 스냅 섹션 헤더 (외부 컴포넌트 — 내부 정의 시 매 렌더마다 리마운트됨) ──
+function SnapSectionHeader({ title, color, currentSection }: { title: string; color: string; currentSection: number }) {
+  return (
+    <div className="flex items-center justify-between px-3 pt-3 pb-2 shrink-0 border-b border-[var(--border)]/50">
+      <h2 className={`text-base font-bold ${color}`}>{title}</h2>
+      <div className="flex gap-1.5">
+        {[0, 1, 2, 3].map(i => (
+          <div key={i} className={`h-1.5 rounded-full transition-all ${i === currentSection ? `w-4 ${color.replace('text-', 'bg-')}` : 'w-1.5 bg-white/20'}`} />
+        ))}
+      </div>
+    </div>
   )
 }
 
