@@ -227,8 +227,8 @@ export default function Dashboard() {
                 <SignalCard signal={s} index={i + 1} />
                 <button
                   onClick={(e) => { e.stopPropagation(); if (confirm(`${s.display_name || s.symbol} 삭제?`)) deleteMut.mutate(s.watchlist_id) }}
-                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1 bg-red-500/80 rounded text-white hover:bg-red-600 transition">
-                  <Trash2 size={12} />
+                  className="absolute top-2 right-2 md:opacity-0 md:group-hover:opacity-100 p-1.5 bg-red-500/80 rounded text-white hover:bg-red-600 active:bg-red-700 transition">
+                  <Trash2 size={14} />
                 </button>
               </div>
             ))}

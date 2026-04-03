@@ -161,6 +161,8 @@ BUY/SELL/NEUTRAL. 조건: BB %B, RSI, MACD 전환, 거래량. 민감도 3단계(
 - Python 3.12 (backend) + TypeScript 5.x / React 18 (frontend) + FastAPI, SQLAlchemy 2.0 async, Alembic / React 18, lightweight-charts v5, React Query, Tailwind CSS, Zustand (010-chart-buy-scrap)
 - SQLite WAL (aiosqlite) — `pattern_case` 테이블 컬럼 2개 추가 (source, user_id) (010-chart-buy-scrap)
 >>>>>>> main
+- Python 3.12 (backend) + TypeScript 5.x / React 18 (frontend) + FastAPI, SQLAlchemy 2.0 async, yfinance (backend) / React 18, lightweight-charts v5, React Query, Tailwind CSS (frontend) (012-crisis-indicator-history)
+- SQLite WAL — `backend/data/ubb_pro.db` (4개 신규 테이블 추가, 기존 스키마 변경 없음) (012-crisis-indicator-history)
 
 ## Recent Changes
 - 002-fix-chart-usability: Added TypeScript 5.x (React 18) + Python 3.12 (변경 없음) + React 18, lightweight-charts v5, Zustand, React Query, Tailwind CSS

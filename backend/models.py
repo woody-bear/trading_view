@@ -1,9 +1,10 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
 from sqlalchemy import (
     Boolean,
+    Date,
     DateTime,
     Float,
     ForeignKey,
@@ -325,3 +326,86 @@ class PatternCase(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+# ── Crisis Event Market Indicator History ──────────────────────────────────────
+
+class CrisisEvent(Base):
+    """글로벌 위기 이벤트 (전쟁·팬데믹·금융위기 등)."""
+    __tablename__ = "crisis_event"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(30), nullable=False)  # war|pandemic|financial_crisis|natural_disaster
+    start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    end_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    is_ongoing: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    severity_level: Mapped[str] = mapped_column(String(20), nullable=False, default="moderate")
+    best_comparison_event_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("crisis_event.id", use_alter=True, name="fk_crisis_best_comparison"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    data_points: Mapped[list["IndicatorDataPoint"]] = relationship(
+        back_populates="event", cascade="all, delete-orphan"
+    )
+    stats: Mapped[list["EventIndicatorStats"]] = relationship(
+        back_populates="event", cascade="all, delete-orphan"
+    )
+
+
+class MarketIndicator(Base):
+    """시장 지표 마스터 (S&P500, KOSPI 등 8개)."""
+    __tablename__ = "market_indicator"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    category: Mapped[str] = mapped_column(String(20), nullable=False)  # equity|bond|commodity|fx
+    ticker: Mapped[str] = mapped_column(String(20), nullable=False, unique=True)
+    unit: Mapped[str] = mapped_column(String(30), nullable=False)
+    earliest_date: Mapped[date] = mapped_column(Date, nullable=False)
+
+    data_points: Mapped[list["IndicatorDataPoint"]] = relationship(
+        back_populates="indicator", cascade="all, delete-orphan"
+    )
+    stats: Mapped[list["EventIndicatorStats"]] = relationship(
+        back_populates="indicator", cascade="all, delete-orphan"
+    )
+
+
+class IndicatorDataPoint(Base):
+    """이벤트별 지표 일별 데이터."""
+    __tablename__ = "indicator_data_point"
+    __table_args__ = (
+        UniqueConstraint("event_id", "indicator_id", "date", name="uq_indicator_datapoint"),
+        Index("idx_indicator_dp_lookup", "event_id", "indicator_id", "date"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    event_id: Mapped[int] = mapped_column(Integer, ForeignKey("crisis_event.id", ondelete="CASCADE"), nullable=False)
+    indicator_id: Mapped[int] = mapped_column(Integer, ForeignKey("market_indicator.id", ondelete="CASCADE"), nullable=False)
+    date: Mapped[date] = mapped_column(Date, nullable=False)
+    value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    change_pct_from_event_start: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
+    event: Mapped["CrisisEvent"] = relationship(back_populates="data_points")
+    indicator: Mapped["MarketIndicator"] = relationship(back_populates="data_points")
+
+
+class EventIndicatorStats(Base):
+    """이벤트-지표별 요약 통계 (MDD, 최대상승, 회복일)."""
+    __tablename__ = "event_indicator_stats"
+    __table_args__ = (
+        UniqueConstraint("event_id", "indicator_id", name="uq_event_indicator_stats"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    event_id: Mapped[int] = mapped_column(Integer, ForeignKey("crisis_event.id", ondelete="CASCADE"), nullable=False)
+    indicator_id: Mapped[int] = mapped_column(Integer, ForeignKey("market_indicator.id", ondelete="CASCADE"), nullable=False)
+    max_drawdown_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    max_gain_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    days_to_bottom: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    recovery_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    event: Mapped["CrisisEvent"] = relationship(back_populates="stats")
+    indicator: Mapped["MarketIndicator"] = relationship(back_populates="stats")

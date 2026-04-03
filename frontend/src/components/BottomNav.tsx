@@ -1,10 +1,10 @@
-import { BarChart3, BookMarked, Home, Settings, TrendingUp } from 'lucide-react'
+import { BarChart3, BookMarked, Home, Settings, ShieldAlert } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 const tabs = [
   { path: '/', icon: Home, label: '홈' },
   { path: '/scan', icon: BarChart3, label: '스캔' },
-  { path: '/buy-list', icon: TrendingUp, label: 'BUY종목' },
+  { path: '/crisis', icon: ShieldAlert, label: '위기' },
   { path: '/scrap', icon: BookMarked, label: '스크랩' },
   { path: '/settings', icon: Settings, label: '설정' },
 ]

@@ -17,6 +17,7 @@ from routes.sentiment import router as sentiment_router
 from routes.auth import router as auth_router
 from routes.position import router as position_router
 from routes.pattern_cases import router as pattern_cases_router
+from routes.crisis import router as crisis_router
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(auth_router)
@@ -36,3 +37,4 @@ api_router.include_router(financials_router)
 api_router.include_router(alerts_router)
 api_router.include_router(sentiment_router)
 api_router.include_router(pattern_cases_router)
+api_router.include_router(crisis_router)

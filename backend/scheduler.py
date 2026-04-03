@@ -170,7 +170,35 @@ def setup_scheduler():
         replace_existing=True,
     )
 
-    logger.info("스케줄러 등록 완료: 10분 스캔 + KR BUY (10:30/15:00) + US BUY (20:00/04:00) + KR SELL (30분) + US SELL (20:00/04:00) + 국내스캔(9:30~15:30) + 미국스캔(19:50/03:50)")
+    # 위기 이벤트 진행중 데이터 일별 갱신 — 새벽 2시 KST
+    scheduler.add_job(
+        _scheduled_crisis_refresh,
+        trigger="cron",
+        hour=2, minute=0,
+        timezone=KST,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
+        id="crisis_refresh",
+        name="위기 이벤트 데이터 갱신",
+        replace_existing=True,
+    )
+
+    # 위기 이벤트 전체 데이터 월별 갱신 — 매월 1일 03:00 KST
+    scheduler.add_job(
+        _scheduled_crisis_monthly_refresh,
+        trigger="cron",
+        day=1, hour=3, minute=0,
+        timezone=KST,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=7200,
+        id="crisis_monthly_refresh",
+        name="위기 이벤트 월간 전체 갱신",
+        replace_existing=True,
+    )
+
+    logger.info("스케줄러 등록 완료: 10분 스캔 + KR BUY (10:30/15:00) + US BUY (20:00/04:00) + KR SELL (30분) + US SELL (20:00/04:00) + 국내스캔(9:30~15:30) + 미국스캔(19:50/03:50) + 위기이벤트갱신(02:00) + 위기이벤트월간갱신(매월1일03:00)")
 
 
 async def _scheduled_scan():
@@ -226,6 +254,22 @@ async def _scheduled_full_market_scan_us():
     logger.info("미국 시장 스캔 시작 (US+CRYPTO)")
     result = await run_full_scan(markets=["US", "CRYPTO"])
     logger.info(f"미국 시장 스캔 완료: {result.get('status')} — {result.get('scanned', 0)}개 분석")
+
+
+async def _scheduled_crisis_refresh():
+    """진행 중인 위기 이벤트 지표 데이터 일별 갱신."""
+    from services.crisis_service import refresh_ongoing_events
+    logger.info("위기 이벤트 데이터 갱신 시작")
+    await refresh_ongoing_events()
+    logger.info("위기 이벤트 데이터 갱신 완료")
+
+
+async def _scheduled_crisis_monthly_refresh():
+    """전체 위기 이벤트 지표 데이터 월별 전체 갱신 (매월 1일 03:00 KST)."""
+    from services.crisis_service import refresh_all_events
+    logger.info("위기 이벤트 월간 전체 갱신 시작")
+    await refresh_all_events()
+    logger.info("위기 이벤트 월간 전체 갱신 완료")
 
 
 def is_market_open(market: str) -> bool:

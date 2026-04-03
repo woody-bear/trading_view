@@ -103,6 +103,41 @@ export const fetchFullScanHistory = (limit: number = 10) =>
 export const fetchSnapshotBuyItems = (snapshotId: number) =>
   api.get(`/scan/full/snapshot/${snapshotId}/buy-items`).then(r => r.data)
 
+// 위기 이벤트 시장 지표 히스토리
+export const fetchCrisisEvents = (type?: string) =>
+  api.get('/crisis/events', { params: type ? { type } : {} }).then(r => r.data)
+export const fetchCrisisDefaultComparison = () =>
+  api.get('/crisis/default-comparison').then(r => r.data)
+export const fetchCrisisEventIndicators = (
+  eventId: number,
+  daysBefore = 30,
+  daysAfter = 180,
+  indicatorIds?: number[],
+) =>
+  api.get(`/crisis/events/${eventId}/indicators`, {
+    params: {
+      days_before: daysBefore,
+      days_after: daysAfter,
+      ...(indicatorIds ? { indicator_ids: indicatorIds.join(',') } : {}),
+    },
+  }).then(r => r.data)
+export const fetchCrisisEventStats = (eventId: number) =>
+  api.get(`/crisis/events/${eventId}/stats`).then(r => r.data)
+export const fetchCrisisCompare = (
+  eventIds: (number | 'custom')[],
+  indicatorId: number,
+  days = 90,
+  customStartDate?: string,
+) =>
+  api.get('/crisis/compare', {
+    params: {
+      event_ids: eventIds.join(','),
+      indicator_id: indicatorId,
+      days,
+      ...(customStartDate ? { custom_start_date: customStartDate } : {}),
+    },
+  }).then(r => r.data)
+
 // 재무 데이터
 export const fetchFinancials = (symbol: string, market: string) =>
   api.get(`/financials/${symbol}`, { params: { market } }).then(r => r.data)
