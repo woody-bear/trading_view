@@ -209,11 +209,18 @@ export default function Dashboard() {
         className="md:hidden fixed inset-x-0 top-0"
         style={{ bottom: '52px', overflowY: 'scroll', scrollSnapType: 'y mandatory', WebkitOverflowScrolling: 'touch' } as any}
       >
-        {/* ── 섹션 1: 관심종목 ── */}
+        {/* ── 섹션 1: 시장지표 ── */}
+        <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
+          <SnapSectionHeader title="시장지표" color="text-blue-400" currentSection={currentSection} />
+          <div className="flex-1 overflow-y-auto px-3 pb-2 pt-2" style={{ overscrollBehaviorY: 'contain' } as any}>
+            <SentimentPanel />
+          </div>
+        </div>
+
+        {/* ── 섹션 2: 관심종목 ── */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
           <SnapSectionHeader title="관심종목" color="text-white" currentSection={currentSection} />
           {searchInputJSX(true)}
-          <div className="px-3 shrink-0"><SentimentPanel /></div>
           <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
             {isLoading && <p className="text-[var(--muted)] text-sm py-4 text-center">로딩 중...</p>}
             {signals.length === 0 && !isLoading && (
@@ -227,15 +234,15 @@ export default function Dashboard() {
                 <SignalCard signal={s} index={i + 1} />
                 <button
                   onClick={(e) => { e.stopPropagation(); if (confirm(`${s.display_name || s.symbol} 삭제?`)) deleteMut.mutate(s.watchlist_id) }}
-                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1 bg-red-500/80 rounded text-white hover:bg-red-600 transition">
-                  <Trash2 size={12} />
+                  className="absolute top-2 right-2 md:opacity-0 md:group-hover:opacity-100 p-1.5 bg-red-500/80 rounded text-white hover:bg-red-600 active:bg-red-700 transition">
+                  <Trash2 size={14} />
                 </button>
               </div>
             ))}
           </div>
         </div>
 
-        {/* ── 섹션 2: 차트 BUY 신호 ── */}
+        {/* ── 섹션 3: 차트 BUY 신호 ── */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
           <SnapSectionHeader title="차트 BUY 신호" color="text-green-400" currentSection={currentSection} />
           <p className="text-[10px] text-[var(--muted)] px-3 py-1 shrink-0">일봉 3일 이내 · 데드크로스 제외</p>
@@ -255,7 +262,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* ── 섹션 3: 투자과열 ── */}
+        {/* ── 섹션 4: 투자과열 ── */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
           <SnapSectionHeader title="투자과열 신호" color="text-red-400" currentSection={currentSection} />
           <p className="text-[10px] text-[var(--muted)] px-3 py-1 shrink-0">RSI 70+ 또는 RSI 65+ 거래량 2x · 국내 개별주</p>
@@ -299,7 +306,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* ── 섹션 4: 추천 종목 ── */}
+        {/* ── 섹션 5: 추천 종목 ── */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
           <SnapSectionHeader title="추천 종목" color="text-orange-400" currentSection={currentSection} />
           <p className="text-[10px] text-[var(--muted)] px-3 py-1 shrink-0">스퀴즈 + 상승추세 + 데드크로스 제외 · 시장별 Top 15</p>
@@ -384,12 +391,12 @@ export default function Dashboard() {
 
 // ══════════════════════════════════════════════════════════════
 // ── 모바일 스냅 섹션 헤더 (외부 컴포넌트 — 내부 정의 시 매 렌더마다 리마운트됨) ──
-function SnapSectionHeader({ title, color, currentSection }: { title: string; color: string; currentSection: number }) {
+function SnapSectionHeader({ title, color, currentSection, total = 5 }: { title: string; color: string; currentSection: number; total?: number }) {
   return (
     <div className="flex items-center justify-between px-3 pt-3 pb-2 shrink-0 border-b border-[var(--border)]/50">
       <h2 className={`text-base font-bold ${color}`}>{title}</h2>
       <div className="flex gap-1.5">
-        {[0, 1, 2, 3].map(i => (
+        {Array.from({ length: total }, (_, i) => (
           <div key={i} className={`h-1.5 rounded-full transition-all ${i === currentSection ? `w-4 ${color.replace('text-', 'bg-')}` : 'w-1.5 bg-white/20'}`} />
         ))}
       </div>
