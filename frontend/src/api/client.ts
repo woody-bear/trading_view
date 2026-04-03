@@ -53,7 +53,8 @@ export const fetchScanStatus = () => api.get('/scan/status').then(r => r.data)
 
 // 시장 방향성
 export const fetchSentiment = () => api.get('/sentiment/overview').then(r => r.data)
-export const fetchSentimentHistory = () => api.get('/sentiment/history').then(r => r.data)
+export const fetchSentimentHistory = (days: number = 30) => api.get('/sentiment/history', { params: { days } }).then(r => r.data)
+export const fetchVIXHistory = (days: number = 365) => api.get('/sentiment/vix-history', { params: { days } }).then(r => r.data)
 
 // 검색
 export const searchSymbols = (q: string, market?: string) =>

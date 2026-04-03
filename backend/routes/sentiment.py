@@ -28,11 +28,22 @@ async def sentiment_overview():
 
 
 @router.get("/sentiment/history")
-async def sentiment_history():
-    """공포/탐욕 지수 30일 추이."""
+async def sentiment_history(days: int = 30):
+    """공포/탐욕 지수 추이 (days: 30/90/365)."""
     try:
         from services.sentiment_analyzer import get_fear_greed_history
-        return await get_fear_greed_history(30)
+        return await get_fear_greed_history(days)
     except Exception as e:
         logger.error(f"공포지수 추이 조회 실패: {e}")
+        return {"dates": [], "values": [], "error": str(e)}
+
+
+@router.get("/sentiment/vix-history")
+async def vix_history(days: int = 365):
+    """VIX 히스토리 (days: 30/90/365)."""
+    try:
+        from services.sentiment_analyzer import get_vix_history_raw
+        return await get_vix_history_raw(days)
+    except Exception as e:
+        logger.error(f"VIX 히스토리 조회 실패: {e}")
         return {"dates": [], "values": [], "error": str(e)}

@@ -207,19 +207,20 @@ async def get_sentiment_overview() -> dict:
 
 
 async def get_fear_greed_history(days: int = 30) -> dict:
-    """CNN Fear & Greed 30일 추이 (실패 시 VIX 기반 fallback)."""
-    # CNN 데이터 우선
-    cnn = await asyncio.to_thread(_fetch_cnn_fear_greed)
-    if cnn and cnn.get("history"):
-        history = cnn["history"][-days:]
-        return {
-            "dates": [h["date"] for h in history],
-            "values": [h["value"] for h in history],
-            "source": "CNN",
-            "updated_at": datetime.now().isoformat(),
-        }
+    """Fear & Greed 추이 — 30일 이하는 CNN 우선, 초과는 VIX 기반 계산."""
+    # 30일 이하는 CNN 우선 (CNN은 최대 ~30일 제공)
+    if days <= 30:
+        cnn = await asyncio.to_thread(_fetch_cnn_fear_greed)
+        if cnn and cnn.get("history"):
+            history = cnn["history"][-days:]
+            return {
+                "dates": [h["date"] for h in history],
+                "values": [h["value"] for h in history],
+                "source": "CNN",
+                "updated_at": datetime.now().isoformat(),
+            }
 
-    # VIX fallback
+    # 30일 초과 또는 CNN 실패 시 VIX 기반 계산
     try:
         df = await asyncio.to_thread(_fetch_vix_history, days)
         if df is None:
@@ -231,7 +232,7 @@ async def get_fear_greed_history(days: int = 30) -> dict:
             vix_val = float(df.loc[idx, "Close"])
             score, _ = calculate_fear_greed(vix_val)
             dates.append(idx.strftime("%Y-%m-%d"))
-            values.append(score)
+            values.append(round(score, 1))
 
         return {
             "dates": dates,
@@ -241,6 +242,20 @@ async def get_fear_greed_history(days: int = 30) -> dict:
         }
     except Exception as e:
         logger.error(f"공포지수 추이 조회 실패: {e}")
+        return {"dates": [], "values": [], "updated_at": datetime.now().isoformat()}
+
+
+async def get_vix_history_raw(days: int = 365) -> dict:
+    """VIX 히스토리 직접 반환 (Fear&Greed 변환 없이)."""
+    try:
+        df = await asyncio.to_thread(_fetch_vix_history, days)
+        if df is None:
+            return {"dates": [], "values": [], "updated_at": datetime.now().isoformat()}
+        dates = [idx.strftime("%Y-%m-%d") for idx in df.index]
+        values = [round(float(df.loc[idx, "Close"]), 2) for idx in df.index]
+        return {"dates": dates, "values": values, "updated_at": datetime.now().isoformat()}
+    except Exception as e:
+        logger.error(f"VIX 히스토리 조회 실패: {e}")
         return {"dates": [], "values": [], "updated_at": datetime.now().isoformat()}
 
 
