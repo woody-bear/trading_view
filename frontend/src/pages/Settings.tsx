@@ -1,6 +1,6 @@
-import { Check, Database, Loader2, MessageCircle, Play, Send, Settings as SettingsIcon, TrendingUp, Wifi, WifiOff } from 'lucide-react'
+import { Check, Database, Loader2, MessageCircle, Play, Send, Settings as SettingsIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { fetchFullScanHistory, fetchFullScanStatus, getKIS, getSensitivity, getTelegram, setKIS, setSensitivity, setTelegram, testBuyAlert, testKIS, testTelegram, triggerFullScan } from '../api/client'
+import { fetchFullScanHistory, fetchFullScanStatus, getSensitivity, getTelegram, setSensitivity, setTelegram, testBuyAlert, testTelegram, triggerFullScan } from '../api/client'
 import { useToastStore } from '../stores/toastStore'
 import { useAuthStore } from '../store/authStore'
 import { LoginButton } from '../components/LoginButton'
@@ -62,18 +62,6 @@ export default function Settings() {
   const [tgMsgType, setTgMsgType] = useState<'ok' | 'err'>('ok')
   const [tgTesting, setTgTesting] = useState(false)
 
-  // 한투 API
-  const [kisAppKey, setKisAppKey] = useState('')
-  const [kisAppSecret, setKisAppSecret] = useState('')
-  const [kisAccountNo, setKisAccountNo] = useState('')
-  const [kisPaper, setKisPaper] = useState(true)
-  const [kisConfigured, setKisConfigured] = useState(false)
-  const [kisSaving, setKisSaving] = useState(false)
-  const [kisMsg, setKisMsg] = useState('')
-  const [kisMsgType, setKisMsgType] = useState<'ok' | 'err'>('ok')
-  const [kisTesting, setKisTesting] = useState(false)
-  const [kisWs, setKisWs] = useState<{ connected: boolean; subscribed: number; max: number } | null>(null)
-
   // 전체 스캔 모니터링
   const [scanHistory, setScanHistory] = useState<Array<{
     id: number; status: string; total_symbols: number; scanned_count: number;
@@ -108,13 +96,6 @@ export default function Settings() {
     }).catch(() => {})
     fetchFullScanHistory(10).then(setScanHistory).catch(() => {})
     fetchFullScanStatus().then(setScanStatus).catch(() => {})
-    getKIS().then(d => {
-      setKisConfigured(d.configured)
-      setKisAppKey(d.app_key)
-      setKisAccountNo(d.account_no)
-      setKisPaper(d.paper_trading)
-      setKisWs(d.websocket)
-    }).catch(() => {})
   }, [])
 
   // 스캔 진행 중이면 5초 폴링
@@ -228,44 +209,6 @@ export default function Settings() {
     } finally { setBuyAlertTesting(false) }
   }
 
-  const handleKisSave = async () => {
-    if (!kisAppKey || !kisAppSecret) {
-      setKisMsg('APP KEY와 SECRET을 모두 입력하세요')
-      setKisMsgType('err')
-      setTimeout(() => setKisMsg(''), 3000)
-      return
-    }
-    setKisSaving(true); setKisMsg('')
-    try {
-      await setKIS({ app_key: kisAppKey, app_secret: kisAppSecret, account_no: kisAccountNo, paper_trading: kisPaper })
-      setKisConfigured(true)
-      setKisMsg('한투 API 설정 저장 완료')
-      setKisMsgType('ok')
-      const d = await getKIS()
-      setKisAppKey(d.app_key)
-      setKisWs(d.websocket)
-      setTimeout(() => setKisMsg(''), 3000)
-    } catch {
-      setKisMsg('저장 실패')
-      setKisMsgType('err')
-      setTimeout(() => setKisMsg(''), 3000)
-    } finally { setKisSaving(false) }
-  }
-
-  const handleKisTest = async () => {
-    setKisTesting(true); setKisMsg('')
-    try {
-      const res = await testKIS()
-      setKisMsg(res.message)
-      setKisMsgType(res.status === 'ok' ? 'ok' : 'err')
-      setTimeout(() => setKisMsg(''), 5000)
-    } catch {
-      setKisMsg('연결 테스트 실패')
-      setKisMsgType('err')
-      setTimeout(() => setKisMsg(''), 3000)
-    } finally { setKisTesting(false) }
-  }
-
   const sH = 'calc(100dvh - 52px)'
 
   // ── 공통 섹션 내용 블록 ──────────────────────────────────────
@@ -354,67 +297,6 @@ export default function Settings() {
     </div>
   )
 
-  const kisBlock = (
-    <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
-      <h2 className="text-white font-semibold mb-1 flex items-center gap-2">
-        <TrendingUp size={16} className="text-orange-400" /> 한국투자증권 API
-      </h2>
-      <p className="text-xs text-[var(--muted)] mb-3">한국 주식 실시간 체결가를 초 단위로 수신합니다</p>
-      {kisMsg && (
-        <div className={`mb-3 text-xs px-3 py-2 rounded-lg flex items-center gap-2 ${
-          kisMsgType === 'ok' ? 'text-green-400 bg-green-400/10' : 'text-red-400 bg-red-400/10'
-        }`}>
-          {kisMsgType === 'ok' ? <Check size={14} /> : null} {kisMsg}
-        </div>
-      )}
-      {kisWs && (
-        <div className={`mb-3 text-xs px-3 py-2 rounded-lg flex items-center gap-2 ${kisWs.connected ? 'text-green-400 bg-green-400/10' : 'text-[var(--muted)] bg-[var(--bg)]'}`}>
-          {kisWs.connected ? <Wifi size={14} /> : <WifiOff size={14} />}
-          WebSocket {kisWs.connected ? '연결됨' : '미연결'} — {kisWs.subscribed}/{kisWs.max} 종목
-        </div>
-      )}
-      <div className="space-y-3">
-        <div>
-          <label className="block text-xs text-[var(--muted)] mb-1">APP KEY</label>
-          <input type="text" value={kisAppKey} onChange={e => setKisAppKey(e.target.value)}
-            placeholder="PSxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autoComplete="off"
-            className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder-[var(--muted)] focus:border-orange-500 focus:outline-none" />
-        </div>
-        <div>
-          <label className="block text-xs text-[var(--muted)] mb-1">APP SECRET</label>
-          <input type="password" value={kisAppSecret} onChange={e => setKisAppSecret(e.target.value)}
-            placeholder="시크릿 키 입력" autoComplete="off"
-            className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder-[var(--muted)] focus:border-orange-500 focus:outline-none" />
-        </div>
-        <div>
-          <label className="block text-xs text-[var(--muted)] mb-1">계좌번호</label>
-          <input type="text" value={kisAccountNo} onChange={e => setKisAccountNo(e.target.value)}
-            placeholder="00000000-01" autoComplete="off"
-            className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder-[var(--muted)] focus:border-orange-500 focus:outline-none" />
-        </div>
-        <div className="flex items-center gap-3">
-          <label className="text-xs text-[var(--muted)]">모의투자 모드</label>
-          <button onClick={() => setKisPaper(!kisPaper)}
-            className={`w-10 h-5 rounded-full transition relative ${kisPaper ? 'bg-orange-500' : 'bg-[var(--border)]'}`}>
-            <div className={`w-4 h-4 bg-white rounded-full absolute top-0.5 transition ${kisPaper ? 'left-5' : 'left-0.5'}`} />
-          </button>
-          <span className="text-xs text-[var(--muted)]">{kisPaper ? 'ON (모의)' : 'OFF (실전)'}</span>
-        </div>
-        <div className="flex gap-2 pt-1">
-          <button onClick={handleKisSave} disabled={kisSaving}
-            className="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white text-sm rounded-lg transition disabled:opacity-50">
-            {kisSaving ? '저장 중...' : '저장'}
-          </button>
-          <button onClick={handleKisTest} disabled={kisTesting || !kisConfigured}
-            className="px-4 py-2 bg-[var(--bg)] border border-[var(--border)] hover:border-orange-500 text-[var(--muted)] hover:text-white text-sm rounded-lg transition disabled:opacity-50 flex items-center gap-1">
-            <Send size={14} />{kisTesting ? '테스트 중...' : '연결 테스트'}
-          </button>
-        </div>
-        {kisConfigured && <div className="text-[10px] text-green-400 flex items-center gap-1 mt-1"><Check size={12} /> 한투 API 연동됨</div>}
-      </div>
-    </div>
-  )
-
   return (
     <>
       {/* ── Mobile snap layout ── */}
@@ -457,11 +339,10 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Section 3: 한투 API + 스캔 모니터링 */}
+        {/* Section 3: 스캔 모니터링 */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
-          <SnapHdr title="한투 API · 스캔" color="text-orange-400" currentSection={currentSection} total={3} />
+          <SnapHdr title="스캔 모니터링" color="text-purple-400" currentSection={currentSection} total={3} />
           <div className="flex-1 overflow-y-auto px-4 pb-4 pt-3 space-y-4" style={{ overscrollBehaviorY: 'contain' } as any}>
-            {kisBlock}
             <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
               <h2 className="text-white font-semibold mb-1 flex items-center gap-2">
                 <Database size={16} className="text-purple-400" /> 전체 시장 스캔
@@ -643,99 +524,6 @@ export default function Settings() {
           </div>
         </div>
       )}
-
-      {/* 한국투자증권 API */}
-      <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5 mt-6">
-        <h2 className="text-white font-semibold mb-1 flex items-center gap-2">
-          <TrendingUp size={16} className="text-orange-400" /> 한국투자증권 API
-        </h2>
-        <p className="text-xs text-[var(--muted)] mb-4">
-          한국 주식 실시간 체결가를 초 단위로 수신합니다 (미설정 시 pykrx fallback)
-        </p>
-
-        {kisMsg && (
-          <div className={`mb-3 text-xs px-3 py-2 rounded-lg flex items-center gap-2 ${
-            kisMsgType === 'ok' ? 'text-green-400 bg-green-400/10' : 'text-red-400 bg-red-400/10'
-          }`}>
-            {kisMsgType === 'ok' ? <Check size={14} /> : null} {kisMsg}
-          </div>
-        )}
-
-        {kisWs && (
-          <div className={`mb-4 text-xs px-3 py-2 rounded-lg flex items-center gap-2 ${
-            kisWs.connected ? 'text-green-400 bg-green-400/10' : 'text-[var(--muted)] bg-[var(--bg)]'
-          }`}>
-            {kisWs.connected ? <Wifi size={14} /> : <WifiOff size={14} />}
-            WebSocket {kisWs.connected ? '연결됨' : '미연결'} — {kisWs.subscribed}/{kisWs.max} 종목 구독 중
-          </div>
-        )}
-
-        <div className="space-y-3">
-          <div>
-            <label className="block text-xs text-[var(--muted)] mb-1">APP KEY</label>
-            <input
-              type="text"
-              value={kisAppKey}
-              onChange={e => setKisAppKey(e.target.value)}
-              placeholder="PSxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-              className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder-[var(--muted)] focus:border-orange-500 focus:outline-none"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-[var(--muted)] mb-1">APP SECRET</label>
-            <input
-              type="password"
-              value={kisAppSecret}
-              onChange={e => setKisAppSecret(e.target.value)}
-              placeholder="시크릿 키 입력"
-              className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder-[var(--muted)] focus:border-orange-500 focus:outline-none"
-            />
-            <p className="text-[10px] text-[var(--muted)] mt-1">KIS Developers에서 앱 등록 후 발급</p>
-          </div>
-          <div>
-            <label className="block text-xs text-[var(--muted)] mb-1">계좌번호</label>
-            <input
-              type="text"
-              value={kisAccountNo}
-              onChange={e => setKisAccountNo(e.target.value)}
-              placeholder="00000000-01"
-              className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder-[var(--muted)] focus:border-orange-500 focus:outline-none"
-            />
-          </div>
-          <div className="flex items-center gap-3">
-            <label className="text-xs text-[var(--muted)]">모의투자 모드</label>
-            <button
-              onClick={() => setKisPaper(!kisPaper)}
-              className={`w-10 h-5 rounded-full transition relative ${kisPaper ? 'bg-orange-500' : 'bg-[var(--border)]'}`}
-            >
-              <div className={`w-4 h-4 bg-white rounded-full absolute top-0.5 transition ${kisPaper ? 'left-5' : 'left-0.5'}`} />
-            </button>
-            <span className="text-xs text-[var(--muted)]">{kisPaper ? 'ON (모의)' : 'OFF (실전)'}</span>
-          </div>
-          <div className="flex gap-2 pt-1">
-            <button
-              onClick={handleKisSave}
-              disabled={kisSaving}
-              className="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white text-sm rounded-lg transition disabled:opacity-50"
-            >
-              {kisSaving ? '저장 중...' : '저장'}
-            </button>
-            <button
-              onClick={handleKisTest}
-              disabled={kisTesting || !kisConfigured}
-              className="px-4 py-2 bg-[var(--bg)] border border-[var(--border)] hover:border-orange-500 text-[var(--muted)] hover:text-white text-sm rounded-lg transition disabled:opacity-50 flex items-center gap-1"
-            >
-              <Send size={14} />
-              {kisTesting ? '테스트 중...' : '연결 테스트'}
-            </button>
-          </div>
-          {kisConfigured && (
-            <div className="text-[10px] text-green-400 flex items-center gap-1 mt-1">
-              <Check size={12} /> 한투 API 연동됨
-            </div>
-          )}
-        </div>
-      </div>
 
       {/* 텔레그램 알림 조건표 */}
       {tgConfigured && (
