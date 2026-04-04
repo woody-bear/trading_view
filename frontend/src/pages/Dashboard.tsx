@@ -1036,7 +1036,7 @@ function BuyCard({ item, index, livePrice, nav }: { item: any; index: number; li
   const reasons = [mktBadge, signalBadge, ...indicators]
 
   return (
-    <div onClick={() => nav(`/${item.symbol.replace(/\//g, '_')}?market=${item.market_type || item.market}`)}
+    <div onClick={() => nav(`/${item.symbol.replace(/\//g, '_')}?market=${item.market_type || item.market}`, { state: { buySignal: item } })}
       className="bg-[var(--bg)] border border-[var(--border)] rounded-lg p-3.5 md:p-2.5 cursor-pointer hover:border-green-500/50 transition active:scale-[0.98]">
       <div className="flex items-center justify-between mb-1.5 md:mb-1">
         <div className="flex items-center gap-1.5 min-w-0">
