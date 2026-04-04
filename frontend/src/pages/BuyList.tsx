@@ -2,6 +2,7 @@ import { Bell, CheckCircle, ChevronDown, ChevronUp, Clock, Loader2, RefreshCw, S
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fetchFullScanHistory, fetchFullScanLatest, fetchFullScanStatus, fetchScanSymbols, fetchSnapshotBuyItems, triggerFullScan } from '../api/client'
+import { usePageSwipe } from '../hooks/usePageSwipe'
 
 // ── 타입 정의 ────────────────────────────────────────────────
 
@@ -334,16 +335,16 @@ function SlotBuyModal({ slot, onClose, nav }: { slot: ScanSlot; onClose: () => v
 function SlotCard({ slot, onClick }: { slot: ScanSlot; onClick?: () => void }) {
   const isKR = slot.market === 'KR'
   const clickable = slot.status === 'completed' && !!slot.snapshotId
-  const base = `flex flex-col items-center justify-center w-full h-[68px] md:h-[76px] rounded-lg border px-2 py-1.5 transition-all ${clickable ? 'cursor-pointer hover:scale-105 hover:shadow-lg' : ''}`
+  const base = `flex flex-col items-center justify-center w-full h-[88px] md:h-[96px] rounded-xl border px-2 py-2 transition-all ${clickable ? 'cursor-pointer hover:scale-105 hover:shadow-lg' : ''}`
 
   if (slot.status === 'completed') {
     return (
       <div className={`${base} border-green-500/40 bg-green-500/10 hover:border-green-400/70`} onClick={clickable ? onClick : undefined} title={clickable ? 'BUY 종목 보기' : ''}>
-        <CheckCircle size={14} className="text-green-400 mb-1" />
-        <span className="text-[11px] font-bold text-green-400">{slot.label}</span>
-        <span className="text-[9px] text-green-400/70">{isKR ? '국내' : '미국'}</span>
+        <CheckCircle size={16} className="text-green-400 mb-1" />
+        <span className="text-[12px] font-bold text-green-400">{slot.label}</span>
+        <span className="text-[10px] text-green-400/70">{isKR ? '국내' : '미국'}</span>
         {slot.buyCount != null && (
-          <span className="text-[9px] text-green-300 mt-0.5">BUY {slot.buyCount}개</span>
+          <span className="text-[10px] text-green-300 mt-0.5">BUY {slot.buyCount}개</span>
         )}
       </div>
     )
@@ -352,20 +353,20 @@ function SlotCard({ slot, onClick }: { slot: ScanSlot; onClick?: () => void }) {
   if (slot.status === 'running') {
     return (
       <div className={`${base} border-orange-500/60 bg-orange-500/10 animate-pulse`}>
-        <RefreshCw size={14} className="text-orange-400 mb-1 animate-spin" />
-        <span className="text-[11px] font-bold text-orange-400">{slot.label}</span>
-        <span className="text-[9px] text-orange-400/70">{isKR ? '국내' : '미국'}</span>
-        <span className="text-[9px] text-orange-300 mt-0.5">진행중</span>
+        <RefreshCw size={16} className="text-orange-400 mb-1 animate-spin" />
+        <span className="text-[12px] font-bold text-orange-400">{slot.label}</span>
+        <span className="text-[10px] text-orange-400/70">{isKR ? '국내' : '미국'}</span>
+        <span className="text-[10px] text-orange-300 mt-0.5">진행중</span>
       </div>
     )
   }
 
   return (
     <div className={`${base} border-[var(--border)] bg-[var(--bg)]`}>
-      <Clock size={14} className="text-[var(--muted)] mb-1" />
-      <span className="text-[11px] font-bold text-[var(--muted)]">{slot.label}</span>
-      <span className="text-[9px] text-[var(--muted)]/60">{isKR ? '국내' : '미국'}</span>
-      <span className="text-[9px] text-[var(--muted)]/50 mt-0.5">예정</span>
+      <Clock size={16} className="text-[var(--muted)] mb-1" />
+      <span className="text-[12px] font-bold text-[var(--muted)]">{slot.label}</span>
+      <span className="text-[10px] text-[var(--muted)]/60">{isKR ? '국내' : '미국'}</span>
+      <span className="text-[10px] text-[var(--muted)]/50 mt-0.5">예정</span>
     </div>
   )
 }
@@ -377,7 +378,7 @@ function SnapHdr({ title, color, currentSection, total }: {
 }) {
   return (
     <div className="flex items-center justify-between px-3 pt-3 pb-2 shrink-0 border-b border-[var(--border)]/50">
-      <h2 className={`text-base font-bold ${color}`}>{title}</h2>
+      <h2 className={`text-[34px] font-bold ${color}`}>{title}</h2>
       <div className="flex gap-1.5">
         {Array.from({ length: total }, (_, i) => (
           <div key={i} className={`h-1.5 rounded-full transition-all ${
@@ -550,7 +551,8 @@ export default function BuyList() {
   const krSlots = scanSlots.filter(s => s.market === 'KR')
   const usSlots = scanSlots.filter(s => s.market === 'US')
 
-  const sH = 'calc(100dvh - 52px)'
+  const sH = 'calc(100dvh - 64px)'
+  usePageSwipe(snapRef)
 
   return (
     <>
@@ -558,48 +560,48 @@ export default function BuyList() {
       <div
         ref={snapRef}
         className="md:hidden fixed inset-x-0 top-0"
-        style={{ bottom: '52px', overflowY: 'scroll', scrollSnapType: 'y mandatory', WebkitOverflowScrolling: 'touch' } as any}
+        style={{ bottom: '64px', overflowY: 'scroll', scrollSnapType: 'y mandatory', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'none' } as any}
       >
         {/* Section 1: 스캔 현황 (KR) */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
           <SnapHdr title="스캔 현황 (KR)" color="text-blue-400" currentSection={currentSection} total={3} />
           <div className="flex-1 overflow-y-auto px-3 pb-3 pt-2 space-y-3" style={{ overscrollBehaviorY: 'contain' } as any}>
-            <div className="grid grid-cols-3 gap-2">
-              <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-2.5 text-center">
-                <div className="text-xl font-bold text-white font-mono">{total.toLocaleString()}</div>
-                <div className="text-[10px] text-[var(--muted)]">총 스캔</div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 text-center">
+                <div className="text-2xl font-bold text-[var(--text)] font-mono">{total.toLocaleString()}</div>
+                <div className="text-[12px] text-[var(--muted)] mt-1">총 스캔</div>
               </div>
-              <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-2.5 text-center">
-                <div className="text-xl font-bold text-blue-400 font-mono">{krTotal.toLocaleString()}</div>
-                <div className="text-[10px] text-[var(--muted)]">국내</div>
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 text-center">
+                <div className="text-2xl font-bold text-blue-400 font-mono">{krTotal.toLocaleString()}</div>
+                <div className="text-[12px] text-[var(--muted)] mt-1">국내</div>
               </div>
-              <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-2.5 text-center">
-                <div className="text-xl font-bold text-emerald-400 font-mono">{usTotal.toLocaleString()}</div>
-                <div className="text-[10px] text-[var(--muted)]">미국</div>
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 text-center">
+                <div className="text-2xl font-bold text-emerald-400 font-mono">{usTotal.toLocaleString()}</div>
+                <div className="text-[12px] text-[var(--muted)] mt-1">미국</div>
               </div>
             </div>
             <ScanConditionPanel />
             {autoInfo && (
-              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs ${
+              <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm ${
                 autoInfo.type === 'trigger'
                   ? 'bg-orange-500/10 border border-orange-500/30 text-orange-300'
                   : 'bg-blue-500/10 border border-blue-500/30 text-blue-300'
               }`}>
-                <Zap size={12} className="shrink-0" />
+                <Zap size={14} className="shrink-0" />
                 <span>{autoInfo.label}</span>
-                <button onClick={() => setAutoInfo(null)} className="ml-auto opacity-60 hover:opacity-100"><X size={12} /></button>
+                <button onClick={() => setAutoInfo(null)} className="ml-auto opacity-60 hover:opacity-100"><X size={14} /></button>
               </div>
             )}
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] text-blue-400 font-semibold">🇰🇷 국내 스캔 (평일 매시 :30)</span>
+            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm text-blue-400 font-semibold">🇰🇷 국내 스캔 (평일 매시 :30)</span>
                 {scanStatus?.running && (
-                  <span className="text-[9px] text-orange-400 flex items-center gap-0.5">
-                    <RefreshCw size={9} className="animate-spin" /> 진행중
+                  <span className="text-xs text-orange-400 flex items-center gap-1">
+                    <RefreshCw size={11} className="animate-spin" /> 진행중
                   </span>
                 )}
               </div>
-              <div className="grid grid-cols-4 gap-1.5">
+              <div className="grid grid-cols-4 gap-2">
                 {krSlots.map(slot => <SlotCard key={slot.time} slot={slot} onClick={() => setSelectedSlot(slot)} />)}
               </div>
             </div>
