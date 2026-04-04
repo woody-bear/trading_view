@@ -63,7 +63,7 @@ export default function StockFundamentals({ symbol, market }: Props) {
         <div className="mb-3">
           <div className="flex items-center justify-between text-[10px] text-[var(--muted)] mb-1">
             <span>52주 최저 <span className="text-blue-400 font-mono">{fmtPrice(data.week52_low)}</span></span>
-            <span>52주 최고 <span className="text-red-400 font-mono">{fmtPrice(data.week52_high)}</span></span>
+            <span>52주 최고 <span className="text-[var(--buy)] font-mono">{fmtPrice(data.week52_high)}</span></span>
           </div>
           <div className="relative w-full h-2 bg-[var(--bg)] rounded-full">
             <div
@@ -80,7 +80,7 @@ export default function StockFundamentals({ symbol, market }: Props) {
               {data.week52_low_date}
             </span>
             {isNearLow && <span className="text-[10px] text-blue-400 font-bold">52주 저점 근처</span>}
-            {isNearHigh && <span className="text-[10px] text-red-400 font-bold">52주 고점 근처</span>}
+            {isNearHigh && <span className="text-[10px] text-[var(--buy)] font-bold">52주 고점 근처</span>}
             <span className="text-[9px] text-[var(--muted)]">
               {data.week52_high_date}
             </span>
@@ -92,10 +92,10 @@ export default function StockFundamentals({ symbol, market }: Props) {
       {isKR && data.base_price > 0 && (
         <div className="flex items-center gap-3 text-[10px] text-[var(--muted)] pt-2 border-t border-[var(--border)]">
           <span>기준가 <span className="text-white font-mono">{fmtPrice(data.base_price)}</span></span>
-          <span>상한가 <span className="text-red-400 font-mono">{fmtPrice(data.high_limit)}</span></span>
-          <span>하한가 <span className="text-blue-400 font-mono">{fmtPrice(data.low_limit)}</span></span>
+          <span>상한가 <span className="text-[var(--buy)] font-mono">{fmtPrice(data.high_limit)}</span></span>
+          <span>하한가 <span className="text-[var(--sell)] font-mono">{fmtPrice(data.low_limit)}</span></span>
           {data.price > 0 && data.high_limit > 0 && data.price >= data.high_limit * 0.9 && (
-            <span className="text-red-400 font-bold">상한가 근접</span>
+            <span className="text-[var(--buy)] font-bold">상한가 근접</span>
           )}
         </div>
       )}

@@ -4,6 +4,7 @@ import { fetchFullScanHistory, fetchFullScanStatus, getSensitivity, getTelegram,
 import { useToastStore } from '../stores/toastStore'
 import { useAuthStore } from '../store/authStore'
 import { LoginButton } from '../components/LoginButton'
+import { usePageSwipe } from '../hooks/usePageSwipe'
 import { UserMenu } from '../components/UserMenu'
 
 
@@ -30,7 +31,7 @@ function SnapHdr({ title, color, currentSection, total }: {
 }) {
   return (
     <div className="flex items-center justify-between px-3 pt-3 pb-2 shrink-0 border-b border-[var(--border)]/50">
-      <h2 className={`text-base font-bold ${color}`}>{title}</h2>
+      <h2 className={`text-[34px] font-bold ${color}`}>{title}</h2>
       <div className="flex gap-1.5">
         {Array.from({ length: total }, (_, i) => (
           <div key={i} className={`h-1.5 rounded-full transition-all ${
@@ -209,7 +210,8 @@ export default function Settings() {
     } finally { setBuyAlertTesting(false) }
   }
 
-  const sH = 'calc(100dvh - 52px)'
+  const sH = 'calc(100dvh - 64px)'
+  usePageSwipe(snapRef)
 
   // ── 공통 섹션 내용 블록 ──────────────────────────────────────
   const profileBlock = (
@@ -217,7 +219,7 @@ export default function Settings() {
       {user ? (
         <>
           <div>
-            <p className="text-sm font-medium text-white">{user.user_metadata?.full_name ?? user.user_metadata?.name ?? user.email}</p>
+            <p className="text-sm font-medium text-[var(--text)]">{user.user_metadata?.full_name ?? user.user_metadata?.name ?? user.email}</p>
             <p className="text-xs text-[var(--muted)]">{user.email}</p>
           </div>
           <UserMenu />
@@ -233,7 +235,7 @@ export default function Settings() {
 
   const sensitivityBlock = (
     <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
-      <h2 className="text-white font-semibold mb-1">BUY/SELL 신호 민감도</h2>
+      <h2 className="text-[var(--text)] font-semibold mb-1">BUY/SELL 신호 민감도</h2>
       <p className="text-xs text-[var(--muted)] mb-3">민감도가 높을수록 신호가 자주 발생합니다</p>
       <div className="space-y-2">
         {SENSITIVITIES.map(s => (
@@ -257,13 +259,13 @@ export default function Settings() {
 
   const telegramBlock = (
     <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
-      <h2 className="text-white font-semibold mb-1 flex items-center gap-2">
+      <h2 className="text-[var(--text)] font-semibold mb-1 flex items-center gap-2">
         <MessageCircle size={16} className="text-sky-400" /> 텔레그램 알림
       </h2>
       <p className="text-xs text-[var(--muted)] mb-3">BUY/SELL 신호 전환 시 텔레그램으로 실시간 알림을 받습니다</p>
       {tgMsg && (
         <div className={`mb-3 text-xs px-3 py-2 rounded-lg flex items-center gap-2 ${
-          tgMsgType === 'ok' ? 'text-green-400 bg-green-400/10' : 'text-red-400 bg-red-400/10'
+          tgMsgType === 'ok' ? 'text-[var(--buy)] bg-[var(--buy)]/10' : 'text-[var(--sell)] bg-[var(--sell)]/10'
         }`}>
           {tgMsgType === 'ok' ? <Check size={14} /> : null} {tgMsg}
         </div>
@@ -303,7 +305,7 @@ export default function Settings() {
       <div
         ref={snapRef}
         className="md:hidden fixed inset-x-0 top-0"
-        style={{ bottom: '52px', overflowY: 'scroll', scrollSnapType: 'y mandatory', WebkitOverflowScrolling: 'touch' } as any}
+        style={{ bottom: '64px', overflowY: 'scroll', scrollSnapType: 'y mandatory', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'none' } as any}
       >
         {/* Section 1: 프로필 + 신호 민감도 */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
@@ -326,8 +328,8 @@ export default function Settings() {
             {telegramBlock}
             {tgConfigured && (
               <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
-                <h2 className="text-white font-semibold mb-1 flex items-center gap-2">
-                  <MessageCircle size={16} className="text-green-400" /> BUY 신호 정기 알림
+                <h2 className="text-[var(--text)] font-semibold mb-1 flex items-center gap-2">
+                  <MessageCircle size={16} className="text-[var(--buy)]" /> BUY 신호 정기 알림
                 </h2>
                 <p className="text-xs text-[var(--muted)] mb-3">평일 10:30 / 15:00 국내주식 BUY 신호 자동 발송</p>
                 <button onClick={handleBuyAlertTest} disabled={buyAlertTesting}
@@ -344,10 +346,10 @@ export default function Settings() {
           <SnapHdr title="스캔 모니터링" color="text-purple-400" currentSection={currentSection} total={3} />
           <div className="flex-1 overflow-y-auto px-4 pb-4 pt-3 space-y-4" style={{ overscrollBehaviorY: 'contain' } as any}>
             <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
-              <h2 className="text-white font-semibold mb-1 flex items-center gap-2">
+              <h2 className="text-[var(--text)] font-semibold mb-1 flex items-center gap-2">
                 <Database size={16} className="text-purple-400" /> 전체 시장 스캔
               </h2>
-              <p className="text-xs text-[var(--muted)] mb-3">국내 3,500+ / 미국 900+ 전종목 스캔</p>
+              <p className="text-xs text-[var(--muted)] mb-3">국내 351 / 미국 835 전종목 스캔</p>
               {scanStatus?.running && (
                 <div className="mb-3 bg-purple-500/10 border border-purple-500/30 rounded-lg p-3">
                   <div className="flex items-center gap-2 text-purple-400 text-sm mb-2">
@@ -377,7 +379,7 @@ export default function Settings() {
 
       {/* ── PC layout ── */}
       <div className="hidden md:block p-6 max-w-xl mx-auto">
-      <h1 className="text-xl font-bold text-white flex items-center gap-2 mb-6">
+      <h1 className="text-xl font-bold text-[var(--text)] flex items-center gap-2 mb-6">
         <SettingsIcon size={22} className="text-blue-400" /> 설정
       </h1>
 
@@ -386,7 +388,7 @@ export default function Settings() {
         {user ? (
           <>
             <div>
-              <p className="text-sm font-medium text-white">{user.user_metadata?.full_name ?? user.user_metadata?.name ?? user.email}</p>
+              <p className="text-sm font-medium text-[var(--text)]">{user.user_metadata?.full_name ?? user.user_metadata?.name ?? user.email}</p>
               <p className="text-xs text-[var(--muted)]">{user.email}</p>
             </div>
             <UserMenu />
@@ -400,14 +402,14 @@ export default function Settings() {
       </div>
 
       {msg && (
-        <div className="mb-4 text-xs text-green-400 bg-green-400/10 px-3 py-2 rounded-lg flex items-center gap-2">
+        <div className="mb-4 text-xs text-[var(--buy)] bg-[var(--buy)]/10 px-3 py-2 rounded-lg flex items-center gap-2">
           <Check size={14} /> {msg}
         </div>
       )}
 
       {/* 신호 민감도 */}
       <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5 mb-6">
-        <h2 className="text-white font-semibold mb-1">BUY/SELL 신호 민감도</h2>
+        <h2 className="text-[var(--text)] font-semibold mb-1">BUY/SELL 신호 민감도</h2>
         <p className="text-xs text-[var(--muted)] mb-4">민감도가 높을수록 신호가 자주 발생합니다</p>
 
         <div className="space-y-2">
@@ -435,7 +437,7 @@ export default function Settings() {
 
       {/* 텔레그램 알림 */}
       <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5 mt-6">
-        <h2 className="text-white font-semibold mb-1 flex items-center gap-2">
+        <h2 className="text-[var(--text)] font-semibold mb-1 flex items-center gap-2">
           <MessageCircle size={16} className="text-sky-400" /> 텔레그램 알림
         </h2>
         <p className="text-xs text-[var(--muted)] mb-4">
@@ -444,7 +446,7 @@ export default function Settings() {
 
         {tgMsg && (
           <div className={`mb-3 text-xs px-3 py-2 rounded-lg flex items-center gap-2 ${
-            tgMsgType === 'ok' ? 'text-green-400 bg-green-400/10' : 'text-red-400 bg-red-400/10'
+            tgMsgType === 'ok' ? 'text-[var(--buy)] bg-[var(--buy)]/10' : 'text-[var(--sell)] bg-[var(--sell)]/10'
           }`}>
             {tgMsgType === 'ok' ? <Check size={14} /> : null} {tgMsg}
           </div>
@@ -503,8 +505,8 @@ export default function Settings() {
       {/* BUY 신호 알림 */}
       {tgConfigured && (
         <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5 mt-6">
-          <h2 className="text-white font-semibold mb-1 flex items-center gap-2">
-            <MessageCircle size={16} className="text-green-400" /> BUY 신호 정기 알림
+          <h2 className="text-[var(--text)] font-semibold mb-1 flex items-center gap-2">
+            <MessageCircle size={16} className="text-[var(--buy)]" /> BUY 신호 정기 알림
           </h2>
           <p className="text-xs text-[var(--muted)] mb-4">
             평일 오전 10:30 / 오후 3:00에 국내주식 BUY 신호 종목을 텔레그램으로 자동 발송합니다.
@@ -528,7 +530,7 @@ export default function Settings() {
       {/* 텔레그램 알림 조건표 */}
       {tgConfigured && (
         <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5 mt-6">
-          <h2 className="text-white font-semibold mb-3 flex items-center gap-2">
+          <h2 className="text-[var(--text)] font-semibold mb-3 flex items-center gap-2">
             <MessageCircle size={16} className="text-sky-400" /> 텔레그램 자동 알림 스케줄
           </h2>
           <div className="overflow-x-auto">
@@ -541,37 +543,37 @@ export default function Settings() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)]/40">
-                <tr className="text-white">
-                  <td className="py-2 pr-3 font-mono text-green-400">평일 10:30</td>
+                <tr className="text-[var(--text)]">
+                  <td className="py-2 pr-3 font-mono text-[var(--buy)]">평일 10:30</td>
                   <td className="py-2 pr-3 whitespace-nowrap">🟢 BUY 신호 알림 (국내)</td>
                   <td className="py-2 text-[var(--muted)]">전체 스캔 차트 BUY 종목 목록 (최대 20개)</td>
                 </tr>
-                <tr className="text-white">
-                  <td className="py-2 pr-3 font-mono text-green-400">평일 15:00</td>
+                <tr className="text-[var(--text)]">
+                  <td className="py-2 pr-3 font-mono text-[var(--buy)]">평일 15:00</td>
                   <td className="py-2 pr-3 whitespace-nowrap">🟢 BUY 신호 알림 (국내)</td>
                   <td className="py-2 text-[var(--muted)]">전체 스캔 차트 BUY 종목 목록 (최대 20개)</td>
                 </tr>
-                <tr className="text-white">
+                <tr className="text-[var(--text)]">
                   <td className="py-2 pr-3 font-mono text-yellow-400">평일 09:00~15:30<br/><span className="text-[10px] text-[var(--muted)]">(30분마다)</span></td>
                   <td className="py-2 pr-3 whitespace-nowrap">🔴 SELL 체크 (국내 관심종목)</td>
                   <td className="py-2 text-[var(--muted)]">국내 관심종목 중 SELL 신호 종목 (장중 14회)</td>
                 </tr>
-                <tr className="text-white">
+                <tr className="text-[var(--text)]">
                   <td className="py-2 pr-3 font-mono text-yellow-400">평일 20:00</td>
                   <td className="py-2 pr-3 whitespace-nowrap">🔴 SELL 체크 (미국 관심종목)</td>
                   <td className="py-2 text-[var(--muted)]">미국 관심종목 중 SELL 신호 종목</td>
                 </tr>
-                <tr className="text-white">
+                <tr className="text-[var(--text)]">
                   <td className="py-2 pr-3 font-mono text-yellow-400">화~토 04:00</td>
                   <td className="py-2 pr-3 whitespace-nowrap">🔴 SELL 체크 (미국 관심종목 장중)</td>
                   <td className="py-2 text-[var(--muted)]">미국 장중 관심종목 중 SELL 신호 종목</td>
                 </tr>
-                <tr className="text-white">
+                <tr className="text-[var(--text)]">
                   <td className="py-2 pr-3 font-mono text-blue-400">평일 20:00</td>
                   <td className="py-2 pr-3 whitespace-nowrap">🔵 BUY 신호 알림 (미국)</td>
                   <td className="py-2 text-[var(--muted)]">미국 스캔 차트 BUY 종목 목록 (최대 20개)</td>
                 </tr>
-                <tr className="text-white">
+                <tr className="text-[var(--text)]">
                   <td className="py-2 pr-3 font-mono text-blue-400">화~토 04:00</td>
                   <td className="py-2 pr-3 whitespace-nowrap">🔵 BUY 신호 알림 (미국 장중)</td>
                   <td className="py-2 text-[var(--muted)]">미국 스캔 차트 BUY 종목 목록 (최대 20개)</td>
@@ -587,11 +589,11 @@ export default function Settings() {
 
       {/* 전체 시장 스캔 모니터링 */}
       <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5 mt-6">
-        <h2 className="text-white font-semibold mb-1 flex items-center gap-2">
+        <h2 className="text-[var(--text)] font-semibold mb-1 flex items-center gap-2">
           <Database size={16} className="text-purple-400" /> 전체 시장 스캔
         </h2>
         <p className="text-xs text-[var(--muted)] mb-4">
-          국내 3,500+ / 미국 900+ 전종목 스캔 · 차트BUY/추천/과열 신호 저장<br />
+          국내 351 / 미국 835 전종목 스캔 · 차트BUY/추천/과열 신호 저장<br />
           <span className="text-purple-300">국내</span>: 평일 9:30~15:30 매시 :30 (7회) &nbsp;
           <span className="text-blue-300">미국</span>: 평일 19:50 · 화~토 03:50 (2회)
         </p>
@@ -650,7 +652,7 @@ export default function Settings() {
                 </thead>
                 <tbody>
                   {scanHistory.map(h => (
-                    <tr key={h.id} className="border-b border-[var(--border)]/50 text-white">
+                    <tr key={h.id} className="border-b border-[var(--border)]/50 text-[var(--text)]">
                       <td className="py-1.5 pr-2 whitespace-nowrap text-[var(--muted)]">
                         {h.started_at ? new Date(h.started_at).toLocaleString('ko-KR', {
                           month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
@@ -658,8 +660,8 @@ export default function Settings() {
                       </td>
                       <td className="py-1.5 px-1 text-center">
                         <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                          h.status === 'completed' ? 'bg-green-500/20 text-green-400' :
-                          h.status === 'failed' ? 'bg-red-500/20 text-red-400' :
+                          h.status === 'completed' ? 'bg-[var(--buy)]/20 text-[var(--buy)]' :
+                          h.status === 'failed' ? 'bg-[var(--sell)]/20 text-[var(--sell)]' :
                           'bg-yellow-500/20 text-yellow-400'
                         }`}>
                           {h.status === 'completed' ? '완료' : h.status === 'failed' ? '실패' : '진행중'}
@@ -674,7 +676,7 @@ export default function Settings() {
                       <td className="py-1.5 px-1 text-right text-orange-400 font-mono">
                         {h.max_sq_count}
                       </td>
-                      <td className="py-1.5 px-1 text-right text-green-400 font-mono">
+                      <td className="py-1.5 px-1 text-right text-[var(--buy)] font-mono">
                         {h.buy_count}
                       </td>
                       <td className="py-1.5 pl-1 text-right text-[var(--muted)] font-mono">

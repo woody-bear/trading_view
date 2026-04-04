@@ -22,11 +22,6 @@ import { useToastStore } from '../stores/toastStore'
 import { useAuthStore } from '../store/authStore'
 
 const stateLabel: Record<string, string> = { BUY: '매수', SELL: '매도', NEUTRAL: '대기' }
-const stateDesc: Record<string, string> = {
-  BUY: 'BB 하단 + RSI 과매도 + 모멘텀 반전 — 매수 진입 구간',
-  SELL: 'BB 상단 + RSI 과매수 + 모멘텀 하락 — 매도 검토 구간',
-  NEUTRAL: '매수·매도 조건 미충족 — 추세 관망 중',
-}
 
 interface IndicatorGauge {
   label: string
@@ -55,7 +50,7 @@ function MiniGauge({ g }: { g: IndicatorGauge }) {
   const pos = Math.max(0, Math.min(100, ((g.value - g.min) / range) * 100))
   const medianPos = Math.max(0, Math.min(100, ((g.median - g.min) / range) * 100))
 
-  const zoneColor = g.zone === 'buy' ? 'text-green-400' : g.zone === 'sell' ? 'text-red-400' : 'text-slate-300'
+  const zoneColor = g.zone === 'buy' ? 'text-[var(--buy)]' : g.zone === 'sell' ? 'text-[var(--sell)]' : 'text-[var(--muted)]'
   const dotColor = g.zone === 'buy' ? 'bg-green-500 border-green-300' : g.zone === 'sell' ? 'bg-red-500 border-red-300' : 'bg-blue-500 border-blue-300'
   const gradientClass = 'from-green-800/40 via-slate-700/40 to-red-800/40'
 
@@ -224,7 +219,7 @@ export default function SignalDetail() {
   const [sensLoading, setSensLoading] = useState(false)
   useEffect(() => { getSensitivity().then(d => setSens(d.current)).catch(() => {}) }, [])
 
-  const stateColor = s.signal_state === 'BUY' ? 'text-green-400' : s.signal_state === 'SELL' ? 'text-red-400' : 'text-slate-400'
+  const stateColor = s.signal_state === 'BUY' ? 'text-[var(--buy)]' : s.signal_state === 'SELL' ? 'text-[var(--sell)]' : 'text-[var(--neutral)]'
 
   // 차트 상태 판별
   const chartEmpty = chartData && (!chartData.candles || chartData.candles.length === 0)
@@ -369,10 +364,11 @@ export default function SignalDetail() {
             <span className="text-[var(--muted)] text-sm shrink-0">{s.symbol}</span>
           </div>
         </div>
-        <div className="text-right shrink-0">
-          <span className={`text-base md:text-lg font-bold ${stateColor}`}>{stateLabel[s.signal_state]}</span>
-          <div className="text-[9px] text-[var(--muted)] max-w-[180px]">{stateDesc[s.signal_state]}</div>
-        </div>
+        {s.signal_state !== 'NEUTRAL' && (
+          <div className="text-right shrink-0">
+            <span className={`text-base md:text-lg font-bold ${stateColor}`}>{stateLabel[s.signal_state]}</span>
+          </div>
+        )}
         {!isInWatchlist && !addedNow && (
           <button onClick={handleAddToWatchlist} disabled={adding}
             className="shrink-0 flex items-center gap-1 px-2.5 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs disabled:opacity-50">
@@ -389,7 +385,7 @@ export default function SignalDetail() {
         <span className={`text-2xl md:text-xl font-mono font-semibold transition-colors duration-300 ${flashClass}`}>
           {fmtPrice(currentPrice)}
         </span>
-        <span className={`text-sm font-mono ${currentChangePct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+        <span className={`text-sm font-mono ${currentChangePct >= 0 ? 'text-[var(--buy)]' : 'text-[var(--sell)]'}`}>
           {currentChangePct >= 0 ? '+' : ''}{currentChangePct?.toFixed(2)}%
         </span>
         {livePrice?.is_expected && <span className="text-xs text-yellow-400 border border-yellow-400/30 rounded px-1.5 py-0.5">예상가</span>}
@@ -487,21 +483,20 @@ export default function SignalDetail() {
         </div>
         <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3">
           <div className="text-xs text-[var(--muted)]">등락률</div>
-          <div className={`font-mono mt-1 ${currentChangePct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+          <div className={`font-mono mt-1 ${currentChangePct >= 0 ? 'text-[var(--buy)]' : 'text-[var(--sell)]'}`}>
             {currentChangePct >= 0 ? '+' : ''}{currentChangePct?.toFixed(2)}%
           </div>
         </div>
         <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3">
           <div className="text-xs text-[var(--muted)]">EMA 20 / 50 / 200</div>
           <div className="text-white font-mono mt-1 text-xs">{s.ema_20?.toFixed(0)} / {s.ema_50?.toFixed(0)} / {s.ema_200?.toFixed(0)}</div>
-          <div className="text-[9px] mt-0.5" style={{ color: s.ema_20 > s.ema_50 && s.ema_50 > s.ema_200 ? '#22c55e' : s.ema_20 < s.ema_50 && s.ema_50 < s.ema_200 ? '#ef4444' : '#94a3b8' }}>
+          <div className="text-[9px] mt-0.5" style={{ color: s.ema_20 > s.ema_50 && s.ema_50 > s.ema_200 ? '#ff4b6a' : s.ema_20 < s.ema_50 && s.ema_50 < s.ema_200 ? '#4285f4' : '#8e8e93' }}>
             {s.ema_20 > s.ema_50 && s.ema_50 > s.ema_200 ? '정배열 (상승추세)' : s.ema_20 < s.ema_50 && s.ema_50 < s.ema_200 ? '역배열 (하락추세)' : '혼조 (횡보)'}
           </div>
         </div>
         <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3">
           <div className="text-xs text-[var(--muted)]">종합 신호</div>
-          <div className={`font-mono mt-1 text-lg font-bold ${stateColor}`}>{stateLabel[s.signal_state]}</div>
-          <div className="text-[9px] text-[var(--muted)] mt-0.5">{stateDesc[s.signal_state]}</div>
+          {s.signal_state !== 'NEUTRAL' && <div className={`font-mono mt-1 text-lg font-bold ${stateColor}`}>{stateLabel[s.signal_state]}</div>}
           {s.confidence > 0 && <div className="text-[9px] text-[var(--muted)] mt-0.5">신뢰도 {s.confidence.toFixed(0)}점 / {s.signal_grade}</div>}
         </div>
       </div>

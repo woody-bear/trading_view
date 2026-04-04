@@ -145,11 +145,11 @@ function ChartTab() {
     if (!data) return
 
     const opts = {
-      layout: { background: { type: ColorType.Solid as const, color: '#1e293b' }, textColor: '#94a3b8' },
-      grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#262f3d' } },
+      layout: { background: { type: ColorType.Solid as const, color: '#000000' }, textColor: '#8e8e93' },
+      grid: { vertLines: { color: '#2c2c2e' }, horzLines: { color: 'rgba(44,44,46,0.5)' } },
       crosshair: { mode: 0 as const },
-      timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#334155' },
-      rightPriceScale: { borderColor: '#334155' },
+      timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#2c2c2e' },
+      rightPriceScale: { borderColor: '#2c2c2e' },
     }
 
     const days = periodDays[chartPeriod] || 66

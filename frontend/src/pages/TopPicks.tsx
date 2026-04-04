@@ -177,15 +177,15 @@ function PickSection({ title, picks, onClick }: { title: string; picks: Pick[]; 
             </div>
             <div className="flex items-baseline gap-2 mb-3">
               <span className="text-white text-lg font-mono">{fmtPrice(p.price, p.market_type)}</span>
-              <span className={`text-sm font-mono ${p.change_pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              <span className={`text-sm font-mono ${p.change_pct >= 0 ? 'text-[var(--buy)]' : 'text-[var(--sell)]'}`}>
                 {p.change_pct >= 0 ? '+' : ''}{p.change_pct}%
               </span>
             </div>
             <div className="grid grid-cols-3 gap-2 text-xs">
               <div><span className="text-[var(--muted)]">RSI</span>
-                <div className={`font-mono ${p.rsi < 30 ? 'text-green-400' : p.rsi > 70 ? 'text-red-400' : 'text-white'}`}>{p.rsi}</div></div>
-              <div><span className="text-[var(--muted)]">%B</span><div className="font-mono text-white">{p.bb_pct_b}%</div></div>
-              <div><span className="text-[var(--muted)]">거래량</span><div className="font-mono text-white">{p.volume_ratio}x</div></div>
+                <div className={`font-mono ${p.rsi < 30 ? 'text-[var(--buy)]' : p.rsi > 70 ? 'text-[var(--sell)]' : 'text-[var(--text)]'}`}>{p.rsi}</div></div>
+              <div><span className="text-[var(--muted)]">%B</span><div className="font-mono text-[var(--text)]">{p.bb_pct_b}%</div></div>
+              <div><span className="text-[var(--muted)]">거래량</span><div className="font-mono text-[var(--text)]">{p.volume_ratio}x</div></div>
             </div>
           </div>
         ))}

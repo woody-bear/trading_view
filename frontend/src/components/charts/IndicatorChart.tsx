@@ -91,15 +91,15 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
     }
     const chartOpts = {
       width,
-      layout: { background: { type: ColorType.Solid as const, color: '#1e293b' }, textColor: '#94a3b8' },
-      grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#262f3d' } },
+      layout: { background: { type: ColorType.Solid as const, color: '#000000' }, textColor: '#8e8e93' },
+      grid: { vertLines: { color: '#2c2c2e' }, horzLines: { color: 'rgba(44,44,46,0.5)' } },
       crosshair: { mode: 0 as const },
-      rightPriceScale: { borderColor: '#334155' },
+      rightPriceScale: { borderColor: '#2c2c2e' },
       localization: { locale: 'en-US' },
       timeScale: {
         timeVisible: false,
         secondsVisible: false,
-        borderColor: '#334155',
+        borderColor: '#2c2c2e',
         tickMarkFormatter,
       },
     }
@@ -109,8 +109,8 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
 
     // 캔들스틱
     const candleSeries = mainChart.addSeries(CandlestickSeries, {
-      upColor: '#26a69a', downColor: '#ef5350',
-      wickUpColor: '#26a69a', wickDownColor: '#ef5350',
+      upColor: '#ff4b6a', downColor: '#4285f4',
+      wickUpColor: '#ff4b6a', wickDownColor: '#4285f4',
       borderVisible: false,
     })
     const candleData = data.candles.map(c => ({
@@ -295,7 +295,7 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
     volSeries.setData(data.candles.map(c => ({
       time: c.time as any,
       value: c.volume,
-      color: c.close >= c.open ? 'rgba(38,166,154,0.30)' : 'rgba(239,83,80,0.28)',
+      color: c.close >= c.open ? 'rgba(255,75,106,0.30)' : 'rgba(66,133,244,0.28)',
     })))
     volSeriesRef.current = volSeries
 
@@ -314,8 +314,8 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
           hl.setData([{ time: pts[0].time, value: val }, { time: pts[pts.length - 1].time, value: val }])
         }
       }
-      addHLine(70, 'rgba(239,68,68,0.4)')
-      addHLine(30, 'rgba(34,197,94,0.4)')
+      addHLine(70, 'rgba(66,133,244,0.4)')
+      addHLine(30, 'rgba(255,75,106,0.4)')
       addHLine(50, 'rgba(100,116,139,0.2)')
       rsiChart.timeScale().fitContent()
       mainChart.timeScale().subscribeVisibleLogicalRangeChange((r) => { if (r) rsiChart.timeScale().setVisibleLogicalRange(r) })
@@ -328,7 +328,7 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
       const histSeries = macdChart.addSeries(HistogramSeries, { lastValueVisible: false, priceLineVisible: false })
       histSeries.setData((data.indicators as any).macd_hist.map((p: any) => ({
         time: p.time, value: p.value,
-        color: p.value >= 0 ? 'rgba(38,166,154,0.6)' : 'rgba(239,83,80,0.6)',
+        color: p.value >= 0 ? 'rgba(255,75,106,0.6)' : 'rgba(66,133,244,0.6)',
       })))
       if ((data.indicators as any).macd_line?.length) {
         const ml = macdChart.addSeries(LineSeries, { color: '#3b82f6', lineWidth: 1 as any, lastValueVisible: false, priceLineVisible: false })
@@ -365,7 +365,7 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
           volSeriesRef.current.update({
             time: lc.time as any,
             value: u.volume,
-            color: u.price >= lc.open ? 'rgba(38,166,154,0.12)' : 'rgba(239,83,80,0.12)',
+            color: u.price >= lc.open ? 'rgba(255,75,106,0.12)' : 'rgba(66,133,244,0.12)',
           })
         }
       })
@@ -454,7 +454,7 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
       volSeriesRef.current.update({
         time: lc.time as any,
         value: realtimePrice.volume,
-        color: price >= lc.open ? 'rgba(38,166,154,0.12)' : 'rgba(239,83,80,0.12)',
+        color: price >= lc.open ? 'rgba(255,75,106,0.12)' : 'rgba(66,133,244,0.12)',
       })
     }
   }, [realtimePrice])
@@ -493,11 +493,11 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
           </div>
         </div>
       </div>
-      <div className="flex items-center gap-2 px-3 py-1 bg-[#1e293b] border-x border-[var(--border)]">
+      <div className="flex items-center gap-2 px-3 py-1 bg-black border-x border-[var(--border)]">
         <span className="text-[10px] text-[var(--muted)]">RSI (14)</span>
       </div>
       <div ref={rsiRef} className="w-full overflow-hidden border-x border-[var(--border)]" />
-      <div className="flex items-center gap-2 px-3 py-1 bg-[#1e293b] border-x border-[var(--border)]">
+      <div className="flex items-center gap-2 px-3 py-1 bg-black border-x border-[var(--border)]">
         <span className="text-[10px] text-[var(--muted)]">MACD (12,26,9)</span>
       </div>
       <div ref={macdRef} className="w-full rounded-b-lg overflow-hidden border border-[var(--border)] border-t-0" />
