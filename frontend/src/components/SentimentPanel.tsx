@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { ArrowDown, ArrowUp, BarChart3, Minus } from 'lucide-react'
+import { ArrowDown, ArrowUp, Minus } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createChart, CrosshairMode, HistogramSeries, LineSeries, LineStyle } from 'lightweight-charts'
@@ -43,9 +43,9 @@ const labelKo: Record<string, string> = {
 }
 
 const summaryColors: Record<string, string> = {
-  '위험 회피 분위기': 'text-red-400 bg-red-500/10',
-  '낙관적 분위기': 'text-green-400 bg-green-500/10',
-  '혼조세': 'text-gray-400 bg-gray-500/10',
+  '위험 회피 분위기': 'text-[var(--sell)] bg-[var(--sell)]/10',
+  '낙관적 분위기': 'text-[var(--buy)] bg-[var(--buy)]/10',
+  '혼조세': 'text-[var(--muted)] bg-[var(--border)]/50',
 }
 
 const PERIOD_TABS = [
@@ -64,11 +64,11 @@ function FearGreedGauge({ score, label }: { score: number; label: string }) {
   const y = cy - r * Math.sin(rad)
 
   const getColor = (s: number) => {
-    if (s <= 20) return '#ef4444'
-    if (s <= 40) return '#f97316'
-    if (s <= 60) return '#a3a3a3'
-    if (s <= 80) return '#22c55e'
-    return '#16a34a'
+    if (s <= 20) return '#4285f4'
+    if (s <= 40) return '#8b9eff'
+    if (s <= 60) return '#636366'
+    if (s <= 80) return '#ff4b6a'
+    return '#ff2d55'
   }
 
   const color = getColor(score)
@@ -80,13 +80,13 @@ function FearGreedGauge({ score, label }: { score: number; label: string }) {
         <path
           d="M 20 90 A 80 80 0 0 1 180 90"
           fill="none"
-          stroke="#1e293b"
+          stroke="#1c1c1e"
           strokeWidth="12"
           strokeLinecap="round"
         />
         {/* 그라디언트 구간들 */}
         {[0, 20, 40, 60, 80].map((start, i) => {
-          const colors = ['#ef4444', '#f97316', '#a3a3a3', '#22c55e', '#16a34a']
+          const colors = ['#4285f4', '#8b9eff', '#636366', '#ff4b6a', '#ff2d55']
           const a1 = ((180 - (start / 100) * 180) * Math.PI) / 180
           const a2 = ((180 - (Math.min(start + 20, 100) / 100) * 180) * Math.PI) / 180
           return (
@@ -113,14 +113,14 @@ function FearGreedGauge({ score, label }: { score: number; label: string }) {
         />
         <circle cx={cx} cy={cy} r="4" fill={color} />
         {/* 점수 텍스트 */}
-        <text x={cx} y={cy - 20} textAnchor="middle" fill={score <= 20 ? '#ef4444' : 'white'} fontSize="28" fontWeight="bold">
+        <text x={cx} y={cy - 20} textAnchor="middle" fill={score <= 20 ? '#4285f4' : '#ffffff'} fontSize="28" fontWeight="bold">
           {Math.round(score)}
         </text>
         <text x={cx} y={cy - 2} textAnchor="middle" fill={color} fontSize="11" fontWeight="600">
           {labelKo[label] || label}
         </text>
       </svg>
-      <p className="text-[10px] text-[var(--muted)] -mt-1">Fear & Greed Index</p>
+      <p className="text-[15px] text-[var(--muted)] -mt-1">Fear & Greed Index</p>
     </div>
   )
 }
@@ -194,7 +194,7 @@ function FearGreedChart({ days }: { days: number }) {
       if (!val) { tooltip.style.display = 'none'; return }
       const score = Math.round(val.value)
       const lbl = score <= 20 ? '극도의 공포' : score <= 40 ? '공포' : score <= 60 ? '중립' : score <= 80 ? '탐욕' : '극도의 탐욕'
-      const color = score <= 20 ? '#ef4444' : score <= 40 ? '#f97316' : score <= 60 ? '#a3a3a3' : '#22c55e'
+      const color = score <= 20 ? '#4285f4' : score <= 40 ? '#8b9eff' : score <= 60 ? '#636366' : '#ff4b6a'
       tooltip.innerHTML = `<span style="color:${color};font-weight:600">${lbl} ${score}</span><br/><span style="color:#64748b;font-size:10px">${param.time}</span>`
       tooltip.style.display = 'block'
       const left = Math.min(param.point.x + 12, containerRef.current!.clientWidth - 100)
@@ -219,11 +219,11 @@ function FearGreedChart({ days }: { days: number }) {
       {/* 색상 구간 오버레이 (Y축 0~100 기준) */}
       <div className="absolute inset-0 pointer-events-none z-0">
         {/* 탐욕 구간 75~100: 상단 25% */}
-        <div className="absolute top-0 left-0 right-0" style={{ height: '25%', background: 'rgba(34,197,94,0.07)' }} />
+        <div className="absolute top-0 left-0 right-0" style={{ height: '25%', background: 'rgba(255,75,106,0.07)' }} />
         {/* 중립 구간 25~75: 중간 50% */}
-        <div className="absolute left-0 right-0" style={{ top: '25%', height: '50%', background: 'rgba(100,116,139,0.04)' }} />
+        <div className="absolute left-0 right-0" style={{ top: '25%', height: '50%', background: 'rgba(99,99,102,0.04)' }} />
         {/* 공포 구간 0~25: 하단 25% */}
-        <div className="absolute bottom-0 left-0 right-0" style={{ height: '25%', background: 'rgba(239,68,68,0.07)' }} />
+        <div className="absolute bottom-0 left-0 right-0" style={{ height: '25%', background: 'rgba(66,133,244,0.07)' }} />
       </div>
       {/* 차트 */}
       <div
@@ -340,7 +340,7 @@ function VIXExpandChart({ days }: { days: number }) {
 }
 
 function MiniCard({ index, onClick, active }: { index: MarketIndex; onClick?: () => void; active?: boolean }) {
-  const dirColor = index.direction === 'up' ? 'text-green-400' : index.direction === 'down' ? 'text-red-400' : 'text-gray-400'
+  const dirColor = index.direction === 'up' ? 'text-[var(--buy)]' : index.direction === 'down' ? 'text-[var(--sell)]' : 'text-[var(--neutral)]'
   const DirIcon = index.direction === 'up' ? ArrowUp : index.direction === 'down' ? ArrowDown : Minus
 
   const fmtVal = (name: string, val: number) => {
@@ -352,13 +352,13 @@ function MiniCard({ index, onClick, active }: { index: MarketIndex; onClick?: ()
 
   return (
     <div onClick={onClick}
-      className={`bg-[var(--bg)] border rounded-lg px-3 py-2 min-w-0 transition ${
+      className={`bg-[var(--card)] border rounded-xl px-3 py-2 min-w-0 transition ${
         onClick ? 'cursor-pointer active:scale-[0.98]' : ''
       } ${active ? 'border-blue-500/60' : 'border-[var(--border)] hover:border-blue-500/50'}`}>
-      <div className="text-[10px] text-[var(--muted)] truncate">{index.name}</div>
-      <div className="text-sm font-mono font-semibold text-white mt-0.5">{fmtVal(index.name, index.value)}</div>
-      <div className={`flex items-center gap-0.5 text-[10px] font-mono ${dirColor}`}>
-        <DirIcon size={10} />
+      <div className="text-[18px] text-[var(--muted)] truncate">{index.name}</div>
+      <div className="text-base font-mono font-bold text-[var(--text)] mt-0.5">{fmtVal(index.name, index.value)}</div>
+      <div className={`flex items-center gap-0.5 text-xs font-mono font-semibold ${dirColor}`}>
+        <DirIcon size={11} />
         <span>{index.change_pct >= 0 ? '+' : ''}{index.change_pct.toFixed(2)}%</span>
       </div>
     </div>
@@ -418,9 +418,6 @@ export default function SentimentPanel() {
     )
   }
 
-  const updatedAt = data.updated_at ? new Date(data.updated_at) : null
-  const minutesAgo = updatedAt ? Math.floor((Date.now() - updatedAt.getTime()) / 60000) : null
-
   const indices = [data.vix, data.kospi, data.sp500, data.nasdaq, data.usdkrw]
 
   const handleIndexClick = (name: string) => {
@@ -434,18 +431,12 @@ export default function SentimentPanel() {
 
   return (
     <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 mb-4">
-      {/* 섹션 제목 */}
-      <div className="flex items-center gap-2 mb-3">
-        <BarChart3 size={16} className="text-blue-400" />
-        <h2 className="text-sm font-bold text-white">시장 지표</h2>
-      </div>
-
       {/* Fear & Greed 게이지 */}
       <FearGreedGauge score={data.fear_greed} label={data.fear_greed_label} />
 
       {/* 시장 분위기 요약 */}
       <div className="flex justify-center mb-3">
-        <span className={`text-xs font-semibold px-3 py-1 rounded-full ${summaryColors[data.sentiment_summary] || 'text-gray-400 bg-gray-500/10'}`}>
+        <span className={`text-[18px] font-semibold px-3 py-1 rounded-full ${summaryColors[data.sentiment_summary] || 'text-gray-400 bg-gray-500/10'}`}>
           {data.sentiment_summary}
         </span>
       </div>
@@ -456,9 +447,9 @@ export default function SentimentPanel() {
           <button
             key={tab.days}
             onClick={() => setSelectedDays(tab.days)}
-            className={`text-xs pb-1 transition ${
+            className={`text-[18px] pb-1 transition ${
               selectedDays === tab.days
-                ? 'text-[var(--gold)] border-b border-[var(--gold)] font-semibold'
+                ? 'text-[var(--buy)] border-b border-[var(--buy)] font-semibold'
                 : 'text-[var(--muted)] hover:text-white'
             }`}
           >
@@ -493,14 +484,6 @@ export default function SentimentPanel() {
         </div>
       )}
 
-      {/* 마지막 갱신 */}
-      {minutesAgo !== null && (
-        <div className="text-right mt-2">
-          <span className="text-[9px] text-[var(--muted)]">
-            마지막 갱신: {minutesAgo < 1 ? '방금' : `${minutesAgo}분 전`}
-          </span>
-        </div>
-      )}
     </div>
   )
 }
