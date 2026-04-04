@@ -19,19 +19,19 @@ export default function BottomNav() {
   }
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t border-[var(--border)] bg-[var(--bg)]/95 backdrop-blur-sm"
+    <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t border-[var(--border)] bg-black/85 backdrop-blur-md"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-      <div className="flex items-center justify-around h-[52px]">
+      <div className="flex items-center justify-around h-[64px]">
         {tabs.map((tab) => {
           const active = isActive(tab.path)
           return (
             <button
               key={tab.path}
               onClick={() => nav(tab.path)}
-              className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full"
+              className="flex flex-col items-center justify-center gap-1 flex-1 h-full"
             >
-              <tab.icon size={22} className={active ? 'text-[var(--gold)]' : 'text-[var(--muted)]'} strokeWidth={active ? 2.2 : 1.5} />
-              <span className={`text-[10px] leading-none ${active ? 'text-[var(--gold)] font-semibold' : 'text-[var(--muted)]'}`}>
+              <tab.icon size={26} className={active ? 'text-[var(--buy)]' : 'text-[var(--neutral)]'} strokeWidth={active ? 2.2 : 1.5} />
+              <span className={`text-[12px] leading-none ${active ? 'text-[var(--buy)] font-semibold' : 'text-[var(--neutral)]'}`}>
                 {tab.label}
               </span>
             </button>

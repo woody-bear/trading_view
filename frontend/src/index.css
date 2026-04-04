@@ -1,16 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #1B2B42;
-  --card: #243556;
-  --border: #374F72;
-  --text: #e2e8f0;
-  --muted: #A4B8CE;
-  --buy: #E53935;
-  --sell: #1E88E5;
-  --neutral: #64748b;
-  --navy: #2C4472;
-  --gold: #D4A843;
+  --bg: #000000;
+  --card: #1c1c1e;
+  --border: #2c2c2e;
+  --text: #ffffff;
+  --muted: #8e8e93;
+  --buy: #ff4b6a;
+  --sell: #4285f4;
+  --neutral: #636366;
+  --gold: #f59e0b;
 }
 
 html { -webkit-text-size-adjust: 100%; }

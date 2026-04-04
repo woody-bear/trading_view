@@ -163,6 +163,8 @@ BUY/SELL/NEUTRAL. 조건: BB %B, RSI, MACD 전환, 거래량. 민감도 3단계(
 >>>>>>> main
 - TypeScript 5.x (React 18) + Python 3.12 + lightweight-charts v5 (기존), FastAPI (기존), yfinance (기존), React Query (기존) (013-fear-index-chart)
 - 없음 (DB 스키마 변경 없음, 실시간 조회 + 메모리 캐시) (013-fear-index-chart)
+- TypeScript 5.x (React 18) + React 18, Tailwind CSS v4 (`@tailwindcss/vite`), lightweight-charts v5, Zustand, React Query (014-toss-ui-redesign)
+- N/A (DB 스키마 변경 없음) (014-toss-ui-redesign)
 
 ## Recent Changes
 - 002-fix-chart-usability: Added TypeScript 5.x (React 18) + Python 3.12 (변경 없음) + React 18, lightweight-charts v5, Zustand, React Query, Tailwind CSS

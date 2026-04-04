@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import math
 import urllib.request
 from datetime import datetime
 
@@ -26,6 +27,9 @@ def _fetch_index(ticker: str, period: str = "5d") -> dict | None:
             return None
         current = float(df["Close"].iloc[-1])
         prev = float(df["Close"].iloc[-2])
+        # NaN 또는 0 값은 데이터 없음으로 처리 (JSON 직렬화 실패 방지)
+        if math.isnan(current) or math.isnan(prev) or prev == 0:
+            return None
         change = current - prev
         change_pct = (change / prev * 100) if prev else 0
         return {
