@@ -267,18 +267,18 @@ function CaseAccordion({ c, onEdit, onDelete }: {
         onClick={() => { if (!confirmDelete) setOpen(o => !o) }}
       >
         {/* 패턴 뱃지 */}
-        <span className={`text-[10px] px-2 py-0.5 rounded border font-semibold shrink-0 ${ptColor}`}>
+        <span className={`text-xs px-2 py-0.5 rounded border font-semibold shrink-0 ${ptColor}`}>
           {PATTERN_LABEL[c.pattern_type] ?? c.pattern_type}
         </span>
         {/* 출처 뱃지 */}
-        <span className="text-[9px] px-1.5 py-0.5 bg-[var(--border)]/60 rounded text-[var(--muted)] shrink-0">
+        <span className="text-[11px] px-1.5 py-0.5 bg-[var(--border)]/60 rounded text-[var(--muted)] shrink-0">
           {c.source === 'chart' ? '📊 차트' : '✏️ 수동'}
         </span>
 
         {/* 제목 & 종목 */}
         <div className="flex-1 min-w-0">
-          <div className="text-[13px] font-semibold text-white truncate">{c.title}</div>
-          <div className="text-[10px] text-[var(--muted)] flex items-center gap-1.5 mt-0.5">
+          <div className="text-[15px] font-semibold text-white truncate">{c.title}</div>
+          <div className="text-xs text-[var(--muted)] flex items-center gap-1.5 mt-0.5">
             <span>{marketLabel} {c.stock_name}</span>
             <span className="text-[var(--border)]">·</span>
             <span className="font-mono text-[var(--gold)]">{c.symbol}</span>
@@ -290,15 +290,15 @@ function CaseAccordion({ c, onEdit, onDelete }: {
         {/* 수익률 */}
         <div className="text-right shrink-0">
           {c.result_pct != null ? (
-            <div className={`flex items-center gap-1 text-sm font-bold ${resultColor}`}>
-              {c.result_pct > 0 ? <TrendingUp size={14} /> : c.result_pct < 0 ? <TrendingDown size={14} /> : <Minus size={14} />}
+            <div className={`flex items-center gap-1 text-base font-bold ${resultColor}`}>
+              {c.result_pct > 0 ? <TrendingUp size={15} /> : c.result_pct < 0 ? <TrendingDown size={15} /> : <Minus size={15} />}
               {c.result_pct > 0 ? '+' : ''}{c.result_pct.toFixed(1)}%
             </div>
           ) : (
-            <span className="text-[11px] text-[var(--muted)]">진행중</span>
+            <span className="text-xs text-[var(--muted)]">진행중</span>
           )}
           {c.hold_days != null && (
-            <div className="text-[10px] text-[var(--muted)]">{c.hold_days}일 보유</div>
+            <div className="text-xs text-[var(--muted)]">{c.hold_days}일 보유</div>
           )}
         </div>
 
@@ -641,32 +641,20 @@ function CaseFormModal({
 
 // ── 메인 페이지 ───────────────────────────────────────────────────
 
-function SnapHdr({ title, color, currentSection, total }: {
-  title: string; color: string; currentSection: number; total: number
-}) {
-  return (
-    <div className="flex items-center justify-between px-3 pt-3 pb-2 shrink-0 border-b border-[var(--border)]/50">
-      <h2 className={`text-base font-bold ${color}`}>{title}</h2>
-      <div className="flex gap-1.5">
-        {Array.from({ length: total }, (_, i) => (
-          <div key={i} className={`h-1.5 rounded-full transition-all ${
-            i === currentSection ? `w-4 bg-[var(--gold)]` : 'w-1.5 bg-white/20'
-          }`} />
-        ))}
-      </div>
-    </div>
-  )
-}
 
 export default function Scrap() {
   const { user } = useAuthStore()
+  const nav = useNavigate()
   const [cases, setCases] = useState<PatternCase[]>([])
   const [loading, setLoading] = useState(true)
   const [activeType, setActiveType] = useState('all')
   const [showForm, setShowForm] = useState(false)
   const [editTarget, setEditTarget] = useState<PatternCase | null>(null)
-  const snapRef = useRef<HTMLDivElement>(null)
-  const [currentSection, setCurrentSection] = useState(0)
+  const touchStartX = useRef(0)
+  const touchStartY = useRef(0)
+  const listAtTop = useRef(true)
+  const listAtBottom = useRef(true)
+  const listRef = useRef<HTMLDivElement>(null)
 
   const load = async () => {
     setLoading(true)
@@ -690,16 +678,22 @@ export default function Scrap() {
     [cases, activeType]
   )
 
-  useEffect(() => {
-    const el = snapRef.current
-    if (!el) return
-    const onScroll = () => {
-      const h = el.clientHeight
-      if (h > 0) setCurrentSection(Math.round(el.scrollTop / h))
+  const handleSwipe = (e: React.TouchEvent) => {
+    const dx = e.changedTouches[0].clientX - touchStartX.current
+    const dy = e.changedTouches[0].clientY - touchStartY.current
+    // 수평 스와이프: 탭 전환
+    if (Math.abs(dx) > Math.abs(dy)) {
+      if (Math.abs(dx) < 60) return
+      const idx = PATTERN_TYPES.findIndex(t => t.key === activeType)
+      if (dx < 0 && idx < PATTERN_TYPES.length - 1) setActiveType(PATTERN_TYPES[idx + 1].key)
+      else if (dx > 0 && idx > 0) setActiveType(PATTERN_TYPES[idx - 1].key)
+    } else {
+      // 수직 스와이프: 페이지 이동 (touchstart 시점 경계 기준)
+      if (Math.abs(dy) < 90) return
+      if (dy > 0 && listAtTop.current) nav('/buy-list')
+      else if (dy < 0 && listAtBottom.current) nav('/settings')
     }
-    el.addEventListener('scroll', onScroll, { passive: true })
-    return () => el.removeEventListener('scroll', onScroll)
-  }, [])
+  }
 
   // 통계
   const stats = useMemo(() => {
@@ -735,8 +729,6 @@ export default function Scrap() {
     setCases(prev => prev.filter(c => c.id !== id))
   }
 
-  const sH = 'calc(100dvh - 52px)'
-
   const statsBanner = (
     <div className="grid grid-cols-4 gap-2">
       {[
@@ -745,9 +737,9 @@ export default function Scrap() {
         { label: '승률', value: stats.winRate != null ? `${stats.winRate}%` : '-', color: 'text-cyan-400' },
         { label: '평균 수익', value: stats.avgReturn > 0 ? `+${stats.avgReturn.toFixed(1)}%` : '-', color: 'text-[var(--gold)]' },
       ].map(s => (
-        <div key={s.label} className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-2.5 text-center">
-          <div className={`text-base font-bold font-mono ${s.color}`}>{s.value}</div>
-          <div className="text-[10px] text-[var(--muted)]">{s.label}</div>
+        <div key={s.label} className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3 text-center">
+          <div className={`text-xl font-bold font-mono ${s.color}`}>{s.value}</div>
+          <div className="text-xs text-[var(--muted)] mt-0.5">{s.label}</div>
         </div>
       ))}
     </div>
@@ -761,14 +753,14 @@ export default function Scrap() {
           <button
             key={pt.key}
             onClick={() => setActiveType(pt.key)}
-            className={`px-3 py-2 text-[12px] font-semibold border-b-2 transition-colors -mb-px whitespace-nowrap ${
+            className={`px-3 py-2 text-sm font-semibold border-b-2 transition-colors -mb-px whitespace-nowrap ${
               activeType === pt.key
                 ? `border-[var(--gold)] ${pt.color}`
                 : 'border-transparent text-[var(--muted)] hover:text-white'
             }`}
           >
             {pt.label}
-            <span className="ml-1 text-[10px] opacity-60">({cnt})</span>
+            <span className="ml-1 text-xs opacity-60">({cnt})</span>
           </button>
         )
       })}
@@ -812,40 +804,47 @@ export default function Scrap() {
 
   return (
     <>
-      {/* ── Mobile snap layout ── */}
-      <div
-        ref={snapRef}
-        className="md:hidden fixed inset-x-0 top-0"
-        style={{ bottom: '52px', overflowY: 'scroll', scrollSnapType: 'y mandatory', WebkitOverflowScrolling: 'touch' } as any}
-      >
-        {/* Section 1: 통계 + 필터 */}
-        <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
-          <SnapHdr title="BUY 사례 스크랩" color="text-white" currentSection={currentSection} total={2} />
-          <div className="flex-1 overflow-y-auto px-3 pb-3 pt-2 space-y-3" style={{ overscrollBehaviorY: 'contain' } as any}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <BookMarked size={16} className="text-[var(--gold)]" />
-                <span className="text-sm font-bold text-white">승률 높은 조건 기록</span>
-              </div>
-              <button
-                onClick={() => { setEditTarget(null); setShowForm(true) }}
-                className="flex items-center gap-1 px-3 py-1.5 bg-[var(--gold)] text-black text-xs font-bold rounded-lg hover:opacity-90"
-              >
-                <Plus size={12} /> 추가
-              </button>
-            </div>
-            {statsBanner}
-            {typeTabs}
-            <p className="text-center text-[10px] text-[var(--muted)]/60 pt-2">↓ 아래로 스와이프하면 사례 목록</p>
+      {/* ── Mobile layout ── */}
+      <div className="md:hidden fixed inset-x-0 top-0 flex flex-col bg-[var(--bg)]"
+        style={{ bottom: '64px' }}>
+        {/* 고정 헤더 */}
+        <div className="shrink-0 flex items-center justify-between px-3 pt-3 pb-2 border-b border-[var(--border)]/50">
+          <div className="flex items-center gap-2">
+            <BookMarked size={16} className="text-[var(--gold)]" />
+            <h2 className="text-[34px] font-bold text-[var(--text)]">BUY 사례 스크랩</h2>
           </div>
+          <button
+            onClick={() => { setEditTarget(null); setShowForm(true) }}
+            className="flex items-center gap-1 px-3 py-1.5 bg-[var(--gold)] text-black text-xs font-bold rounded-lg hover:opacity-90"
+          >
+            <Plus size={12} /> 추가
+          </button>
         </div>
-
-        {/* Section 2: 사례 목록 */}
-        <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
-          <SnapHdr title="사례 목록" color="text-white" currentSection={currentSection} total={2} />
-          <div className="flex-1 overflow-y-auto px-3 pb-3 pt-2" style={{ overscrollBehaviorY: 'contain' } as any}>
-            {caseList}
-          </div>
+        {/* 고정 통계 */}
+        <div className="shrink-0 px-3 pt-2">
+          {statsBanner}
+        </div>
+        {/* 고정 탭 (좌우 스와이프 힌트) */}
+        <div className="shrink-0 px-3 pt-2 pb-0">
+          {typeTabs}
+        </div>
+        {/* 스크롤 가능 사례 목록 (좌우 스와이프로 탭 전환) */}
+        <div
+          ref={listRef}
+          className="flex-1 overflow-y-auto px-3 pb-3 pt-2"
+          style={{ overscrollBehaviorY: 'contain' } as any}
+          onTouchStart={e => {
+            touchStartX.current = e.touches[0].clientX
+            touchStartY.current = e.touches[0].clientY
+            const el = listRef.current
+            if (el) {
+              listAtTop.current = el.scrollTop <= 2
+              listAtBottom.current = el.scrollTop >= el.scrollHeight - el.clientHeight - 2
+            }
+          }}
+          onTouchEnd={handleSwipe}
+        >
+          {caseList}
         </div>
       </div>
 
