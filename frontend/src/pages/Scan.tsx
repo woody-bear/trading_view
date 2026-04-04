@@ -3,13 +3,14 @@ import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { MarketScanBox } from './Dashboard'
 import { fetchFullScanLatest, fetchUnifiedCache } from '../api/client'
+import { usePageSwipe } from '../hooks/usePageSwipe'
 
 function SnapHdr({ title, color, currentSection, total }: {
   title: string; color: string; currentSection: number; total: number
 }) {
   return (
     <div className="flex items-center justify-between px-3 pt-3 pb-2 shrink-0 border-b border-[var(--border)]/50">
-      <h2 className={`text-base font-bold ${color}`}>{title}</h2>
+      <h2 className={`text-[34px] font-bold ${color}`}>{title}</h2>
       <div className="flex gap-1.5">
         {Array.from({ length: total }, (_, i) => (
           <div key={i} className={`h-1.5 rounded-full transition-all ${
@@ -65,13 +66,14 @@ export default function Scan() {
     return () => el.removeEventListener('scroll', onScroll)
   }, [])
 
-  const sH = 'calc(100dvh - 52px)'
+  const sH = 'calc(100dvh - 64px)'
+  usePageSwipe(snapRef)
 
+  const byVol = (arr: any[]) => [...arr].sort((a, b) => (b.volume_ratio || 0) - (a.volume_ratio || 0))
   const allPicks = scanData.picks ? [
-    ...(scanData.picks.kospi || []),
-    ...(scanData.picks.kosdaq || []),
-    ...(scanData.picks.us || []),
-    ...(scanData.picks.crypto || []),
+    ...byVol(scanData.picks.kospi || []).slice(0, 2),
+    ...byVol(scanData.picks.kosdaq || []).slice(0, 2),
+    ...byVol(scanData.picks.us || []).slice(0, 1),
   ] : []
 
   return (
@@ -80,34 +82,51 @@ export default function Scan() {
       <div
         ref={snapRef}
         className="md:hidden fixed inset-x-0 top-0"
-        style={{ bottom: '52px', overflowY: 'scroll', scrollSnapType: 'y mandatory', WebkitOverflowScrolling: 'touch' } as any}
+        style={{ bottom: '64px', overflowY: 'scroll', scrollSnapType: 'y mandatory', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'none' } as any}
       >
         {/* Section 1: 차트 BUY 신호 */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
-          <SnapHdr title="차트 BUY 신호" color="text-green-400" currentSection={currentSection} total={3} />
+          <SnapHdr title="차트 BUY 신호" color="text-[var(--buy)]" currentSection={currentSection} total={3} />
           <div
             className="flex-1 overflow-y-auto px-3 pb-3 pt-2 space-y-2"
-            style={{ overscrollBehaviorY: 'contain' } as any}
-          >
+            style={{ overscrollBehaviorY: 'contain' } as any}>
             {scanData.buyItems.length === 0 ? (
               <div className="text-center py-12 text-[var(--muted)] text-sm">BUY 신호 데이터가 없습니다</div>
             ) : scanData.buyItems.map((item, i) => (
               <div
                 key={item.symbol}
                 onClick={() => nav(`/${item.symbol}?market=${item.market_type || item.market || 'KR'}`)}
-                className="bg-[var(--card)] border border-green-500/20 rounded-lg p-3 cursor-pointer hover:border-green-500/50 transition active:scale-[0.98]"
+                className="bg-[var(--card)] border border-[var(--buy)]/20 rounded-xl p-4 cursor-pointer hover:border-[var(--buy)]/50 transition active:scale-[0.98]"
               >
-                <div className="flex items-center justify-between">
+                {/* 헤더: 순위 + 이름 + BUY 뱃지 */}
+                <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-[10px] bg-[var(--border)] text-white w-5 h-5 rounded flex items-center justify-center font-mono shrink-0">{i + 1}</span>
-                    <span className="text-white font-bold text-sm truncate">{item.display_name || item.name || item.symbol}</span>
-                    <span className="text-[var(--muted)] text-[10px] shrink-0">{item.symbol}</span>
+                    <span className="text-[11px] bg-[var(--border)] text-[var(--text)] w-5 h-5 rounded flex items-center justify-center font-mono shrink-0">{i + 1}</span>
+                    <span className="text-[var(--text)] font-semibold text-[22px] truncate">{item.display_name || item.name || item.symbol}</span>
+                    <span className="text-[var(--muted)] text-[17px] shrink-0">{item.symbol}</span>
                   </div>
-                  <span className="text-[10px] text-green-400 bg-green-400/10 px-2 py-0.5 rounded font-bold shrink-0">BUY</span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {item.trend === 'BULL' && <span className="text-[15px] font-bold text-[var(--buy)] bg-[var(--buy)]/10 px-1.5 py-0.5 rounded">상승추세</span>}
+                    <span className="text-[17px] text-[var(--buy)] bg-[var(--buy)]/10 px-2 py-0.5 rounded font-bold">BUY</span>
+                  </div>
                 </div>
-                {item.signal_date && (
-                  <div className="text-[10px] text-[var(--muted)] mt-1.5">신호일: {item.signal_date}</div>
+                {/* 가격 행 */}
+                {(item.price > 0 || item.change_pct != null) && (
+                  <div className="flex items-baseline gap-2 mb-2">
+                    {item.price > 0 && <span className="text-[18px] font-mono font-bold text-[var(--text)]">{item.price?.toLocaleString()}</span>}
+                    {item.change_pct != null && (
+                      <span className={`text-[13px] font-mono font-semibold ${item.change_pct >= 0 ? 'text-[var(--buy)]' : 'text-[var(--sell)]'}`}>
+                        {item.change_pct >= 0 ? '+' : ''}{item.change_pct}%
+                      </span>
+                    )}
+                  </div>
                 )}
+                {/* 지표 행 */}
+                <div className="flex items-center gap-3 text-[18px]">
+                  {item.rsi != null && <span className="text-[var(--muted)]">RSI <span className="text-[var(--text)] font-mono font-semibold">{Number(item.rsi).toFixed(0)}</span></span>}
+                  {item.volume_ratio != null && <span className="text-[var(--muted)]">거래량 <span className="text-[var(--text)] font-mono font-semibold">{Number(item.volume_ratio).toFixed(1)}x</span></span>}
+                  {item.signal_date && <span className="text-[var(--muted)] ml-auto">신호일: {item.signal_date}</span>}
+                </div>
               </div>
             ))}
           </div>
@@ -118,11 +137,10 @@ export default function Scan() {
           <SnapHdr title="투자과열 종목" color="text-orange-400" currentSection={currentSection} total={3} />
           <div
             className="flex-1 overflow-y-auto px-3 pb-3 pt-2 space-y-2"
-            style={{ overscrollBehaviorY: 'contain' } as any}
-          >
+            style={{ overscrollBehaviorY: 'contain' } as any}>
             {scanData.overheatItems.length === 0 ? (
               <div className="text-center py-12 text-[var(--muted)] text-sm">투자과열 데이터가 없습니다</div>
-            ) : scanData.overheatItems.map((item, i) => (
+            ) : byVol(scanData.overheatItems).slice(0, 5).map((item, i) => (
               <div
                 key={item.symbol}
                 onClick={() => nav(`/${item.symbol}?market=${item.market_type || item.market || 'KR'}`)}
@@ -131,17 +149,17 @@ export default function Scan() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-[10px] bg-[var(--border)] text-white w-5 h-5 rounded flex items-center justify-center font-mono shrink-0">{i + 1}</span>
-                    <span className="text-white font-bold text-sm truncate">{item.display_name || item.name || item.symbol}</span>
-                    <span className="text-[var(--muted)] text-[10px] shrink-0">{item.symbol}</span>
+                    <span className="text-white font-bold text-[21px] truncate">{item.display_name || item.name || item.symbol}</span>
+                    <span className="text-[var(--muted)] text-[15px] shrink-0">{item.symbol}</span>
                   </div>
                   {item.rsi != null && (
-                    <span className="text-[10px] text-orange-400 bg-orange-400/10 px-2 py-0.5 rounded font-mono shrink-0">
+                    <span className="text-[15px] text-orange-400 bg-orange-400/10 px-2 py-0.5 rounded font-mono shrink-0">
                       RSI {item.rsi.toFixed(0)}
                     </span>
                   )}
                 </div>
                 {item.volume_ratio != null && (
-                  <div className="text-[10px] text-[var(--muted)] mt-1.5">거래량 {item.volume_ratio.toFixed(1)}x</div>
+                  <div className="text-[15px] text-[var(--muted)] mt-1.5">거래량 {item.volume_ratio.toFixed(1)}x</div>
                 )}
               </div>
             ))}
@@ -153,8 +171,7 @@ export default function Scan() {
           <SnapHdr title="추천종목" color="text-yellow-400" currentSection={currentSection} total={3} />
           <div
             className="flex-1 overflow-y-auto px-3 pb-3 pt-2 space-y-2"
-            style={{ overscrollBehaviorY: 'contain' } as any}
-          >
+            style={{ overscrollBehaviorY: 'contain' } as any}>
             {allPicks.length === 0 ? (
               <div className="text-center py-12 text-[var(--muted)] text-sm">추천 데이터가 없습니다</div>
             ) : allPicks.map((item: any, i: number) => (
@@ -166,15 +183,15 @@ export default function Scan() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-[10px] bg-[var(--border)] text-white w-5 h-5 rounded flex items-center justify-center font-mono shrink-0">{i + 1}</span>
-                    <span className="text-white font-bold text-sm truncate">{item.display_name || item.name || item.symbol}</span>
-                    <span className="text-[var(--muted)] text-[10px] shrink-0">{item.symbol}</span>
+                    <span className="text-white font-bold text-[21px] truncate">{item.display_name || item.name || item.symbol}</span>
+                    <span className="text-[var(--muted)] text-[15px] shrink-0">{item.symbol}</span>
                   </div>
                   {item.score != null && (
-                    <span className="text-[10px] text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded font-mono shrink-0">{item.score}점</span>
+                    <span className="text-[15px] text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded font-mono shrink-0">{item.score}점</span>
                   )}
                 </div>
                 {(item.squeeze_level != null || item.rsi != null) && (
-                  <div className="text-[10px] text-[var(--muted)] mt-1.5 flex gap-3">
+                  <div className="text-[15px] text-[var(--muted)] mt-1.5 flex gap-3">
                     {item.squeeze_level != null && item.squeeze_level > 0 && <span>SQ Lv{item.squeeze_level}</span>}
                     {item.rsi != null && <span>RSI {item.rsi.toFixed(0)}</span>}
                   </div>

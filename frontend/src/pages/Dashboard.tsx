@@ -6,6 +6,7 @@ import { addSymbol, deleteSymbol, fetchBatchPrices, fetchFullScanLatest, fetchFu
 import SentimentPanel from '../components/SentimentPanel'
 import SignalCard from '../components/SignalCard'
 import { usePriceFlash } from '../hooks/usePriceFlash'
+import { usePageSwipe } from '../hooks/usePageSwipe'
 import { useSignalStore } from '../stores/signalStore'
 import { useAuthStore } from '../store/authStore'
 import { useToastStore } from '../stores/toastStore'
@@ -142,15 +143,18 @@ export default function Dashboard() {
     return (h > 9 || (h === 9 && m >= 30)) && h < 16
   }
 
-  // 추천 종목 병합 (모바일용)
+  // 거래량 내림차순 정렬 헬퍼
+  const byVolume = (arr: any[]) => [...arr].sort((a, b) => (b.volume_ratio || 0) - (a.volume_ratio || 0))
+
+  // 추천 종목 병합 (모바일용) — 코스피 2, 코스닥 2, 미국 1, 암호화폐 제외
   const allPicks: any[] = mobileScan.picks ? [
-    ...(mobileScan.picks.kospi || []),
-    ...(mobileScan.picks.kosdaq || []),
-    ...(mobileScan.picks.us || []),
-    ...(mobileScan.picks.crypto || []),
+    ...byVolume(mobileScan.picks.kospi || []).slice(0, 2),
+    ...byVolume(mobileScan.picks.kosdaq || []).slice(0, 2),
+    ...byVolume(mobileScan.picks.us || []).slice(0, 1),
   ] : []
 
-  const sH = 'calc(100dvh - 52px)' // 각 스냅 섹션 높이
+  const sH = 'calc(100dvh - 64px)' // 각 스냅 섹션 높이
+  usePageSwipe(snapRef)
 
   // ── 검색 박스 공통 JSX (인라인 사용 — 컴포넌트로 정의하면 매 렌더마다 리마운트됨) ──
   const searchDropdown = showDropdown && searchResults.length > 0
@@ -207,7 +211,7 @@ export default function Dashboard() {
       <div
         ref={snapRef}
         className="md:hidden fixed inset-x-0 top-0"
-        style={{ bottom: '52px', overflowY: 'scroll', scrollSnapType: 'y mandatory', WebkitOverflowScrolling: 'touch' } as any}
+        style={{ bottom: '64px', overflowY: 'scroll', scrollSnapType: 'y mandatory', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'none' } as any}
       >
         {/* ── 섹션 1: 시장지표 ── */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
@@ -219,33 +223,55 @@ export default function Dashboard() {
 
         {/* ── 섹션 2: 관심종목 ── */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
-          <SnapSectionHeader title="관심종목" color="text-white" currentSection={currentSection} />
+          <SnapSectionHeader title="관심종목" color="text-white" currentSection={currentSection} total={5} />
           {searchInputJSX(true)}
-          <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
-            {isLoading && <p className="text-[var(--muted)] text-sm py-4 text-center">로딩 중...</p>}
-            {signals.length === 0 && !isLoading && (
-              <div className="text-center py-8 text-[var(--muted)]">
+          <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-3" style={{ overscrollBehaviorY: 'contain' } as any}>
+            {isLoading && <p className="text-[var(--muted)] text-sm py-8 text-center">로딩 중...</p>}
+            {!isLoading && signals.length === 0 && (
+              <div className="text-center py-12 text-[var(--muted)]">
                 <p className="mb-1">등록된 종목이 없습니다</p>
                 <p className="text-xs">위 검색창에서 종목을 추가하세요</p>
               </div>
             )}
-            {signals.map((s, i) => (
-              <div key={s.watchlist_id} className="relative group">
-                <SignalCard signal={s} index={i + 1} />
-                <button
-                  onClick={(e) => { e.stopPropagation(); if (confirm(`${s.display_name || s.symbol} 삭제?`)) deleteMut.mutate(s.watchlist_id) }}
-                  className="absolute top-2 right-2 md:opacity-0 md:group-hover:opacity-100 p-1.5 bg-red-500/80 rounded text-white hover:bg-red-600 active:bg-red-700 transition">
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))}
+            {['KR', 'US', 'CRYPTO'].map((market) =>
+              grouped[market] ? (
+                <div key={market}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <h2 className="text-sm font-semibold text-[var(--muted)]">
+                      {marketLabel[market]} <span className="opacity-60">({grouped[market].length})</span>
+                    </h2>
+                    {isMarketOpenLocal(market) ? (
+                      <span className="text-[10px] text-green-400 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+                        실시간
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-[var(--muted)]">장종료</span>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    {grouped[market].map((s, i) => (
+                      <div key={s.watchlist_id} className="relative group">
+                        <SignalCard signal={s} index={i + 1} />
+                        <button
+                          onClick={(e) => { e.stopPropagation(); if (confirm(`${s.display_name || s.symbol} 삭제?`)) deleteMut.mutate(s.watchlist_id) }}
+                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1 bg-red-500/80 rounded text-white hover:bg-red-600 transition"
+                          title="워치리스트에서 삭제">
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null
+            )}
           </div>
         </div>
 
         {/* ── 섹션 3: 차트 BUY 신호 ── */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
-          <SnapSectionHeader title="차트 BUY 신호" color="text-green-400" currentSection={currentSection} />
-          <p className="text-[10px] text-[var(--muted)] px-3 py-1 shrink-0">일봉 3일 이내 · 데드크로스 제외</p>
+          <SnapSectionHeader title="차트 BUY 신호" color="text-[var(--buy)]" currentSection={currentSection} />
+          <p className="text-[15px] text-[var(--muted)] px-3 py-1 shrink-0">일봉 3일 이내 · 데드크로스 제외</p>
           <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
             {mobileScan.buyItems.length === 0 ? (
               <p className="text-[var(--muted)] text-sm py-8 text-center">BUY 신호 종목이 없습니다</p>
@@ -262,33 +288,33 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* ── 섹션 4: 투자과열 ── */}
+        {/* ── 섹션 3: 투자과열 ── */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
-          <SnapSectionHeader title="투자과열 신호" color="text-red-400" currentSection={currentSection} />
-          <p className="text-[10px] text-[var(--muted)] px-3 py-1 shrink-0">RSI 70+ 또는 RSI 65+ 거래량 2x · 국내 개별주</p>
+          <SnapSectionHeader title="투자과열 신호" color="text-[var(--sell)]" currentSection={currentSection} />
+          <p className="text-[15px] text-[var(--muted)] px-3 py-1 shrink-0">RSI 70+ 또는 RSI 65+ 거래량 2x · 국내 개별주</p>
           <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
             {mobileScan.overheatItems.length === 0 ? (
               <p className="text-[var(--muted)] text-sm py-8 text-center">투자과열 종목이 없습니다</p>
-            ) : mobileScan.overheatItems.map((item: any, i: number) => (
+            ) : byVolume(mobileScan.overheatItems).slice(0, 5).map((item: any, i: number) => (
               <div key={item.symbol}
                 onClick={() => nav(`/${item.symbol}?market=${item.market_type || item.market}`)}
                 className="bg-[var(--card)] border border-red-500/30 rounded-lg p-4 cursor-pointer hover:border-red-500/60 transition active:scale-[0.98]">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="text-[11px] bg-red-500/20 text-red-400 w-5 h-5 rounded flex items-center justify-center font-mono shrink-0">{i + 1}</span>
-                    <span className="text-white font-semibold text-base truncate">{item.name}</span>
+                    <span className="text-[11px] bg-[var(--sell)]/20 text-[var(--sell)] w-5 h-5 rounded flex items-center justify-center font-mono shrink-0">{i + 1}</span>
+                    <span className="text-[var(--text)] font-semibold text-base truncate">{item.name}</span>
                     <span className="text-[var(--muted)] text-xs shrink-0">{item.symbol}</span>
                   </div>
-                  <span className="text-[10px] font-bold text-red-400 bg-red-500/20 px-2 py-0.5 rounded shrink-0">과열</span>
+                  <span className="text-[15px] font-bold text-[var(--sell)] bg-[var(--sell)]/20 px-2 py-0.5 rounded shrink-0">과열</span>
                 </div>
                 <div className="flex items-baseline gap-2 mb-1.5">
-                  <span className="text-xl font-mono font-bold text-white">{item.price?.toLocaleString()}</span>
-                  <span className={`text-sm font-mono font-semibold ${item.change_pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  <span className="text-xl font-mono font-bold text-[var(--text)]">{item.price?.toLocaleString()}</span>
+                  <span className={`text-sm font-mono font-semibold ${item.change_pct >= 0 ? 'text-[var(--buy)]' : 'text-[var(--sell)]'}`}>
                     {item.change_pct >= 0 ? '+' : ''}{item.change_pct}%
                   </span>
                 </div>
-                <div className="flex items-center gap-3 text-xs mb-2">
-                  <span className="text-red-400 font-bold">RSI {item.rsi?.toFixed(0)}</span>
+                <div className="flex items-center gap-3 text-[18px] mb-2">
+                  <span className="text-[var(--sell)] font-bold">RSI {item.rsi?.toFixed(0)}</span>
                   <span className="text-[var(--muted)]">거래량 <span className="text-white font-mono">{item.volume_ratio?.toFixed(1)}x</span></span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
@@ -298,7 +324,7 @@ export default function Dashboard() {
                     volume_ratio: item.volume_ratio,
                     macd_hist: item.macd_hist,
                   })].map(b => (
-                    <span key={b.label} className={`text-xs px-2 py-0.5 rounded ${b.cls}`}>{b.label}</span>
+                    <span key={b.label} className={`text-[18px] px-2 py-0.5 rounded ${b.cls}`}>{b.label}</span>
                   ))}
                 </div>
               </div>
@@ -306,10 +332,10 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* ── 섹션 5: 추천 종목 ── */}
+        {/* ── 섹션 4: 추천 종목 ── */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
           <SnapSectionHeader title="추천 종목" color="text-orange-400" currentSection={currentSection} />
-          <p className="text-[10px] text-[var(--muted)] px-3 py-1 shrink-0">스퀴즈 + 상승추세 + 데드크로스 제외 · 시장별 Top 15</p>
+          <p className="text-[15px] text-[var(--muted)] px-3 py-1 shrink-0">스퀴즈 + 상승추세 + 데드크로스 제외 · 시장별 Top 15</p>
           <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
             {allPicks.length === 0 ? (
               <p className="text-[var(--muted)] text-sm py-8 text-center">추천 종목이 없습니다</p>
@@ -394,7 +420,7 @@ export default function Dashboard() {
 function SnapSectionHeader({ title, color, currentSection, total = 5 }: { title: string; color: string; currentSection: number; total?: number }) {
   return (
     <div className="flex items-center justify-between px-3 pt-3 pb-2 shrink-0 border-b border-[var(--border)]/50">
-      <h2 className={`text-base font-bold ${color}`}>{title}</h2>
+      <h2 className={`text-[34px] font-bold ${color}`}>{title}</h2>
       <div className="flex gap-1.5">
         {Array.from({ length: total }, (_, i) => (
           <div key={i} className={`h-1.5 rounded-full transition-all ${i === currentSection ? `w-4 ${color.replace('text-', 'bg-')}` : 'w-1.5 bg-white/20'}`} />
@@ -747,7 +773,7 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
         return (
           <div className="mb-2">
             <div className="flex items-center gap-2 mb-3 flex-wrap">
-              <h2 className="text-sm font-bold text-green-400">차트 BUY 신호</h2>
+              <h2 className="text-sm font-bold text-[var(--buy)]">차트 BUY 신호</h2>
               <span className="text-[9px] text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">일봉 3일 이내 + 데드크로스 제외</span>
               <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${
                 mode === 'KR' ? 'bg-blue-500/15 text-blue-300' :
@@ -780,10 +806,10 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
         <div className="border-t border-[var(--border)] my-4" />
         <div className="mb-5">
           <button onClick={toggleOverheat} className="flex items-center gap-2 mb-3 w-full text-left">
-            {showOverheat ? <ChevronDown size={14} className="text-red-400" /> : <ChevronRight size={14} className="text-red-400" />}
-            <h2 className="text-sm font-bold text-red-400">투자과열 신호</h2>
+            {showOverheat ? <ChevronDown size={14} className="text-[var(--sell)]" /> : <ChevronRight size={14} className="text-[var(--sell)]" />}
+            <h2 className="text-sm font-bold text-[var(--sell)]">투자과열 신호</h2>
             <span className="text-[9px] text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">RSI 70+ 또는 RSI 65+거래량 2x · 국내 개별주</span>
-            <span className="text-[9px] text-red-400 font-bold">{overheatItems.length}종목</span>
+            <span className="text-[9px] text-[var(--sell)] font-bold">{overheatItems.length}종목</span>
             {!showOverheat && <span className="text-[9px] text-[var(--muted)]">접힘</span>}
           </button>
           {showOverheat && (
@@ -795,22 +821,22 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
                   {/* 헤더: 순위 + 이름 + 코드 | 과열 배지 */}
                   <div className="flex items-center justify-between mb-2 md:mb-1">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="text-[11px] bg-red-500/20 text-red-400 w-5 h-5 rounded flex items-center justify-center font-mono shrink-0">{i + 1}</span>
-                      <span className="text-white font-semibold text-base md:text-sm truncate">{item.name}</span>
+                      <span className="text-[11px] bg-[var(--sell)]/20 text-[var(--sell)] w-5 h-5 rounded flex items-center justify-center font-mono shrink-0">{i + 1}</span>
+                      <span className="text-[var(--text)] font-semibold text-base md:text-sm truncate">{item.name}</span>
                       <span className="text-[var(--muted)] text-xs md:text-[10px] shrink-0">{item.symbol}</span>
                     </div>
-                    <span className="text-[10px] md:text-[9px] font-bold text-red-400 bg-red-500/20 px-2 py-0.5 rounded shrink-0">과열</span>
+                    <span className="text-[10px] md:text-[9px] font-bold text-[var(--sell)] bg-[var(--sell)]/20 px-2 py-0.5 rounded shrink-0">과열</span>
                   </div>
                   {/* 가격 행 */}
                   <div className="md:flex md:items-center md:justify-between">
                     <div className="flex items-baseline gap-2 md:gap-1.5">
                       <span className="text-xl md:text-sm font-mono font-bold text-white">{item.price?.toLocaleString()}</span>
-                      <span className={`text-sm md:text-[10px] font-mono font-semibold ${item.change_pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      <span className={`text-sm md:text-[10px] font-mono font-semibold ${item.change_pct >= 0 ? 'text-[var(--buy)]' : 'text-[var(--sell)]'}`}>
                         {item.change_pct >= 0 ? '+' : ''}{item.change_pct}%
                       </span>
                     </div>
                     <div className="flex items-center gap-3 md:gap-2 text-xs md:text-[10px] mt-1.5 md:mt-0">
-                      <span className="text-red-400 font-bold">RSI {item.rsi?.toFixed(0)}</span>
+                      <span className="text-[var(--sell)] font-bold">RSI {item.rsi?.toFixed(0)}</span>
                       <span className="text-[var(--muted)]">거래량 <span className="text-white font-mono">{item.volume_ratio?.toFixed(1)}x</span></span>
                     </div>
                   </div>
@@ -928,12 +954,12 @@ function PickCard({ p, index, livePrice, onAdd, onNavigate, adding, added }: {
       <div className="flex items-center justify-between mb-1.5 md:mb-1">
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="text-[11px] md:text-[10px] bg-[var(--border)] text-white w-5 h-5 md:w-4 md:h-4 rounded flex items-center justify-center font-mono">{index + 1}</span>
-          <span className="text-white font-semibold text-base md:text-sm truncate">{p.name}</span>
-          <span className="text-[var(--muted)] text-[11px] md:text-[10px] shrink-0">{p.symbol}</span>
+          <span className="text-white font-semibold text-[24px] md:text-sm truncate">{p.name}</span>
+          <span className="text-[var(--muted)] text-[17px] md:text-[10px] shrink-0">{p.symbol}</span>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {p.trend === 'BULL' && (
-            <span className="text-[10px] md:text-[9px] font-bold text-green-400 bg-green-400/10 px-1.5 md:px-1 py-0.5 rounded">상승추세</span>
+            <span className="text-[10px] md:text-[9px] font-bold text-[var(--buy)] bg-[var(--buy)]/10 px-1.5 md:px-1 py-0.5 rounded">상승추세</span>
           )}
           <div className="flex items-center gap-0.5">
             <div className="w-2.5 h-2.5 md:w-2 md:h-2 rounded-full" style={{ background: sqColors[p.squeeze_level] }} />
@@ -945,7 +971,7 @@ function PickCard({ p, index, livePrice, onAdd, onNavigate, adding, added }: {
               <Plus size={14} className="md:w-3 md:h-3" />
             </button>
           ) : (
-            <span className="text-[10px] md:text-[9px] text-green-400">추가됨</span>
+            <span className="text-[10px] md:text-[9px] text-[var(--buy)]">추가됨</span>
           )}
         </div>
       </div>
@@ -954,12 +980,12 @@ function PickCard({ p, index, livePrice, onAdd, onNavigate, adding, added }: {
           <span className={`text-xl md:text-sm font-mono font-semibold transition-colors duration-300 ${flashClass}`}>
             {fmtPrice(price, p.market_type)}
           </span>
-          <span className={`text-sm md:text-[10px] font-mono ${pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+          <span className={`text-sm md:text-[10px] font-mono ${pct >= 0 ? 'text-[var(--buy)]' : 'text-[var(--sell)]'}`}>
             {pct >= 0 ? '+' : ''}{pct}%
           </span>
         </div>
-        <div className="flex items-center gap-3 md:gap-2 text-xs md:text-[9px] mt-1.5 md:mt-0">
-          <span className="text-[var(--muted)]">RSI <span className="text-white font-mono font-semibold">{p.rsi}</span></span>
+        <div className="flex items-center gap-3 md:gap-2 text-[18px] md:text-[9px] mt-1.5 md:mt-0">
+          <span className="text-[var(--muted)]">RSI <span className="text-[var(--text)] font-mono font-semibold">{p.rsi}</span></span>
           <span className="text-[var(--muted)]">%B <span className="text-white font-mono font-semibold">{p.bb_pct_b}%</span></span>
           <span className="text-[var(--muted)]">Vol <span className="text-white font-mono font-semibold">{p.volume_ratio}x</span></span>
         </div>
@@ -978,7 +1004,7 @@ function PickCard({ p, index, livePrice, onAdd, onNavigate, adding, added }: {
         return (
           <div className="flex flex-wrap gap-1.5 md:gap-1 mt-2 md:mt-1">
             {tags.map(t => (
-              <span key={t.label} className={`text-xs md:text-[8px] px-2 md:px-1.5 py-0.5 rounded ${t.cls}`}>{t.label}</span>
+              <span key={t.label} className={`text-[18px] md:text-[8px] px-2 md:px-1.5 py-0.5 rounded ${t.cls}`}>{t.label}</span>
             ))}
           </div>
         )
@@ -999,7 +1025,7 @@ function BuyCard({ item, index, livePrice, nav }: { item: any; index: number; li
   const mktBadge = marketBadge(item.market_type || item.market)
   const signalBadge = item.last_signal === 'SQZ BUY'
     ? { label: '스퀴즈해소', cls: 'text-cyan-400 bg-cyan-400/10', priority: 1 }
-    : { label: 'BB반전', cls: 'text-green-400 bg-green-400/10', priority: 1 }
+    : { label: 'BB반전', cls: 'text-[var(--buy)] bg-[var(--buy)]/10', priority: 1 }
   const indicators = indicatorBadges({
     squeeze_level: item.squeeze_level,
     rsi: item.rsi,
@@ -1015,15 +1041,15 @@ function BuyCard({ item, index, livePrice, nav }: { item: any; index: number; li
       <div className="flex items-center justify-between mb-1.5 md:mb-1">
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="text-[11px] md:text-[10px] bg-[var(--border)] text-white w-5 h-5 md:w-4 md:h-4 rounded flex items-center justify-center font-mono">{index + 1}</span>
-          <span className="text-white font-semibold text-base md:text-sm truncate">{item.display_name || item.name}</span>
-          <span className="text-[var(--muted)] text-[11px] md:text-[10px] shrink-0">{item.symbol}</span>
+          <span className="text-white font-semibold text-[24px] md:text-sm truncate">{item.display_name || item.name}</span>
+          <span className="text-[var(--muted)] text-[17px] md:text-[10px] shrink-0">{item.symbol}</span>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {item.trend === 'BULL' && (
-            <span className="text-[10px] md:text-[9px] font-bold text-green-400 bg-green-400/10 px-1.5 md:px-1 py-0.5 rounded">상승추세</span>
+            <span className="text-[15px] md:text-[9px] font-bold text-[var(--buy)] bg-[var(--buy)]/10 px-1.5 md:px-1 py-0.5 rounded">상승추세</span>
           )}
-          <span className={`text-[10px] md:text-[9px] font-bold px-1.5 md:px-1 py-0.5 rounded ${
-            item.last_signal === 'SQZ BUY' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-green-500/20 text-green-400'
+          <span className={`text-[15px] md:text-[9px] font-bold px-1.5 md:px-1 py-0.5 rounded ${
+            item.last_signal === 'SQZ BUY' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-[var(--buy)]/20 text-[var(--buy)]'
           }`}>{item.last_signal}</span>
         </div>
       </div>
@@ -1032,18 +1058,18 @@ function BuyCard({ item, index, livePrice, nav }: { item: any; index: number; li
           <span className={`text-xl md:text-sm font-mono font-semibold transition-colors duration-300 ${flashClass}`}>
             {fmtPrice(price, item.market)}
           </span>
-          <span className={`text-sm md:text-[10px] font-mono ${pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+          <span className={`text-sm md:text-[10px] font-mono ${pct >= 0 ? 'text-[var(--buy)]' : 'text-[var(--sell)]'}`}>
             {pct >= 0 ? '+' : ''}{pct}%
           </span>
         </div>
-        <div className="flex items-center gap-3 md:gap-2 text-xs md:text-[9px] mt-1 md:mt-0">
+        <div className="flex items-center gap-3 md:gap-2 text-[18px] md:text-[9px] mt-1 md:mt-0">
           <span className="text-[var(--muted)]">{item.last_signal_date}</span>
           {item.rsi != null && <span className="text-[var(--muted)]">RSI <span className="text-white font-mono font-semibold">{item.rsi?.toFixed(0)}</span></span>}
         </div>
       </div>
       <div className="flex flex-wrap gap-1.5 md:gap-1 mt-2 md:mt-1">
         {reasons.map(r => (
-          <span key={r.label} className={`text-xs md:text-[8px] px-2 md:px-1.5 py-0.5 rounded ${r.cls}`}>
+          <span key={r.label} className={`text-[18px] md:text-[8px] px-2 md:px-1.5 py-0.5 rounded ${r.cls}`}>
             {r.label}
           </span>
         ))}
