@@ -75,7 +75,7 @@ export default function Scan() {
             ) : buyItems.map((item, i) => (
               <div
                 key={item.symbol}
-                onClick={() => nav(`/${item.symbol}?market=${item.market_type || item.market || 'KR'}`)}
+                onClick={() => nav(`/${item.symbol}?market=${item.market_type || item.market || 'KR'}`, { state: { buySignal: item } })}
                 className="bg-[var(--card)] border border-[var(--buy)]/20 rounded-xl p-4 cursor-pointer hover:border-[var(--buy)]/50 transition active:scale-[0.98]"
               >
                 {/* 헤더: 순위 + 이름 + BUY 뱃지 */}

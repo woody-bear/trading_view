@@ -1,7 +1,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Check, Plus } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import BuySignalBanner from '../components/BuySignalBanner'
+import type { NavigateState } from '../utils/buyReason'
 import { addSymbol, checkPatternCaseDuplicate, createPatternCase, fetchIndicatorsAt, fetchPatternCases, fetchQuickChart, fetchSignalBySymbol, fetchSignals, getSensitivity, setSensitivity } from '../api/client'
 import { fmtPrice as _fmtPrice } from '../utils/format'
 import ChartEmptyState from '../components/charts/ChartEmptyState'
@@ -89,6 +91,8 @@ export default function SignalDetail() {
   const { symbol: urlSymbol } = useParams()
   const [searchParams] = useSearchParams()
   const nav = useNavigate()
+  const { state: navState } = useLocation()
+  const buySignal = (navState as NavigateState)?.buySignal
   const qc = useQueryClient()
   const globalTf = '1d'  // 일봉 고정
 
@@ -393,43 +397,10 @@ export default function SignalDetail() {
         <ConnectionIndicator status={connectionStatus || (realtimeConnected ? 'connected' : 'disconnected')} onReconnect={reconnect || (() => {})} />
       </div>
 
-      {/* 위험경고 배너 (한국 주식만) */}
-      <RiskWarningBanner symbol={lookupSymbol} market={guessMarket} />
+      {/* BUY 신호 이유 배너 — BUY 리스트 진입 시만 표시 */}
+      {buySignal && <BuySignalBanner item={buySignal} />}
 
-      {/* 차트 */}
-      {(chartLoading || chartFetching || !chartSymbolMatch) && !chartError && (
-        <div className="relative">
-          <ChartSkeleton />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-sm text-[var(--muted)] bg-[var(--card)]/80 px-3 py-1.5 rounded-lg backdrop-blur-sm">차트 로드중...</span>
-          </div>
-        </div>
-      )}
-      {chartEmpty && chartSymbolMatch && <ChartEmptyState status="empty" />}
-      {chartTimeout && <ChartEmptyState status="timeout" onRetry={() => refetchChart()} />}
-      {chartError && !chartTimeout && <ChartEmptyState status="error" onRetry={() => refetchChart()} />}
-      {chartData && chartSymbolMatch && !chartEmpty && !chartError && !chartFetching && (
-        <ChartErrorBoundary onReset={() => refetchChart()}>
-          <IndicatorChart
-            data={chartData}
-            watchlistId={wid}
-            realtimePrice={livePrice}
-            buyPoint={buyPoint}
-            onBuyMarkerClick={({ price, markerTime }) => {
-              toggleBuyPoint({
-                symbol: lookupSymbol,
-                price,
-                date: new Date().toISOString().slice(0, 10),
-                markerTime,
-              })
-            }}
-            scrapedDates={scrapedDates}
-            onScrapSave={user ? handleScrapSave : undefined}
-          />
-        </ChartErrorBoundary>
-      )}
-
-      {/* 포지션 가이드 — 차트 마지막 BUY/SELL 마커 기준 */}
+      {/* 포지션 가이드 — 차트 마지막 BUY/SELL 마커 기준 (가격 영역 아래, 차트 위) */}
       <PositionGuide
         symbol={lookupSymbol}
         signalState={(() => {
@@ -465,6 +436,42 @@ export default function SignalDetail() {
         ema20={s.ema_20}
         ema50={s.ema_50}
       />
+
+      {/* 위험경고 배너 (한국 주식만) */}
+      <RiskWarningBanner symbol={lookupSymbol} market={guessMarket} />
+
+      {/* 차트 */}
+      {(chartLoading || chartFetching || !chartSymbolMatch) && !chartError && (
+        <div className="relative">
+          <ChartSkeleton />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-sm text-[var(--muted)] bg-[var(--card)]/80 px-3 py-1.5 rounded-lg backdrop-blur-sm">차트 로드중...</span>
+          </div>
+        </div>
+      )}
+      {chartEmpty && chartSymbolMatch && <ChartEmptyState status="empty" />}
+      {chartTimeout && <ChartEmptyState status="timeout" onRetry={() => refetchChart()} />}
+      {chartError && !chartTimeout && <ChartEmptyState status="error" onRetry={() => refetchChart()} />}
+      {chartData && chartSymbolMatch && !chartEmpty && !chartError && !chartFetching && (
+        <ChartErrorBoundary onReset={() => refetchChart()}>
+          <IndicatorChart
+            data={chartData}
+            watchlistId={wid}
+            realtimePrice={livePrice}
+            buyPoint={buyPoint}
+            onBuyMarkerClick={({ price, markerTime }) => {
+              toggleBuyPoint({
+                symbol: lookupSymbol,
+                price,
+                date: new Date().toISOString().slice(0, 10),
+                markerTime,
+              })
+            }}
+            scrapedDates={scrapedDates}
+            onScrapSave={user ? handleScrapSave : undefined}
+          />
+        </ChartErrorBoundary>
+      )}
 
       {/* 투자지표 + 52주 범위 + 가격제한 */}
       <StockFundamentals symbol={lookupSymbol} market={guessMarket} />

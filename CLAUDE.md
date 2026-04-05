@@ -165,6 +165,8 @@ BUY/SELL/NEUTRAL. 조건: BB %B, RSI, MACD 전환, 거래량. 민감도 3단계(
 - 없음 (DB 스키마 변경 없음, 실시간 조회 + 메모리 캐시) (013-fear-index-chart)
 - TypeScript 5.x (React 18) + React 18, Tailwind CSS v4 (`@tailwindcss/vite`), lightweight-charts v5, Zustand, React Query (014-toss-ui-redesign)
 - N/A (DB 스키마 변경 없음) (014-toss-ui-redesign)
+- TypeScript 5.x (React 18) + React Router v6, React 18, Tailwind CSS v4 (015-buy-signal-reason)
+- N/A (DB 스키마 변경 없음 — 신호 데이터는 이미 scan item에 포함) (015-buy-signal-reason)
 
 ## Recent Changes
 - 002-fix-chart-usability: Added TypeScript 5.x (React 18) + Python 3.12 (변경 없음) + React 18, lightweight-charts v5, Zustand, React Query, Tailwind CSS
