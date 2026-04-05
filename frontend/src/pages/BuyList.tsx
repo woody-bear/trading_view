@@ -758,7 +758,7 @@ export default function BuyList() {
       </div>
 
       {/* ── 스캔 범위 설명 ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-4">
         <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg px-3 py-2">
           <div className="text-[10px] font-semibold text-blue-400 mb-1.5">🇰🇷 국내 스캔 대상</div>
           <div className="flex flex-wrap gap-1.5">
@@ -774,7 +774,7 @@ export default function BuyList() {
           </div>
         </div>
         <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg px-3 py-2">
-          <div className="text-[10px] font-semibold text-emerald-400 mb-1.5">🇺🇸 미국+암호화폐 스캔 대상</div>
+          <div className="text-[10px] font-semibold text-emerald-400 mb-1.5">🇺🇸 미국 주식 스캔 대상</div>
           <div className="flex flex-wrap gap-1.5">
             {[
               { label: 'S&P 500', count: breakdown?.sp500 ?? 0, color: 'bg-emerald-500/20 text-emerald-300' },
@@ -784,6 +784,14 @@ export default function BuyList() {
               <span key={b.label} className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${b.color}`}>
                 {b.label} {b.count > 0 ? `${b.count}` : ''}
               </span>
+            ))}
+          </div>
+        </div>
+        <div className="bg-yellow-500/5 border border-yellow-500/20 rounded-lg px-3 py-2">
+          <div className="text-[10px] font-semibold text-yellow-400 mb-1.5">₿ 암호화폐 스캔 대상</div>
+          <div className="flex flex-wrap gap-1.5">
+            {['BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'ADA', 'AVAX', 'DOGE', 'DOT', 'LINK'].map(coin => (
+              <span key={coin} className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-yellow-500/20 text-yellow-300">{coin}</span>
             ))}
           </div>
         </div>
@@ -839,13 +847,24 @@ export default function BuyList() {
         </div>
 
         {/* 미국 슬롯 */}
-        <div>
+        <div className="mb-3">
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-[10px] text-emerald-400 font-semibold">🇺🇸 미국+암호화폐 스캔</span>
-            <span className="text-[9px] text-[var(--muted)]">19:50 / 03:50 KST · S&P500+나스닥100+Russell1000+암호화폐</span>
+            <span className="text-[10px] text-emerald-400 font-semibold">🇺🇸 미국 주식 스캔</span>
+            <span className="text-[9px] text-[var(--muted)]">19:50 / 03:50 KST · S&P500+나스닥100+Russell1000</span>
           </div>
           <div className="flex gap-2">
             {usSlots.map(slot => <SlotCard key={slot.time} slot={slot} onClick={() => setSelectedSlot(slot)} />)}
+          </div>
+        </div>
+
+        {/* 암호화폐 슬롯 */}
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[10px] text-yellow-400 font-semibold">₿ 암호화폐 스캔</span>
+            <span className="text-[9px] text-[var(--muted)]">19:50 / 03:50 KST · 미국 주식과 동일 시간대 병행 스캔</span>
+          </div>
+          <div className="flex gap-2">
+            {usSlots.map(slot => <SlotCard key={`crypto-${slot.time}`} slot={slot} onClick={() => setSelectedSlot(slot)} />)}
           </div>
         </div>
       </div>
