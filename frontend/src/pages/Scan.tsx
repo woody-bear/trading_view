@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { MarketScanBox } from './Dashboard'
-import { fetchFullScanLatest, fetchUnifiedCache } from '../api/client'
+import { useScanStore, loadScanData } from '../stores/scanStore'
 import { usePageSwipe } from '../hooks/usePageSwipe'
 
 function SnapHdr({ title, color, currentSection, total }: {
@@ -29,31 +29,9 @@ export default function Scan() {
   const qc = useQueryClient()
   const snapRef = useRef<HTMLDivElement>(null)
   const [currentSection, setCurrentSection] = useState(0)
-  const [scanData, setScanData] = useState<{
-    buyItems: any[]; overheatItems: any[]; picks: any | null
-  }>({ buyItems: [], overheatItems: [], picks: null })
+  const { buyItems, overheatItems, picks, loaded: scanLoaded } = useScanStore()
 
-  useEffect(() => {
-    fetchFullScanLatest()
-      .then(r => {
-        if (r?.status !== 'no_data' && r?.picks) {
-          setScanData({
-            buyItems: r.chart_buy?.items || [],
-            overheatItems: r.overheat?.items || [],
-            picks: r.picks,
-          })
-        } else {
-          fetchUnifiedCache().then(r2 => {
-            setScanData({
-              buyItems: r2?.chart_buy?.items || [],
-              overheatItems: r2?.overheat?.items || [],
-              picks: r2?.picks || null,
-            })
-          }).catch(() => {})
-        }
-      })
-      .catch(() => {})
-  }, [])
+  useEffect(() => { loadScanData() }, [])
 
   useEffect(() => {
     const el = snapRef.current
@@ -70,10 +48,10 @@ export default function Scan() {
   usePageSwipe(snapRef)
 
   const byVol = (arr: any[]) => [...arr].sort((a, b) => (b.volume_ratio || 0) - (a.volume_ratio || 0))
-  const allPicks = scanData.picks ? [
-    ...byVol(scanData.picks.kospi || []).slice(0, 2),
-    ...byVol(scanData.picks.kosdaq || []).slice(0, 2),
-    ...byVol(scanData.picks.us || []).slice(0, 1),
+  const allPicks = picks ? [
+    ...byVol(picks.kospi || []).slice(0, 2),
+    ...byVol(picks.kosdaq || []).slice(0, 2),
+    ...byVol(picks.us || []).slice(0, 1),
   ] : []
 
   return (
@@ -90,9 +68,11 @@ export default function Scan() {
           <div
             className="flex-1 overflow-y-auto px-3 pb-3 pt-2 space-y-2"
             style={{ overscrollBehaviorY: 'contain' } as any}>
-            {scanData.buyItems.length === 0 ? (
+            {!scanLoaded ? (
+              <div className="text-center py-12 text-[var(--muted)] text-sm">로딩 중...</div>
+            ) : buyItems.length === 0 ? (
               <div className="text-center py-12 text-[var(--muted)] text-sm">BUY 신호 데이터가 없습니다</div>
-            ) : scanData.buyItems.map((item, i) => (
+            ) : buyItems.map((item, i) => (
               <div
                 key={item.symbol}
                 onClick={() => nav(`/${item.symbol}?market=${item.market_type || item.market || 'KR'}`)}
@@ -138,9 +118,11 @@ export default function Scan() {
           <div
             className="flex-1 overflow-y-auto px-3 pb-3 pt-2 space-y-2"
             style={{ overscrollBehaviorY: 'contain' } as any}>
-            {scanData.overheatItems.length === 0 ? (
+            {!scanLoaded ? (
+              <div className="text-center py-12 text-[var(--muted)] text-sm">로딩 중...</div>
+            ) : overheatItems.length === 0 ? (
               <div className="text-center py-12 text-[var(--muted)] text-sm">투자과열 데이터가 없습니다</div>
-            ) : byVol(scanData.overheatItems).slice(0, 5).map((item, i) => (
+            ) : byVol(overheatItems).slice(0, 5).map((item, i) => (
               <div
                 key={item.symbol}
                 onClick={() => nav(`/${item.symbol}?market=${item.market_type || item.market || 'KR'}`)}
@@ -172,7 +154,9 @@ export default function Scan() {
           <div
             className="flex-1 overflow-y-auto px-3 pb-3 pt-2 space-y-2"
             style={{ overscrollBehaviorY: 'contain' } as any}>
-            {allPicks.length === 0 ? (
+            {!scanLoaded ? (
+              <div className="text-center py-12 text-[var(--muted)] text-sm">로딩 중...</div>
+            ) : allPicks.length === 0 ? (
               <div className="text-center py-12 text-[var(--muted)] text-sm">추천 데이터가 없습니다</div>
             ) : allPicks.map((item: any, i: number) => (
               <div
