@@ -564,7 +564,7 @@ export default function BuyList() {
       >
         {/* Section 1: 스캔 현황 (KR) */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
-          <SnapHdr title="스캔 현황 (KR)" color="text-blue-400" currentSection={currentSection} total={3} />
+          <SnapHdr title="스캔 현황 (KR)" color="text-blue-400" currentSection={currentSection} total={4} />
           <div className="flex-1 overflow-y-auto px-3 pb-3 pt-2 space-y-3" style={{ overscrollBehaviorY: 'contain' } as any}>
             <div className="grid grid-cols-3 gap-3">
               <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 text-center">
@@ -608,43 +608,65 @@ export default function BuyList() {
           </div>
         </div>
 
-        {/* Section 2: 스캔 현황 (US) + 텔레그램 */}
+        {/* Section 2: 스캔 현황 (US) */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
-          <SnapHdr title="스캔 현황 (US)" color="text-emerald-400" currentSection={currentSection} total={3} />
+          <SnapHdr title="스캔 현황 (US)" color="text-emerald-400" currentSection={currentSection} total={4} />
           <div className="flex-1 overflow-y-auto px-3 pb-3 pt-2 space-y-3" style={{ overscrollBehaviorY: 'contain' } as any}>
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3">
-              <div className="text-[10px] text-emerald-400 font-semibold mb-2">🇺🇸 미국+암호화폐 (19:50 / 03:50)</div>
+            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm text-emerald-400 font-semibold">🇺🇸 미국 주식 (19:50 / 03:50)</span>
+              </div>
               <div className="flex gap-2">
                 {usSlots.map(slot => <SlotCard key={slot.time} slot={slot} onClick={() => setSelectedSlot(slot)} />)}
               </div>
             </div>
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3">
-              <div className="flex items-center gap-2 mb-3">
-                <Bell size={13} className="text-sky-400" />
-                <span className="text-sm font-semibold text-white">텔레그램 자동 알림</span>
-              </div>
-              <div className="space-y-1">
-                {([
-                  { time: '평일 10:30', label: '국내 BUY 신호', color: 'text-green-400' },
-                  { time: '평일 15:00', label: '국내 BUY 신호', color: 'text-green-400' },
-                  { time: '평일 20:00', label: '미국 BUY 신호', color: 'text-emerald-400' },
-                  { time: '화~토 04:00', label: '미국 장중 BUY', color: 'text-emerald-400' },
-                  { time: '09:00~15:30', label: '국내 SELL 체크 (30분마다)', color: 'text-yellow-400' },
-                  { time: '평일 20:00 / 04:00', label: '미국 SELL 체크', color: 'text-orange-400' },
-                ] as const).map((row, idx) => (
-                  <div key={idx} className="flex items-center gap-3 py-1 border-b border-[var(--border)]/30 last:border-0">
-                    <span className={`font-mono text-[10px] font-semibold shrink-0 w-[80px] ${row.color}`}>{row.time}</span>
-                    <span className="text-[11px] text-[var(--muted)]">{row.label}</span>
-                  </div>
+            <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg px-3 py-2">
+              <div className="text-[10px] font-semibold text-emerald-400 mb-1.5">스캔 대상</div>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { label: 'S&P 500', color: 'bg-emerald-500/20 text-emerald-300' },
+                  { label: '나스닥100', color: 'bg-green-500/20 text-green-300' },
+                  { label: 'Russell1000', color: 'bg-orange-500/20 text-orange-300' },
+                  { label: '미국 ETF', color: 'bg-sky-500/20 text-sky-300' },
+                ].map(b => (
+                  <span key={b.label} className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${b.color}`}>{b.label}</span>
                 ))}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Section 3: 종목 목록 */}
+        {/* Section 3: 스캔 현황 (암호화폐) */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
-          <SnapHdr title="종목 목록" color="text-cyan-400" currentSection={currentSection} total={3} />
+          <SnapHdr title="스캔 현황 (암호화폐)" color="text-yellow-400" currentSection={currentSection} total={4} />
+          <div className="flex-1 overflow-y-auto px-3 pb-3 pt-2 space-y-3" style={{ overscrollBehaviorY: 'contain' } as any}>
+            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm text-yellow-400 font-semibold">₿ 암호화폐 (19:50 / 03:50)</span>
+              </div>
+              <div className="flex gap-2">
+                {usSlots.map(slot => <SlotCard key={slot.time} slot={slot} onClick={() => setSelectedSlot(slot)} />)}
+              </div>
+            </div>
+            <div className="bg-yellow-500/5 border border-yellow-500/20 rounded-lg px-3 py-2">
+              <div className="text-[10px] font-semibold text-yellow-400 mb-1.5">스캔 대상 (주요 코인)</div>
+              <div className="flex flex-wrap gap-1.5">
+                {['BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'ADA', 'AVAX', 'DOGE', 'DOT', 'LINK'].map(coin => (
+                  <span key={coin} className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-yellow-500/20 text-yellow-300">{coin}</span>
+                ))}
+              </div>
+            </div>
+            <div className="bg-[var(--card)] border border-[var(--border)]/50 rounded-lg px-3 py-2.5">
+              <p className="text-[11px] text-[var(--muted)] leading-relaxed">
+                미국 주식과 동일한 시간대(19:50 / 03:50)에 함께 스캔됩니다. 슬롯을 탭하면 해당 시간의 암호화폐 BUY 신호를 확인할 수 있습니다.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Section 4: 종목 목록 */}
+        <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
+          <SnapHdr title="종목 목록" color="text-cyan-400" currentSection={currentSection} total={4} />
           <div className="flex-1 overflow-y-auto px-3 pb-3 pt-2" style={{ overscrollBehaviorY: 'contain' } as any}>
             <div className="relative mb-3">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
