@@ -111,7 +111,7 @@ function buildScanSlots(history: any[], status: any | null): ScanSlot[] {
 
 // ── 조회 조건 패널 ───────────────────────────────────────────
 
-function ScanConditionPanel() {
+function ScanConditionPanel({ large = false }: { large?: boolean }) {
   const [open, setOpen] = useState(false)
 
   const COND_BLOCKS = [
@@ -152,18 +152,24 @@ function ScanConditionPanel() {
     },
   ]
 
+  const titleC = large ? 'text-[21px]' : 'text-sm'
+  const hintC = large ? 'text-[15px]' : 'text-[10px]'
+  const chevronSz = large ? 21 : 14
+  const blockTitleC = large ? 'text-[17px]' : 'text-[11px]'
+  const tableC = large ? 'text-[15px]' : 'text-[10px]'
+
   return (
     <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg mb-4 overflow-hidden">
       <button
         className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/3 transition-colors"
         onClick={() => setOpen(o => !o)}
       >
-        <span className="text-sm font-semibold text-white">신호 조회 조건</span>
+        <span className={`${titleC} font-semibold text-white`}>신호 조회 조건</span>
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-[var(--muted)]">
+          <span className={`${hintC} text-[var(--muted)]`}>
             {open ? '접기' : '펼쳐서 상세 조건 보기'}
           </span>
-          {open ? <ChevronUp size={14} className="text-[var(--muted)]" /> : <ChevronDown size={14} className="text-[var(--muted)]" />}
+          {open ? <ChevronUp size={chevronSz} className="text-[var(--muted)]" /> : <ChevronDown size={chevronSz} className="text-[var(--muted)]" />}
         </div>
       </button>
 
@@ -171,8 +177,8 @@ function ScanConditionPanel() {
         <div className="border-t border-[var(--border)] p-3 grid grid-cols-1 md:grid-cols-3 gap-3">
           {COND_BLOCKS.map(block => (
             <div key={block.title} className={`rounded-lg border ${block.border} ${block.bg} p-3`}>
-              <div className={`text-[11px] font-bold mb-2 ${block.color}`}>{block.title}</div>
-              <table className="w-full text-[10px]">
+              <div className={`${blockTitleC} font-bold mb-2 ${block.color}`}>{block.title}</div>
+              <table className={`w-full ${tableC}`}>
                 <tbody>
                   {block.rows.map(row => (
                     <tr key={row.label} className="border-b border-white/5 last:border-0">
@@ -332,19 +338,23 @@ function SlotBuyModal({ slot, onClose, nav }: { slot: ScanSlot; onClose: () => v
 
 // ── 스캔 슬롯 카드 ───────────────────────────────────────────
 
-function SlotCard({ slot, onClick }: { slot: ScanSlot; onClick?: () => void }) {
+function SlotCard({ slot, onClick, large = false }: { slot: ScanSlot; onClick?: () => void; large?: boolean }) {
   const isKR = slot.market === 'KR'
   const clickable = slot.status === 'completed' && !!slot.snapshotId
-  const base = `flex flex-col items-center justify-center w-full h-[88px] md:h-[96px] rounded-xl border px-2 py-2 transition-all ${clickable ? 'cursor-pointer hover:scale-105 hover:shadow-lg' : ''}`
+  const cardH = large ? 'h-[132px]' : 'h-[88px] md:h-[96px]'
+  const iconSz = large ? 24 : 16
+  const timeC = large ? 'text-[18px]' : 'text-[12px]'
+  const subC = large ? 'text-[15px]' : 'text-[10px]'
+  const base = `flex flex-col items-center justify-center w-full ${cardH} rounded-xl border px-2 py-2 transition-all ${clickable ? 'cursor-pointer hover:scale-105 hover:shadow-lg' : ''}`
 
   if (slot.status === 'completed') {
     return (
       <div className={`${base} border-green-500/40 bg-green-500/10 hover:border-green-400/70`} onClick={clickable ? onClick : undefined} title={clickable ? 'BUY 종목 보기' : ''}>
-        <CheckCircle size={16} className="text-green-400 mb-1" />
-        <span className="text-[12px] font-bold text-green-400">{slot.label}</span>
-        <span className="text-[10px] text-green-400/70">{isKR ? '국내' : '미국'}</span>
+        <CheckCircle size={iconSz} className="text-green-400 mb-1" />
+        <span className={`${timeC} font-bold text-green-400`}>{slot.label}</span>
+        <span className={`${subC} text-green-400/70`}>{isKR ? '국내' : '미국'}</span>
         {slot.buyCount != null && (
-          <span className="text-[10px] text-green-300 mt-0.5">BUY {slot.buyCount}개</span>
+          <span className={`${subC} text-green-300 mt-0.5`}>BUY {slot.buyCount}개</span>
         )}
       </div>
     )
@@ -353,20 +363,20 @@ function SlotCard({ slot, onClick }: { slot: ScanSlot; onClick?: () => void }) {
   if (slot.status === 'running') {
     return (
       <div className={`${base} border-orange-500/60 bg-orange-500/10 animate-pulse`}>
-        <RefreshCw size={16} className="text-orange-400 mb-1 animate-spin" />
-        <span className="text-[12px] font-bold text-orange-400">{slot.label}</span>
-        <span className="text-[10px] text-orange-400/70">{isKR ? '국내' : '미국'}</span>
-        <span className="text-[10px] text-orange-300 mt-0.5">진행중</span>
+        <RefreshCw size={iconSz} className="text-orange-400 mb-1 animate-spin" />
+        <span className={`${timeC} font-bold text-orange-400`}>{slot.label}</span>
+        <span className={`${subC} text-orange-400/70`}>{isKR ? '국내' : '미국'}</span>
+        <span className={`${subC} text-orange-300 mt-0.5`}>진행중</span>
       </div>
     )
   }
 
   return (
     <div className={`${base} border-[var(--border)] bg-[var(--bg)]`}>
-      <Clock size={16} className="text-[var(--muted)] mb-1" />
-      <span className="text-[12px] font-bold text-[var(--muted)]">{slot.label}</span>
-      <span className="text-[10px] text-[var(--muted)]/60">{isKR ? '국내' : '미국'}</span>
-      <span className="text-[10px] text-[var(--muted)]/50 mt-0.5">예정</span>
+      <Clock size={iconSz} className="text-[var(--muted)] mb-1" />
+      <span className={`${timeC} font-bold text-[var(--muted)]`}>{slot.label}</span>
+      <span className={`${subC} text-[var(--muted)]/60`}>{isKR ? '국내' : '미국'}</span>
+      <span className={`${subC} text-[var(--muted)]/50 mt-0.5`}>예정</span>
     </div>
   )
 }
@@ -568,41 +578,41 @@ export default function BuyList() {
           <div className="flex-1 overflow-y-auto px-3 pb-3 pt-2 space-y-3" style={{ overscrollBehaviorY: 'contain' } as any}>
             <div className="grid grid-cols-3 gap-3">
               <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 text-center">
-                <div className="text-2xl font-bold text-[var(--text)] font-mono">{total.toLocaleString()}</div>
-                <div className="text-[12px] text-[var(--muted)] mt-1">총 스캔</div>
+                <div className="text-[36px] font-bold text-[var(--text)] font-mono">{total.toLocaleString()}</div>
+                <div className="text-[18px] text-[var(--muted)] mt-1">총 스캔</div>
               </div>
               <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 text-center">
-                <div className="text-2xl font-bold text-blue-400 font-mono">{krTotal.toLocaleString()}</div>
-                <div className="text-[12px] text-[var(--muted)] mt-1">국내</div>
+                <div className="text-[36px] font-bold text-blue-400 font-mono">{krTotal.toLocaleString()}</div>
+                <div className="text-[18px] text-[var(--muted)] mt-1">국내</div>
               </div>
               <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 text-center">
-                <div className="text-2xl font-bold text-emerald-400 font-mono">{usTotal.toLocaleString()}</div>
-                <div className="text-[12px] text-[var(--muted)] mt-1">미국</div>
+                <div className="text-[36px] font-bold text-emerald-400 font-mono">{usTotal.toLocaleString()}</div>
+                <div className="text-[18px] text-[var(--muted)] mt-1">미국</div>
               </div>
             </div>
-            <ScanConditionPanel />
+            <ScanConditionPanel large />
             {autoInfo && (
-              <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm ${
+              <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-[21px] ${
                 autoInfo.type === 'trigger'
                   ? 'bg-orange-500/10 border border-orange-500/30 text-orange-300'
                   : 'bg-blue-500/10 border border-blue-500/30 text-blue-300'
               }`}>
-                <Zap size={14} className="shrink-0" />
+                <Zap size={21} className="shrink-0" />
                 <span>{autoInfo.label}</span>
-                <button onClick={() => setAutoInfo(null)} className="ml-auto opacity-60 hover:opacity-100"><X size={14} /></button>
+                <button onClick={() => setAutoInfo(null)} className="ml-auto opacity-60 hover:opacity-100"><X size={21} /></button>
               </div>
             )}
             <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-blue-400 font-semibold">🇰🇷 국내 스캔 (평일 매시 :30)</span>
+                <span className="text-[21px] text-blue-400 font-semibold">🇰🇷 국내 스캔 (평일 매시 :30)</span>
                 {scanStatus?.running && (
-                  <span className="text-xs text-orange-400 flex items-center gap-1">
-                    <RefreshCw size={11} className="animate-spin" /> 진행중
+                  <span className="text-[18px] text-orange-400 flex items-center gap-1">
+                    <RefreshCw size={17} className="animate-spin" /> 진행중
                   </span>
                 )}
               </div>
               <div className="grid grid-cols-4 gap-2">
-                {krSlots.map(slot => <SlotCard key={slot.time} slot={slot} onClick={() => setSelectedSlot(slot)} />)}
+                {krSlots.map(slot => <SlotCard key={slot.time} slot={slot} onClick={() => setSelectedSlot(slot)} large />)}
               </div>
             </div>
           </div>
