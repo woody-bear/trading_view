@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import get_settings
 from database import get_session
-from models import SystemLog, Watchlist
+from models import SystemLog, UserAlertConfig, Watchlist
 from scheduler import get_active_markets
 
 router = APIRouter(tags=["system"])
@@ -17,13 +17,20 @@ async def health(session: AsyncSession = Depends(get_session)):
     error_count = await session.scalar(
         select(func.count()).select_from(SystemLog).where(SystemLog.level == "ERROR")
     )
+    telegram_count = await session.scalar(
+        select(func.count()).select_from(UserAlertConfig).where(
+            UserAlertConfig.is_active.is_(True),
+            UserAlertConfig.telegram_bot_token.isnot(None),
+            UserAlertConfig.telegram_chat_id.isnot(None),
+        )
+    )
     markets = get_active_markets()
     return {
         "status": "healthy",
         "active_symbols": active_count or 0,
         "active_markets": markets,
         "errors_total": error_count or 0,
-        "telegram_configured": settings.telegram_configured,
+        "telegram_configured": (telegram_count or 0) > 0,
     }
 
 

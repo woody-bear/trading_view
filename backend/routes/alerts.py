@@ -6,19 +6,29 @@ from sqlalchemy import select
 
 from auth import get_current_user
 from database import async_session
-from models import AlertLog
+from models import AlertLog, UserAlertConfig
 
 router = APIRouter(tags=["alerts"])
+
+
+async def _has_active_telegram_config() -> bool:
+    """DB에 활성 텔레그램 설정이 1개 이상 있는지 확인."""
+    async with async_session() as session:
+        result = await session.execute(
+            select(UserAlertConfig).where(
+                UserAlertConfig.is_active.is_(True),
+                UserAlertConfig.telegram_bot_token.isnot(None),
+                UserAlertConfig.telegram_chat_id.isnot(None),
+            ).limit(1)
+        )
+        return result.scalar_one_or_none() is not None
 
 
 @router.post("/alerts/buy-signal/test")
 async def test_buy_alert(_=Depends(get_current_user)):
     """수동으로 BUY 신호 알림을 즉시 전송."""
-    from config import get_settings
-    settings = get_settings()
-
-    if not settings.telegram_configured:
-        return {"status": "error", "message": "텔레그램 설정을 먼저 완료해주세요"}
+    if not await _has_active_telegram_config():
+        return {"status": "error", "message": "텔레그램 설정을 먼저 완료해주세요 (설정 페이지)"}
 
     from services.buy_signal_alert import send_scheduled_buy_alert
     result = await send_scheduled_buy_alert()
@@ -28,11 +38,8 @@ async def test_buy_alert(_=Depends(get_current_user)):
 @router.post("/alerts/sell-signal/test")
 async def test_sell_alert(_=Depends(get_current_user)):
     """수동으로 SELL 신호 체크 알림을 즉시 전송."""
-    from config import get_settings
-    settings = get_settings()
-
-    if not settings.telegram_configured:
-        return {"status": "error", "message": "텔레그램 설정을 먼저 완료해주세요"}
+    if not await _has_active_telegram_config():
+        return {"status": "error", "message": "텔레그램 설정을 먼저 완료해주세요 (설정 페이지)"}
 
     from services.sell_signal_alert import send_scheduled_sell_alert
     result = await send_scheduled_sell_alert()

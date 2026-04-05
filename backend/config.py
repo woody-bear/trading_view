@@ -18,10 +18,6 @@ class Settings(BaseSettings):
     PORT: int = 8000
     DATABASE_URL: str = "sqlite+aiosqlite:///./data/ubb_pro.db"
 
-    # 텔레그램 (선택 — 미설정 시 알림 비활성화)
-    TELEGRAM_BOT_TOKEN: Optional[str] = None
-    TELEGRAM_CHAT_ID: Optional[str] = None
-
     # TradingView 웹훅
     TV_WEBHOOK_SECRET: str = ""
 
@@ -44,10 +40,6 @@ class Settings(BaseSettings):
     ALERT_COOLDOWN_MINUTES: int = 30
     MIN_SIGNAL_GRADE: str = "WEAK"
     SYSTEM_ERROR_ALERT: bool = True
-
-    @property
-    def telegram_configured(self) -> bool:
-        return bool(self.TELEGRAM_BOT_TOKEN and self.TELEGRAM_CHAT_ID)
 
     @property
     def kis_configured(self) -> bool:

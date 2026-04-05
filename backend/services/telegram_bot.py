@@ -3,24 +3,14 @@ from typing import Optional
 from loguru import logger
 from telegram import Bot
 
-from config import get_settings
 from indicators.signal_engine import SignalResult
 
 
 class TelegramService:
     def __init__(self, bot_token: Optional[str] = None, chat_id: Optional[str] = None):
-        self.settings = get_settings()
-        self._override_token = bot_token
-        self._override_chat_id = chat_id
+        self._token = bot_token
+        self._chat_id = chat_id
         self._bot: Optional[Bot] = None
-
-    @property
-    def _token(self) -> Optional[str]:
-        return self._override_token or self.settings.TELEGRAM_BOT_TOKEN
-
-    @property
-    def _chat_id(self) -> Optional[str]:
-        return self._override_chat_id or self.settings.TELEGRAM_CHAT_ID
 
     @property
     def _configured(self) -> bool:
