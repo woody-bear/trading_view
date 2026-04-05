@@ -8,6 +8,7 @@ import SignalCard from '../components/SignalCard'
 import { usePriceFlash } from '../hooks/usePriceFlash'
 import { usePageSwipe } from '../hooks/usePageSwipe'
 import { useSignalStore } from '../stores/signalStore'
+import { useScanStore, loadScanData } from '../stores/scanStore'
 import { useAuthStore } from '../store/authStore'
 import { useToastStore } from '../stores/toastStore'
 import type { Signal } from '../types'
@@ -25,12 +26,14 @@ export default function Dashboard() {
   const qc = useQueryClient()
   const nav = useNavigate()
   const { signals, setSignals } = useSignalStore()
+  const { buyItems, overheatItems, picks, loaded: scanLoaded } = useScanStore()
   const { user, loading: authLoading } = useAuthStore()
-  // authLoading이 끝난 뒤 실행 — 세션 확보 전에 요청하면 토큰 없이 빈 배열 반환됨
+  // user가 persist에서 즉시 복원된 경우 authLoading 대기 없이 바로 실행
   const { data, isLoading } = useQuery<Signal[]>({
     queryKey: ['signals'],
     queryFn: fetchSignals,
-    enabled: !authLoading,
+    enabled: !!user || !authLoading,
+    staleTime: 30_000,
   })
   const { addToast } = useToastStore()
 
@@ -43,9 +46,6 @@ export default function Dashboard() {
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const snapRef = useRef<HTMLDivElement>(null)
   const [currentSection, setCurrentSection] = useState(0)
-  const [mobileScan, setMobileScan] = useState<{ buyItems: any[]; overheatItems: any[]; picks: any | null }>({
-    buyItems: [], overheatItems: [], picks: null,
-  })
 
   const deleteMut = useMutation({
     mutationFn: deleteSymbol,
@@ -53,6 +53,11 @@ export default function Dashboard() {
   })
 
   useEffect(() => { if (data) setSignals(data) }, [data, setSignals])
+
+  // user가 바뀔 때(로그인/로그아웃) 관심종목 재조회
+  useEffect(() => {
+    if (user) qc.invalidateQueries({ queryKey: ['signals'] })
+  }, [user])
 
   // 검색 디바운스
   useEffect(() => {
@@ -77,18 +82,8 @@ export default function Dashboard() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // 모바일 스냅 레이아웃용 스캔 데이터 로드
-  useEffect(() => {
-    fetchFullScanLatest().then(r => {
-      if (r?.status !== 'no_data' && r?.picks) {
-        setMobileScan({ buyItems: r.chart_buy?.items || [], overheatItems: r.overheat?.items || [], picks: r.picks })
-      } else {
-        fetchUnifiedCache().then(r2 => {
-          setMobileScan({ buyItems: r2?.chart_buy?.items || [], overheatItems: r2?.overheat?.items || [], picks: r2?.picks || null })
-        }).catch(() => {})
-      }
-    }).catch(() => {})
-  }, [])
+  // 모바일 스냅 레이아웃용 스캔 데이터 로드 (Zustand 공유 store)
+  useEffect(() => { loadScanData() }, [])
 
   // 모바일 스냅 섹션 인덱스 추적
   useEffect(() => {
@@ -147,11 +142,14 @@ export default function Dashboard() {
   const byVolume = (arr: any[]) => [...arr].sort((a, b) => (b.volume_ratio || 0) - (a.volume_ratio || 0))
 
   // 추천 종목 병합 (모바일용) — 코스피 2, 코스닥 2, 미국 1, 암호화폐 제외
-  const allPicks: any[] = mobileScan.picks ? [
-    ...byVolume(mobileScan.picks.kospi || []).slice(0, 2),
-    ...byVolume(mobileScan.picks.kosdaq || []).slice(0, 2),
-    ...byVolume(mobileScan.picks.us || []).slice(0, 1),
+  const allPicks: any[] = picks ? [
+    ...byVolume(picks.kospi || []).slice(0, 2),
+    ...byVolume(picks.kosdaq || []).slice(0, 2),
+    ...byVolume(picks.us || []).slice(0, 1),
   ] : []
+
+  // 관심종목 로딩 판별: authLoading 중이고 user 미확인이면 대기 중
+  const signalsWaiting = isLoading || (authLoading && !user)
 
   const sH = 'calc(100dvh - 64px)' // 각 스냅 섹션 높이
   usePageSwipe(snapRef)
@@ -226,11 +224,13 @@ export default function Dashboard() {
           <SnapSectionHeader title="관심종목" color="text-white" currentSection={currentSection} total={5} />
           {searchInputJSX(true)}
           <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-3" style={{ overscrollBehaviorY: 'contain' } as any}>
-            {isLoading && <p className="text-[var(--muted)] text-sm py-8 text-center">로딩 중...</p>}
-            {!isLoading && signals.length === 0 && (
+            {signalsWaiting && <p className="text-[var(--muted)] text-sm py-8 text-center">로딩 중...</p>}
+            {!signalsWaiting && signals.length === 0 && (
               <div className="text-center py-12 text-[var(--muted)]">
-                <p className="mb-1">등록된 종목이 없습니다</p>
-                <p className="text-xs">위 검색창에서 종목을 추가하세요</p>
+                {user
+                  ? <><p className="mb-1">등록된 종목이 없습니다</p><p className="text-xs">위 검색창에서 종목을 추가하세요</p></>
+                  : <p className="text-sm">로그인 후 관심종목을 추가하세요</p>
+                }
               </div>
             )}
             {['KR', 'US', 'CRYPTO'].map((market) =>
@@ -273,12 +273,14 @@ export default function Dashboard() {
           <SnapSectionHeader title="차트 BUY 신호" color="text-[var(--buy)]" currentSection={currentSection} />
           <p className="text-[15px] text-[var(--muted)] px-3 py-1 shrink-0">일봉 3일 이내 · 데드크로스 제외</p>
           <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
-            {mobileScan.buyItems.length === 0 ? (
+            {!scanLoaded ? (
+              <p className="text-[var(--muted)] text-sm py-8 text-center">로딩 중...</p>
+            ) : buyItems.length === 0 ? (
               <p className="text-[var(--muted)] text-sm py-8 text-center">BUY 신호 종목이 없습니다</p>
             ) : (() => {
               const { mode } = getBuyDisplayMode()
               const items = filterBuyByMode(
-                [...mobileScan.buyItems].sort((a: any, b: any) => (b.trend === 'BULL' ? 1 : 0) - (a.trend === 'BULL' ? 1 : 0)),
+                [...buyItems].sort((a: any, b: any) => (b.trend === 'BULL' ? 1 : 0) - (a.trend === 'BULL' ? 1 : 0)),
                 mode
               )
               return items.map((item: any, i: number) => (
@@ -293,9 +295,11 @@ export default function Dashboard() {
           <SnapSectionHeader title="투자과열 신호" color="text-[var(--sell)]" currentSection={currentSection} />
           <p className="text-[15px] text-[var(--muted)] px-3 py-1 shrink-0">RSI 70+ 또는 RSI 65+ 거래량 2x · 국내 개별주</p>
           <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
-            {mobileScan.overheatItems.length === 0 ? (
+            {!scanLoaded ? (
+              <p className="text-[var(--muted)] text-sm py-8 text-center">로딩 중...</p>
+            ) : overheatItems.length === 0 ? (
               <p className="text-[var(--muted)] text-sm py-8 text-center">투자과열 종목이 없습니다</p>
-            ) : byVolume(mobileScan.overheatItems).slice(0, 5).map((item: any, i: number) => (
+            ) : byVolume(overheatItems).slice(0, 5).map((item: any, i: number) => (
               <div key={item.symbol}
                 onClick={() => nav(`/${item.symbol}?market=${item.market_type || item.market}`)}
                 className="bg-[var(--card)] border border-red-500/30 rounded-lg p-4 cursor-pointer hover:border-red-500/60 transition active:scale-[0.98]">
@@ -337,7 +341,9 @@ export default function Dashboard() {
           <SnapSectionHeader title="추천 종목" color="text-orange-400" currentSection={currentSection} />
           <p className="text-[15px] text-[var(--muted)] px-3 py-1 shrink-0">스퀴즈 + 상승추세 + 데드크로스 제외 · 시장별 Top 15</p>
           <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
-            {allPicks.length === 0 ? (
+            {!scanLoaded ? (
+              <p className="text-[var(--muted)] text-sm py-8 text-center">로딩 중...</p>
+            ) : allPicks.length === 0 ? (
               <p className="text-[var(--muted)] text-sm py-8 text-center">추천 종목이 없습니다</p>
             ) : allPicks.map((p: any, i: number) => (
               <PickCard key={p.symbol} p={p} index={i}
@@ -366,11 +372,13 @@ export default function Dashboard() {
         {/* ── 관심종목 ── */}
         <div className="md:bg-[var(--card)] md:border md:border-[var(--border)] md:rounded-xl md:p-5 mb-4">
           <h1 className="text-lg md:text-xl font-bold text-white mb-3">관심종목</h1>
-          {isLoading && <p className="text-[var(--muted)] text-sm">로딩 중...</p>}
-          {signals.length === 0 && !isLoading && (
+          {signalsWaiting && <p className="text-[var(--muted)] text-sm">로딩 중...</p>}
+          {!signalsWaiting && signals.length === 0 && (
             <div className="text-center py-8 text-[var(--muted)]">
-              <p className="mb-1">등록된 종목이 없습니다</p>
-              <p className="text-xs">위 검색창에서 종목을 추가하세요</p>
+              {user
+                ? <><p className="mb-1">등록된 종목이 없습니다</p><p className="text-xs">위 검색창에서 종목을 추가하세요</p></>
+                : <p className="text-sm">로그인 후 관심종목을 추가하세요</p>
+              }
             </div>
           )}
           {['KR', 'US', 'CRYPTO'].map((market) =>
