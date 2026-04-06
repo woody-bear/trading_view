@@ -20,7 +20,7 @@ _scanning = False
 async def _get_all_stocks() -> dict[str, dict]:
     """scan_symbols_list 기준 전체 종목 로드 (full_market_scanner 공용 함수 재사용)."""
     from services.full_market_scanner import _load_symbols
-    symbol_list = await _load_symbols(["KR", "US"])  # CRYPTO 제외
+    symbol_list = await _load_symbols(["KR", "US", "CRYPTO"])
     return {
         s["ticker"]: {
             "name": s["name"],
@@ -98,7 +98,7 @@ async def scan_latest_buy(timeframe: str = "1d") -> list[dict]:
 
                 # 3일 이내 신호만
                 signal_dt = datetime.utcfromtimestamp(last["time"])
-                if (datetime.utcnow() - signal_dt) > timedelta(days=3):
+                if (datetime.utcnow() - signal_dt) > timedelta(days=5):
                     continue
 
                 info = all_stocks[ticker]
@@ -123,10 +123,11 @@ async def scan_latest_buy(timeframe: str = "1d") -> list[dict]:
             except Exception:
                 continue
 
-        # 한국 2개 + 미국 1개 제한
+        # 한국 2개 + 미국 1개 + 암호화폐 2개 제한
         kr_items = [r for r in results if r["market"] == "KR"][:2]
         us_items = [r for r in results if r["market"] == "US"][:1]
-        results = kr_items + us_items
+        crypto_items = [r for r in results if r["market"] == "CRYPTO"][:2]
+        results = kr_items + us_items + crypto_items
 
         _latest_buy_cache = results
         _last_scan_time = datetime.utcnow().isoformat()
