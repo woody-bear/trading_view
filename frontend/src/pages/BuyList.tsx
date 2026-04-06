@@ -122,7 +122,7 @@ function ScanConditionPanel({ large = false }: { large?: boolean }) {
       bg: 'bg-green-500/5',
       rows: [
         { label: '기준 봉', value: '일봉 (1D)' },
-        { label: '신호 유효기간', value: '3일 이내' },
+        { label: '신호 유효기간', value: '5일 이내' },
         { label: '데드크로스 제외', value: 'EMA20 < EMA50 → 종목 제외' },
         { label: '사전 필터', value: 'RSI < 55 또는 스퀴즈 Lv ≥ 1' },
         { label: 'BUY 판정', value: 'Pine Script 시뮬레이션 — BUY / SQZ BUY 마커' },

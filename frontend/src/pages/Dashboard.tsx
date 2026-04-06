@@ -271,7 +271,7 @@ export default function Dashboard() {
         {/* ── 섹션 3: 차트 BUY 신호 ── */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
           <SnapSectionHeader title="차트 BUY 신호" color="text-[var(--buy)]" currentSection={currentSection} />
-          <p className="text-[15px] text-[var(--muted)] px-3 py-1 shrink-0">일봉 3일 이내 · 데드크로스 제외</p>
+          <p className="text-[15px] text-[var(--muted)] px-3 py-1 shrink-0">일봉 5일 이내 · 데드크로스 제외</p>
           <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
             {!scanLoaded ? (
               <p className="text-[var(--muted)] text-sm py-8 text-center">로딩 중...</p>
@@ -782,7 +782,7 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
           <div className="mb-2">
             <div className="flex items-center gap-2 mb-3 flex-wrap">
               <h2 className="text-sm font-bold text-[var(--buy)]">차트 BUY 신호</h2>
-              <span className="text-[9px] text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">일봉 3일 이내 + 데드크로스 제외</span>
+              <span className="text-[9px] text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">일봉 5일 이내 + 데드크로스 제외</span>
               <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${
                 mode === 'KR' ? 'bg-blue-500/15 text-blue-300' :
                 mode === 'US' ? 'bg-emerald-500/15 text-emerald-300' :
@@ -802,7 +802,7 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
                 ))}
               </div>
             ) : !scanning ? (
-              <p className="text-[var(--muted)] text-xs text-center py-4">3일 이내 BUY 신호 종목이 없습니다</p>
+              <p className="text-[var(--muted)] text-xs text-center py-4">5일 이내 BUY 신호 종목이 없습니다</p>
             ) : null}
           </div>
         )
