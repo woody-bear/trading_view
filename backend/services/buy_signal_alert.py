@@ -69,41 +69,78 @@ async def get_recent_buy_signals() -> list[dict]:
 
 
 def format_buy_signal_message(signals: list[dict], timestamp: datetime = None) -> str:
-    """BUY 신호 목록을 텔레그램 HTML 메시지로 포맷."""
+    """BUY 신호 목록을 텔레그램 HTML 메시지로 포맷 — 지수별 분류."""
+    from services.scan_symbols_list import (
+        KOSPI200_SYMBOLS, KOSDAQ150_SYMBOLS, KRX_EXTRA_SYMBOLS, KRX_BIO_EXTRA_SYMBOLS,
+        SP500_TICKERS, NASDAQ100_EXTRA_TICKERS, RUSSELL1000_EXTRA_TICKERS, RUSSELL2000_EXTRA_TICKERS,
+    )
+
     if timestamp is None:
         timestamp = datetime.now()
-
     date_str = timestamp.strftime("%-m/%-d %H:%M")
 
-    if not signals:
-        return (
-            f"📊 <b>전체 시장 BUY 신호</b> ({date_str})\n\n"
-            f"현재 BUY 신호 종목이 없습니다.\n\n"
-            f"추세추종 연구소"
-        )
+    # 지수 정의 (순서 = 중복 시 우선순위)
+    KR_INDICES = [
+        ("코스피200", KOSPI200_SYMBOLS),
+        ("코스닥150", KOSDAQ150_SYMBOLS),
+        ("KRX반도체/2차전지", KRX_EXTRA_SYMBOLS),
+        ("KRX바이오", KRX_BIO_EXTRA_SYMBOLS),
+    ]
+    US_INDICES = [
+        ("S&P500", SP500_TICKERS),
+        ("나스닥100", NASDAQ100_EXTRA_TICKERS),
+        ("Russell1000", RUSSELL1000_EXTRA_TICKERS),
+        ("Russell2000", RUSSELL2000_EXTRA_TICKERS),
+    ]
 
-    # 시장별 분류
+    def _assign(sigs: list[dict], indices: list[tuple]) -> dict[str, list[dict]]:
+        """지수별 버킷에 배분 — 먼저 오는 지수 우선, 종목 중복 없음."""
+        seen: set[str] = set()
+        buckets: dict[str, list[dict]] = {name: [] for name, _ in indices}
+        for name, symbol_set in indices:
+            for s in sigs:
+                if s["symbol"] not in seen and s["symbol"] in symbol_set:
+                    buckets[name].append(s)
+                    seen.add(s["symbol"])
+        return buckets
+
+    def _stock_line(s: dict) -> str:
+        sig_type = "🔵" if s["last_signal"] == "SQZ BUY" else "🟢"
+        sq = " SQ" if s["squeeze_level"] >= 2 else ""
+        rsi_str = f" R{s['rsi']:.0f}" if s.get("rsi") else ""
+        return f"  {sig_type} {s['display_name']}{sq}{rsi_str}"
+
+    def _index_row(name: str, items: list[dict]) -> list[str]:
+        if not items:
+            return [f"<b>{name}</b> : 없음"]
+        rows = [f"<b>{name}</b> : {len(items)}종목"]
+        rows += [_stock_line(s) for s in items]
+        return rows
+
     kr_signals = [s for s in signals if s["market"] == "KR"]
     us_signals = [s for s in signals if s["market"] == "US"]
+    crypto_signals = [s for s in signals if s["market"] == "CRYPTO"]
+
+    kr_buckets = _assign(kr_signals, KR_INDICES)
+    us_buckets = _assign(us_signals, US_INDICES)
 
     lines = [f"📊 <b>전체 시장 BUY 신호</b> ({date_str})\n"]
 
-    def _format_section(title: str, items: list[dict]):
-        if not items:
-            return
-        flag = '🇰🇷' if title == '국내주식' else '🇺🇸'
-        lines.append(f"\n<b>{flag} {title}</b> ({len(items)}종목)")
-        for i, s in enumerate(items, 1):
-            sig_type = "🔵" if s["last_signal"] == "SQZ BUY" else "🟢"
-            sq = " SQ" if s["squeeze_level"] >= 2 else ""
-            rsi_str = f"R{s['rsi']:.0f}" if s.get("rsi") else ""
-            lines.append(f"{i}. {sig_type} {s['display_name']}{sq} {rsi_str}")
+    lines.append("🇰🇷 <b>국내주식</b>")
+    for name, _ in KR_INDICES:
+        lines += _index_row(name, kr_buckets[name])
 
-    _format_section("국내주식", kr_signals)
-    _format_section("미국주식", us_signals)
+    lines.append("\n🇺🇸 <b>미국주식</b>")
+    for name, _ in US_INDICES:
+        lines += _index_row(name, us_buckets[name])
+
+    lines.append("\n₿ <b>암호화폐</b>")
+    if crypto_signals:
+        lines += [_stock_line(s) for s in crypto_signals]
+    else:
+        lines.append("암호화폐 : 없음")
 
     lines.append(f"\n총 {len(signals)}종목 | 추세추종 연구소")
-
     return "\n".join(lines)
 
 

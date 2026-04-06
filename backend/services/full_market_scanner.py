@@ -211,8 +211,8 @@ def _check_buy_signal_precise(df: pd.DataFrame, last_rsi: float, last_sq: int) -
         last_marker = markers[-1]
         if last_marker["text"] in ("BUY", "SQZ BUY"):
             signal_dt = datetime.utcfromtimestamp(last_marker["time"])
-            # 3일 이내
-            if (datetime.utcnow() - signal_dt).days <= 3:
+            # 5일 이내
+            if (datetime.utcnow() - signal_dt).days <= 5:
                 return last_marker["text"], signal_dt.strftime("%Y-%m-%d")
 
         return None, None
