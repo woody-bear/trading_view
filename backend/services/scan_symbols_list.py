@@ -1,7 +1,7 @@
-"""스캔 대상 종목 리스트 — 코스피200, 코스닥150, KRX 반도체/2차전지/바이오, S&P500, 나스닥100, Russell1000.
+"""스캔 대상 종목 리스트 — 코스피200, 코스닥150, KRX 반도체/2차전지/바이오, S&P500, 나스닥100, Russell1000, Russell2000 큐레이션.
 
-출처: .claude/docs/buy종목리스트정리.md (2026-03-30 기준)
-중복 제거 후 국내 ~354종목 + 미국 ~835종목 = 총 ~1189종목
+출처: .claude/docs/buy종목리스트정리.md (2026-04-05 기준)
+중복 제거 후 국내 ~371종목 + 미국 ~959종목 = 총 ~1,330종목
 """
 
 # ── 코스피200 (200종목) ────────────────────────────────────────────────────────
@@ -66,8 +66,29 @@ KRX_EXTRA_SYMBOLS: set[str] = {
     "005070",  # 코스모신소재 (KRX 2차전지 단독, KOSDAQ)
 }
 
+# ── KRX 바이오 추가 (코스피200·코스닥150 미포함 바이오/제약 17종목) ─────────────
+KRX_BIO_EXTRA_SYMBOLS: set[str] = {
+    "170900",  # 동아에스티
+    "067630",  # HLB생명과학
+    "019170",  # 신풍제약
+    "007570",  # 일양약품
+    "000020",  # 동화약품
+    "003850",  # 보령
+    "003520",  # 영진약품
+    "001060",  # JW중외제약
+    "011040",  # 경동제약
+    "034060",  # 조아제약
+    "017180",  # 명인제약
+    "220100",  # 제테마
+    "048530",  # 인트론바이오
+    "064550",  # 바이오니아
+    "011000",  # 진원생명과학
+    "299660",  # 셀리드
+    "095700",  # 제넥신
+}
+
 # 국내 전체 스캔 대상 (중복 제거)
-ALL_KR_SYMBOLS: set[str] = KOSPI200_SYMBOLS | KOSDAQ150_SYMBOLS | KRX_EXTRA_SYMBOLS
+ALL_KR_SYMBOLS: set[str] = KOSPI200_SYMBOLS | KOSDAQ150_SYMBOLS | KRX_EXTRA_SYMBOLS | KRX_BIO_EXTRA_SYMBOLS
 
 
 # ── S&P 500 (504종목) ─────────────────────────────────────────────────────────
@@ -195,5 +216,94 @@ RUSSELL1000_EXTRA_TICKERS: set[str] = {
     "MARA", "RIOT", "HUT", "IREN", "CORZ", "CLSK",
 }
 
+# ── Russell 2000 큐레이션 (SP500·나스닥100·Russell1000 미포함, 117종목) ──────────
+RUSSELL2000_EXTRA_TICKERS: set[str] = {
+    # Tech SaaS
+    "APPF",   # AppFolio — 부동산 관리 SaaS
+    "BLKB",   # Blackbaud — 비영리 SaaS
+    "COUR",   # Coursera — 온라인 교육 플랫폼
+    "CSGS",   # CSG Systems — 통신 빌링 SaaS
+    "EVTC",   # EVERTEC — 중남미 결제 플랫폼
+    "FOUR",   # Shift4 Payments — 결제 솔루션
+    "GSHD",   # Goosehead Insurance — 보험 플랫폼
+    "HLIT",   # Harmonic — 비디오 스트리밍 인프라
+    "INST",   # Instructure — LMS 플랫폼
+    "MNTV",   # Momentive — 설문조사 SaaS
+    "PCOR",   # Procore — 건설 프로젝트 관리 SaaS
+    "RELY",   # Remitly — 국제 송금 플랫폼
+    "RPAY",   # Repay Holdings — 결제 기술
+    "WEAV",   # Weave Communications — 의료 커뮤니케이션 SaaS
+    "XPOF",   # Xponential Fitness — 피트니스 프랜차이즈
+    # 반도체/하드웨어
+    "AEHR",   # Aehr Test Systems — 반도체 테스트 장비
+    "AXTI",   # AXT Inc. — 반도체 기판 소재
+    "CALX",   # Calix — 광대역 클라우드 플랫폼
+    "CLFD",   # Clearfield — 광섬유 네트워크 장비
+    "IDCC",   # InterDigital — 무선 기술 특허
+    "PLAB",   # Photronics — 포토마스크
+    "QLYS",   # Qualys — 클라우드 보안 플랫폼
+    "WOLF",   # Wolfspeed — SiC 전력반도체
+    # 헬스케어/바이오테크
+    "ADMA", "AKRO", "ALKS", "AMPH", "ANIP", "ATRC", "AVNS", "BBIO",
+    "CNMD", "DVAX", "ENSG", "ENTA", "FLGT", "HRMY", "IDYA", "INVA",
+    "IOVA", "ITCI", "LGND", "LMAT", "LXRX", "MDXG", "MRVI", "NARI",
+    "OCUL", "OPCH", "PCRX", "RCUS", "RDNT", "RLAY", "RVNC", "RYTM",
+    "SANA", "SIGA", "SILK", "SPRY", "SRPT", "STAA", "SUPN", "THRM",
+    "TMDX", "URGN", "VCEL", "VREX",
+    # 금융
+    "CHCO",   # City Holding — 지역 은행
+    "HURN",   # Huron Consulting — 경영 컨설팅
+    "KELYA",  # Kelly Services — 인력 파견
+    "MGRC",   # McGrath RentCorp — 장비 렌탈
+    "MNRO",   # Monro — 자동차 서비스
+    "PFBC",   # Preferred Bank — 캘리포니아 지역은행
+    "QCRH",   # QCR Holdings — 지역 은행
+    "SASR",   # Sandy Spring Bancorp — 지역 은행
+    "SBCF",   # Seacoast Banking — 플로리다 지역은행
+    "SFNC",   # Simmons Financial — 지역 은행
+    "SNEX",   # StoneX Group — 금융 서비스
+    "TOWN",   # Townebank — 지역 은행
+    "TRMK",   # Trustmark — 지역 은행
+    "WAFD",   # Washington Federal — 지역 은행
+    # 산업/운송/소재
+    "ACHR",   # Archer Aviation — 전기 항공 모빌리티
+    "AGX",    # Argan — 전력 플랜트 건설
+    "ALGT",   # Allegiant Travel — 저비용 항공사
+    "ARCB",   # ArcBest — 화물 운송
+    "ASTE",   # Astec Industries — 도로건설 장비
+    "ATSG",   # Air Transport Services — 화물 항공
+    "BCPC",   # Balchem — 특수 화학
+    "BRC",    # Brady — 산업용 라벨/표시
+    "CABO",   # Cable One — 케이블/인터넷 서비스
+    "CECO",   # CECO Environmental — 환경 설비
+    "CMCO",   # Columbus McKinnon — 호이스트/리프팅
+    "DAN",    # Dana Inc. — 차량 부품
+    "DNOW",   # NOW Inc. — 산업용 공급망
+    "DXPE",   # DXP Enterprises — 산업 유통
+    "EPC",    # Edgewell Personal Care — 소비재
+    "ESE",    # ESCO Technologies — 유틸리티 솔루션
+    "FWRD",   # Forward Air — 항공 화물 운송
+    "HLIO",   # Helios Technologies — 유압 솔루션
+    "HSII",   # Heidrick & Struggles — 임원 채용
+    "HWKN",   # Hawkins — 화학 유통
+    "JOBY",   # Joby Aviation — 전기 에어택시
+    "LOPE",   # Grand Canyon Education — 고등교육
+    "MBUU",   # Malibu Boats — 레저 보트
+    "MYRG",   # MYR Group — 전기 건설
+    "POWL",   # Powell Industries — 전기 배전 장비
+    "RCII",   # Rent-A-Center — 가전 렌탈
+    "ROCK",   # Gibraltar Industries — 건설 자재
+    "SMPL",   # Simply Good Foods — 건강식품
+    "SPTN",   # SpartanNash — 식료품 유통
+    "STRL",   # Sterling Infrastructure — 인프라 건설
+    # 우주/크립토 인프라
+    "CIFR",   # Cipher Mining — 비트코인 채굴
+    "IONQ",   # IonQ — 양자 컴퓨팅
+    "LUNR",   # Intuitive Machines — 달 탐사
+    "RKLB",   # Rocket Lab — 소형 로켓 발사
+    "SPCE",   # Virgin Galactic — 우주 관광
+    "SPIR",   # Spire Global — 위성 데이터
+}
+
 # 미국 전체 스캔 대상 (중복 제거)
-ALL_US_TICKERS: set[str] = SP500_TICKERS | NASDAQ100_EXTRA_TICKERS | RUSSELL1000_EXTRA_TICKERS
+ALL_US_TICKERS: set[str] = SP500_TICKERS | NASDAQ100_EXTRA_TICKERS | RUSSELL1000_EXTRA_TICKERS | RUSSELL2000_EXTRA_TICKERS
