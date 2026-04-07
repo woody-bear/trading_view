@@ -5,7 +5,7 @@
 """
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pandas as pd
 import yfinance as yf
@@ -34,7 +34,7 @@ async def _get_all_stocks() -> dict[str, dict]:
 
 def _batch_download_daily(tickers: list[str]) -> pd.DataFrame | None:
     try:
-        return yf.download(tickers, period="2y", interval="1d", progress=False, auto_adjust=True, threads=True)
+        return yf.download(tickers, period="2y", interval="1d", progress=False, auto_adjust=True, threads=False)
     except Exception as e:
         logger.error(f"일봉 배치 다운로드 실패: {e}")
         return None
@@ -96,9 +96,18 @@ async def scan_latest_buy(timeframe: str = "1d") -> list[dict]:
                 if last["text"] not in ("BUY", "SQZ BUY"):
                     continue
 
-                # 3일 이내 신호만
+                # 10거래일 이내 (df는 실제 거래일만 포함 → 주말·공휴일 자동 제외)
                 signal_dt = datetime.utcfromtimestamp(last["time"])
-                if (datetime.utcnow() - signal_dt) > timedelta(days=3):
+                signal_date = signal_dt.date()
+                sig_matching = [i for i, idx in enumerate(df.index) if idx.date() == signal_date]
+                if not sig_matching:
+                    continue
+                if len(df) - 1 - sig_matching[0] > 10:
+                    continue
+
+                # 거래량 필터: 신호일 거래량 > 직전 5거래일 평균
+                from services.full_market_scanner import _passes_volume_filter
+                if not _passes_volume_filter(df, signal_dt.strftime("%Y-%m-%d")):
                     continue
 
                 info = all_stocks[ticker]

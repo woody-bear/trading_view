@@ -135,7 +135,7 @@ async def _load_symbols(markets: list[str] | None = None) -> list[dict]:
 
 def _batch_download(tickers: list[str]) -> pd.DataFrame | None:
     try:
-        return yf.download(tickers, period="1y", interval="1d", progress=False, auto_adjust=True, threads=True, timeout=30)
+        return yf.download(tickers, period="1y", interval="1d", progress=False, auto_adjust=True, threads=False, timeout=60)
     except Exception as e:
         logger.error(f"청크 다운로드 실패: {e}")
         return None
@@ -188,14 +188,39 @@ def _is_dead_cross(ema: dict) -> bool:
         return False
 
 
+def _passes_volume_filter(df: pd.DataFrame, buy_date: str) -> bool:
+    """BUY 신호 발생일 거래량이 직전 5거래일 평균보다 높은지 확인.
+
+    데이터 부족(신규상장, 거래정지 후 재개, 거래량 0) 시 True 반환(필터 건너뜀).
+    """
+    from datetime import datetime as dt
+    signal_date = dt.strptime(buy_date, "%Y-%m-%d").date()
+    matching = [i for i, idx in enumerate(df.index) if idx.date() == signal_date]
+    if not matching:
+        return True
+    signal_idx = matching[0]
+    if signal_idx < 1:
+        return True
+    prior = df["volume"].iloc[max(0, signal_idx - 5):signal_idx]
+    prior_nonzero = prior[prior > 0]
+    if len(prior_nonzero) < 1:
+        return True
+    avg_vol = float(prior_nonzero.mean())
+    signal_vol = float(df["volume"].iloc[signal_idx])
+    if signal_vol == 0:
+        return True
+    return signal_vol > avg_vol * 1.5
+
+
 def _check_buy_signal_precise(df: pd.DataFrame, last_rsi: float, last_sq: int) -> tuple[str | None, str | None]:
     """Pine Script 정밀 BUY 신호 판정 — _simulate_signals 사용.
 
     사전 필터를 통과한 종목에만 적용 (RSI < 50 또는 스퀴즈 해소 가능성).
     Returns: (signal_text, signal_date) or (None, None)
     """
-    # 사전 필터: BUY 가능성이 있는 종목만 정밀 검사
-    if last_rsi >= 55 and last_sq == 0:
+    # 사전 필터: 10거래일 이내 BUY 신호 가능성이 전혀 없는 종목만 스킵
+    # (신호 후 강하게 랠리하면 현재 RSI가 높을 수 있으므로 임계값 완화)
+    if last_rsi >= 80 and last_sq == 0:
         return None, None
 
     try:
@@ -211,9 +236,13 @@ def _check_buy_signal_precise(df: pd.DataFrame, last_rsi: float, last_sq: int) -
         last_marker = markers[-1]
         if last_marker["text"] in ("BUY", "SQZ BUY"):
             signal_dt = datetime.utcfromtimestamp(last_marker["time"])
-            # 3일 이내
-            if (datetime.utcnow() - signal_dt).days <= 3:
-                return last_marker["text"], signal_dt.strftime("%Y-%m-%d")
+            # 10거래일 이내 (df는 실제 거래일만 포함 → 주말·공휴일 자동 제외)
+            signal_date = signal_dt.date()
+            matching = [i for i, idx in enumerate(df.index) if idx.date() == signal_date]
+            if matching:
+                trading_days_since = len(df) - 1 - matching[0]
+                if trading_days_since <= 10:
+                    return last_marker["text"], signal_dt.strftime("%Y-%m-%d")
 
         return None, None
     except Exception:
@@ -265,7 +294,7 @@ def _analyze_ticker(df: pd.DataFrame, info: dict) -> dict | None:
 
         # 차트 BUY 신호 (Pine Script 정밀 판정 + 사전 필터)
         buy_signal, buy_date = _check_buy_signal_precise(df, last_rsi, last_sq)
-        if buy_signal:
+        if buy_signal and _passes_volume_filter(df, buy_date):
             categories.append("chart_buy")
 
         # 투자과열: RSI >= 70 또는 (RSI >= 65 + 거래량 2배+) — 한국 개별주, 거래량 있는 종목만
