@@ -1,7 +1,7 @@
-"""스캔 대상 종목 리스트 — 코스피200, 코스닥150, KRX 반도체/2차전지/바이오, S&P500, 나스닥100, Russell1000.
+"""스캔 대상 종목 리스트 — 코스피200, 코스닥150, KRX 반도체/2차전지, S&P500, 나스닥100, Russell1000, 국내/미국 ETF.
 
-출처: .claude/docs/buy종목리스트정리.md (2026-03-30 기준)
-중복 제거 후 국내 ~354종목 + 미국 ~835종목 = 총 ~1189종목
+출처: .claude/docs/buy종목리스트정리.md (2026-04-06 기준)
+중복 제거 후 국내 ~540종목 + 미국 ~1050종목 = 총 ~1590종목
 """
 
 # ── 코스피200 (200종목) ────────────────────────────────────────────────────────
@@ -66,8 +66,141 @@ KRX_EXTRA_SYMBOLS: set[str] = {
     "005070",  # 코스모신소재 (KRX 2차전지 단독, KOSDAQ)
 }
 
+# ── 국내 ETF (코스피 상장 ETF, 국내지수/해외지수/채권/원자재/섹터 등) ──────────────
+KR_ETF_SYMBOLS: set[str] = {
+    # KODEX (삼성자산운용)
+    "069500",  # KODEX 200
+    "122630",  # KODEX 레버리지
+    "114800",  # KODEX 인버스
+    "252670",  # KODEX 200선물인버스2X
+    "229200",  # KODEX 코스닥150
+    "233740",  # KODEX 코스닥150레버리지
+    "251340",  # KODEX 코스닥150선물인버스
+    "266370",  # KODEX 코스피
+    "278540",  # KODEX MSCI Korea TR
+    "213630",  # KODEX 배당성장
+    "277630",  # KODEX 200가치저변동
+    "153130",  # KODEX 단기채권
+    "273130",  # KODEX 종합채권(AA-이상)액티브
+    "385560",  # KODEX 단기채권PLUS
+    "136340",  # KODEX 국고채3년
+    "130730",  # KODEX 국고채10년
+    "152380",  # KODEX 국고채30년
+    "280930",  # KODEX 미국채울트라30년선물(H)
+    "381180",  # KODEX 미국채10년선물
+    "302190",  # KODEX 미국하이일드(합성H)
+    "272580",  # KODEX iShares미국투자등급회사채(H)
+    "458760",  # KODEX 미국30년국채커버드콜(합성)
+    "302430",  # KODEX 미국S&P500배당귀족(H)
+    "143850",  # KODEX S&P500
+    "379800",  # KODEX 미국S&P500TR
+    "133690",  # KODEX 나스닥100
+    "368590",  # RISE 미국나스닥100 (368590.KS)
+    "409820",  # KODEX 미국나스닥100레버리지(합성)
+    "251350",  # KODEX 선진국MSCI World
+    "195930",  # KODEX 유럽
+    "200030",  # KODEX 차이나A50
+    "192090",  # KODEX 일본TOPIX100
+    "308620",  # KODEX 미국달러선물
+    "261220",  # KODEX WTI원유선물(H)
+    "132030",  # KODEX 골드선물(H)
+    "411060",  # KODEX 골드(현물)
+    "228790",  # KODEX 은선물(H)
+    "176950",  # KODEX 구리선물(H)
+    "394670",  # KODEX 반도체
+    "091160",  # KODEX 반도체(구)
+    "091170",  # KODEX 은행
+    "245340",  # KODEX 헬스케어
+    "244620",  # KODEX 필수소비재
+    "244660",  # KODEX 에너지화학
+    "441800",  # KODEX 미국반도체MV
+    "390390",  # KODEX 미국빅테크10
+    "448290",  # KODEX 미국AI테크TOP10
+    "438900",  # KODEX 미국AI테크INDXX
+    # TIGER (미래에셋자산운용)
+    "139260",  # TIGER 200
+    "226490",  # TIGER 코스닥150
+    "232080",  # TIGER 코스닥150레버리지
+    "251600",  # TIGER 코스닥150선물인버스
+    "219480",  # TIGER 200선물인버스
+    "329200",  # TIGER 200선물인버스2X
+    "248270",  # TIGER 코스피
+    "272560",  # TIGER 코스피고배당
+    "463050",  # TIGER 200동일가중
+    "102110",  # TIGER 200IT
+    "102970",  # TIGER 200금융
+    "091230",  # TIGER 헬스케어
+    "305540",  # TIGER 2차전지테마
+    "352560",  # TIGER Fn바이오헬스케어
+    "130680",  # TIGER 국고채3년
+    "148020",  # TIGER 국고채10년
+    "182480",  # TIGER 단기채권액티브
+    "211560",  # TIGER 미국달러단기채권액티브
+    "189400",  # TIGER 부동산인프라채권TR(H)
+    "305080",  # TIGER 미국나스닥100
+    "360750",  # TIGER 미국S&P500
+    "381170",  # TIGER 미국S&P500TR
+    "396520",  # TIGER 미국S&P500배당귀족
+    "423160",  # TIGER 미국S&P500레버리지(합성)
+    "423170",  # TIGER 미국나스닥100레버리지(합성)
+    "442580",  # TIGER 미국배당+7%프리미엄다우존스
+    "458730",  # TIGER 미국나스닥100+15%프리미엄
+    "195970",  # TIGER 유로스탁스50(합성H)
+    "195980",  # TIGER 일본니케이225(H)
+    "192720",  # TIGER 차이나CSI300
+    "267980",  # TIGER 원유선물Enhanced(H)
+    "139230",  # TIGER 구리실물
+    "441680",  # TIGER 미국AI반도체핵심공정
+    "395160",  # TIGER 미국필라델피아반도체나스닥
+    "371460",  # TIGER 미국테크TOP10INDXX
+    "371450",  # TIGER 글로벌혁신블루칩TOP10
+    "448540",  # TIGER 미국S&P500배당귀족
+    # KBSTAR (KB자산운용)
+    "294400",  # KBSTAR 200 (= RISE 200, 2024.07 브랜드 통합)
+    "270810",  # KBSTAR 코스닥150
+    "315270",  # KBSTAR 200선물인버스2X
+    "290080",  # KBSTAR 200고배당
+    "334700",  # KBSTAR 단기통안채
+    "385720",  # KBSTAR 국고채30년액티브
+    "360200",  # KBSTAR 미국나스닥100
+    "361580",  # KBSTAR 미국S&P500
+    "453810",  # KBSTAR 미국배당킹
+    # RISE (KB자산운용)
+    "298770",  # RISE 코스닥150
+    "438330",  # RISE 코스피고배당50
+    "385510",  # RISE 단기통안채액티브
+    "385540",  # RISE 단기채권액티브
+    "379780",  # RISE 미국S&P500
+    "445090",  # RISE 미국S&P500TR
+    "488290",  # RISE 미국나스닥100TR
+    # ACE (한국투자신탁운용) — 278470 제외(KOSPI200 에이피알 중복)
+    "261240",  # ACE 200
+    "400580",  # ACE 미국S&P500
+    "367380",  # ACE 미국나스닥100
+    "449450",  # ACE 미국S&P500TR
+    "466940",  # ACE 미국나스닥100TR
+    "402970",  # ACE 미국배당다우존스
+    "449770",  # ACE 미국S&P500배당귀족
+    "381620",  # ACE 미국빅테크TOP7Plus
+    "468380",  # ACE 미국AI인프라
+    # HANARO (NH아문디자산운용)
+    "157450",  # HANARO 200
+    "245710",  # HANARO 코스닥150
+    "469150",  # HANARO 200동일가중
+    "336160",  # HANARO 단기통안채액티브
+    "432840",  # HANARO 미국S&P500
+    # SOL (신한자산운용)
+    "433330",  # SOL 미국S&P500
+    "476030",  # SOL 미국나스닥100
+    "446720",  # SOL 미국배당다우존스
+    "472160",  # SOL 미국빅테크TOP7
+}
+
+# KOSPI200/KOSDAQ150과 중복 제거 (예: 278470 에이피알 = KOSPI200 종목이자 ACE ETF 코드 혼선)
+KR_ETF_SYMBOLS -= KOSPI200_SYMBOLS | KOSDAQ150_SYMBOLS | KRX_EXTRA_SYMBOLS
+
 # 국내 전체 스캔 대상 (중복 제거)
-ALL_KR_SYMBOLS: set[str] = KOSPI200_SYMBOLS | KOSDAQ150_SYMBOLS | KRX_EXTRA_SYMBOLS
+ALL_KR_SYMBOLS: set[str] = KOSPI200_SYMBOLS | KOSDAQ150_SYMBOLS | KRX_EXTRA_SYMBOLS | KR_ETF_SYMBOLS
 
 
 # ── S&P 500 (504종목) ─────────────────────────────────────────────────────────
@@ -195,5 +328,53 @@ RUSSELL1000_EXTRA_TICKERS: set[str] = {
     "MARA", "RIOT", "HUT", "IREN", "CORZ", "CLSK",
 }
 
+# ── 미국 ETF (지수/채권/원자재/섹터/레버리지/해외/테마) ──────────────────────────
+US_ETF_TICKERS: set[str] = {
+    # 미국 주요 지수
+    "SPY", "IVV", "VOO", "QQQ", "VTI", "QQQM", "DIA", "RSP", "OEF",
+    "IWM", "IWB", "IWF", "IWD", "IWN", "IWO",
+    "VUG", "VTV", "VB", "VO", "MDY", "IJH", "IJR",
+    "SCHD", "VYM", "VIG", "DVY", "HDV", "NOBL", "DGRO", "DGRW",
+    "JEPI", "JEPQ", "XYLD", "QYLD", "RYLD",
+    "QUAL", "MTUM", "USMV", "VLUE", "SPHQ",
+    "SCHB", "SCHX", "SCHA", "VBR", "VBK", "VOE", "VOT",
+    # 채권
+    "AGG", "BND", "TLT", "IEF", "SHY", "LQD", "HYG", "JNK", "MUB",
+    "TIP", "BNDX", "VCIT", "VCSH", "BSV", "BIV",
+    "VGSH", "VGIT", "VGLT", "GOVT", "SHV", "SGOV", "BIL", "USFR",
+    "FLOT", "IGSB", "IGIB", "IGLB", "EMB", "SPTL", "IEI",
+    "TMF", "TBT", "TBF", "TMV",
+    # 원자재 — 금/은/백금
+    "GLD", "IAU", "GLDM", "UGL", "GDX", "GDXJ",
+    "SLV", "SIVR", "SIL", "PPLT", "PALL",
+    # 원자재 — 에너지
+    "USO", "BNO", "UCO", "DBO", "UNG", "BOIL", "KOLD",
+    # 원자재 — 금속/농산물/복합
+    "CPER", "COPX", "REMX", "URA",
+    "DBA", "WEAT", "CORN", "SOYB", "MOO",
+    "DBC", "PDBC", "GSG", "GNR", "WOOD",
+    # 섹터 ETF
+    "XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLB", "XLI", "XLU", "XLRE", "XLC",
+    "VGT", "VHT", "VFH", "VDE", "VCR", "VDC", "VPU", "VOX",
+    "SOXX", "SMH", "SOXL", "SOXS",
+    "IBB", "XBI", "IGV", "FTEC",
+    "OIH", "XOP", "AMLP",
+    "VNQ", "IYR",
+    # 레버리지
+    "TQQQ", "UPRO", "SPXL", "SSO", "QLD", "UDOW", "DDM", "ROM", "TECL", "FAS", "TNA",
+    # 인버스
+    "SQQQ", "SPXS", "SPXU", "SDOW", "TECS", "FAZ", "TZA", "SH", "PSQ", "DOG", "RWM",
+    # 해외 지수
+    "EEM", "VWO", "EFA", "IEFA", "VEA", "VT", "ACWI",
+    "EWJ", "EWZ", "EWG", "EWY", "EWT", "FXI", "KWEB", "MCHI", "INDA", "EWC", "EWU",
+    # 테마
+    "ARKK", "ARKG", "ARKW", "ARKQ", "BOTZ", "AIQ",
+    "ICLN", "TAN", "LIT", "DRIV", "PAVE", "CLOU", "SKYY", "CIBR", "BUG", "NLR",
+    "IBIT", "FBTC", "BITO", "GBTC", "ETHA",
+}
+
+# SP500/나스닥100/러셀1000과 중복 제거 (개별주 티커가 ETF 세트에 들어올 경우 방지)
+US_ETF_TICKERS -= SP500_TICKERS | NASDAQ100_EXTRA_TICKERS | RUSSELL1000_EXTRA_TICKERS
+
 # 미국 전체 스캔 대상 (중복 제거)
-ALL_US_TICKERS: set[str] = SP500_TICKERS | NASDAQ100_EXTRA_TICKERS | RUSSELL1000_EXTRA_TICKERS
+ALL_US_TICKERS: set[str] = SP500_TICKERS | NASDAQ100_EXTRA_TICKERS | RUSSELL1000_EXTRA_TICKERS | US_ETF_TICKERS

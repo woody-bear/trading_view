@@ -199,6 +199,7 @@ async def get_all_symbols() -> dict:
     from services.scan_symbols_list import (
         ALL_KR_SYMBOLS, ALL_US_TICKERS, KOSPI200_SYMBOLS, KOSDAQ150_SYMBOLS,
         NASDAQ100_EXTRA_TICKERS, RUSSELL1000_EXTRA_TICKERS, SP500_TICKERS,
+        US_ETF_TICKERS,
     )
 
     async with async_session() as session:
@@ -248,13 +249,16 @@ async def get_all_symbols() -> dict:
                 indices.append("NASDAQ100")
             if ticker in RUSSELL1000_EXTRA_TICKERS:
                 indices.append("RUSSELL1000")
-            # 1차 분류 기준 (NASDAQ100 > RUSSELL1000 > SP500)
+            # 1차 분류 기준 (NASDAQ100 > RUSSELL1000 > ETF > SP500)
             if ticker in NASDAQ100_EXTRA_TICKERS:
                 mtype = "NASDAQ100"
                 breakdown["nasdaq100"] += 1
             elif ticker in RUSSELL1000_EXTRA_TICKERS:
                 mtype = "RUSSELL1000"
                 breakdown["russell1000"] += 1
+            elif ticker in US_ETF_TICKERS:
+                mtype = "ETF"
+                breakdown["us_etf"] += 1
             else:
                 mtype = "SP500"
                 breakdown["sp500"] += 1
