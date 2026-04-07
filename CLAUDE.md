@@ -167,6 +167,8 @@ BUY/SELL/NEUTRAL. 조건: BB %B, RSI, MACD 전환, 거래량. 민감도 3단계(
 - N/A (DB 스키마 변경 없음) (014-toss-ui-redesign)
 - TypeScript 5.x (React 18) + React Router v6, React 18, Tailwind CSS v4 (015-buy-signal-reason)
 - N/A (DB 스키마 변경 없음 — 신호 데이터는 이미 scan item에 포함) (015-buy-signal-reason)
+- Python 3.12 (backend), TypeScript 5.x / React 18 (frontend) + pandas (데이터 처리), yfinance (OHLCV 데이터), FastAPI (기존), React Query / Tailwind CSS (기존) (017-buy-scan-volume-filter)
+- SQLite WAL (aiosqlite) — `scan_snapshot_item` 테이블 읽기 전용 (스키마 변경 없음) (017-buy-scan-volume-filter)
 
 ## Recent Changes
 - 002-fix-chart-usability: Added TypeScript 5.x (React 18) + Python 3.12 (변경 없음) + React 18, lightweight-charts v5, Zustand, React Query, Tailwind CSS

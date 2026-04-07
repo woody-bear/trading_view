@@ -126,6 +126,7 @@ function ScanConditionPanel() {
         { label: '데드크로스 제외', value: 'EMA20 < EMA50 → 종목 제외' },
         { label: '사전 필터', value: 'RSI < 55 또는 스퀴즈 Lv ≥ 1' },
         { label: 'BUY 판정', value: 'Pine Script 시뮬레이션 — BUY / SQZ BUY 마커' },
+        { label: '거래량 조건', value: '신호일 거래량 > 직전 5거래일 평균' },
       ],
     },
     {
@@ -400,6 +401,14 @@ export default function BuyList() {
   const [breakdown, setBreakdown] = useState<Breakdown | null>(null)
   const [activeTab, setActiveTab] = useState<'KR' | 'US'>('KR')
   const [searchQuery, setSearchQuery] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState<'kospi' | 'kospiEtf' | 'kosdaq' | 'nasdaq100' | 'sp500' | 'russell1000' | 'usEtf' | null>(null)
+
+  const selectCategory = (cat: typeof selectedCategory) => {
+    setSelectedCategory(prev => prev === cat ? null : cat)
+    setSearchQuery('')
+    if (cat === 'kospi' || cat === 'kospiEtf' || cat === 'kosdaq') setActiveTab('KR')
+    else if (cat !== null) setActiveTab('US')
+  }
 
   const [scanSlots, setScanSlots] = useState<ScanSlot[]>(
     SCAN_SCHEDULE.map(s => ({ ...s, status: 'pending' as const }))
@@ -666,7 +675,7 @@ export default function BuyList() {
                 </button>
               )}
             </div>
-            {!searchQuery && (
+            {!searchQuery && !selectedCategory && (
               <div className="flex border-b border-[var(--border)] mb-3">
                 {(['KR', 'US'] as const).map(tab => (
                   <button key={tab} onClick={() => setActiveTab(tab)}
@@ -676,6 +685,18 @@ export default function BuyList() {
                     {tab === 'KR' ? `국내 (${krTotal.toLocaleString()})` : `미국 (${usTotal.toLocaleString()})`}
                   </button>
                 ))}
+              </div>
+            )}
+            {selectedCategory && !searchQuery && (
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs text-[var(--muted)]">필터:</span>
+                <button
+                  onClick={() => setSelectedCategory(null)}
+                  className="flex items-center gap-1 text-xs bg-white/10 hover:bg-white/15 text-white px-2.5 py-1 rounded-full transition-colors"
+                >
+                  {{ kospi: '코스피200', kospiEtf: '국내 ETF', kosdaq: '코스닥150', nasdaq100: '나스닥100', sp500: 'S&P 500', russell1000: 'Russell1000', usEtf: '미국 ETF' }[selectedCategory]}
+                  <X size={11} />
+                </button>
               </div>
             )}
             {searchQuery ? (
@@ -692,6 +713,12 @@ export default function BuyList() {
               ) : (
                 <div className="text-center py-10 text-[var(--muted)] text-sm">"{searchQuery}"에 해당하는 종목이 없습니다</div>
               )
+            ) : selectedCategory ? (
+              <SymbolTable
+                title={{ kospi: '코스피200', kospiEtf: '국내 ETF', kosdaq: '코스닥150', nasdaq100: 'NASDAQ 100 (QQQ)', sp500: 'S&P 500', russell1000: 'Russell 1000', usEtf: '미국 ETF' }[selectedCategory]}
+                items={byCategory[selectedCategory]}
+                onRowClick={handleRowClick}
+              />
             ) : activeTab === 'KR' ? (
               <>
                 <SymbolTable title="코스피" items={byCategory.kospi} onRowClick={handleRowClick} />
@@ -741,13 +768,19 @@ export default function BuyList() {
           <div className="text-[10px] font-semibold text-blue-400 mb-1.5">🇰🇷 국내 스캔 대상</div>
           <div className="flex flex-wrap gap-1.5">
             {[
-              { label: '코스피200', count: breakdown?.kospi ?? 0, color: 'bg-blue-500/20 text-blue-300' },
-              { label: '코스닥150', count: breakdown?.kosdaq ?? 0, color: 'bg-cyan-500/20 text-cyan-300' },
-              { label: 'KRX반도체/2차전지', count: (krTotal - (breakdown?.kospi ?? 0) - (breakdown?.kosdaq ?? 0)), color: 'bg-indigo-500/20 text-indigo-300' },
+              { label: '코스피200', count: breakdown?.kospi ?? 0, color: 'bg-blue-500/20 text-blue-300', activeColor: 'ring-1 ring-blue-400', cat: 'kospi' as const },
+              { label: '코스닥150', count: breakdown?.kosdaq ?? 0, color: 'bg-cyan-500/20 text-cyan-300', activeColor: 'ring-1 ring-cyan-400', cat: 'kosdaq' as const },
+              { label: 'KRX섹터', count: 0, color: 'bg-indigo-500/20 text-indigo-300', activeColor: 'ring-1 ring-indigo-400', cat: null as any },
+              { label: '국내 ETF', count: breakdown?.kospi_etf ?? 0, color: 'bg-violet-500/20 text-violet-300', activeColor: 'ring-1 ring-violet-400', cat: 'kospiEtf' as const },
             ].map(b => (
-              <span key={b.label} className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${b.color}`}>
+              <button
+                key={b.label}
+                onClick={() => b.cat && selectCategory(b.cat)}
+                disabled={!b.cat}
+                className={`text-[10px] px-2 py-0.5 rounded-full font-mono transition-all ${b.color} ${b.cat ? 'cursor-pointer hover:brightness-125' : 'cursor-default opacity-60'} ${selectedCategory === b.cat && b.cat ? b.activeColor : ''}`}
+              >
                 {b.label} {b.count > 0 ? `${b.count}` : ''}
-              </span>
+              </button>
             ))}
           </div>
         </div>
@@ -755,13 +788,18 @@ export default function BuyList() {
           <div className="text-[10px] font-semibold text-emerald-400 mb-1.5">🇺🇸 미국+암호화폐 스캔 대상</div>
           <div className="flex flex-wrap gap-1.5">
             {[
-              { label: 'S&P 500', count: breakdown?.sp500 ?? 0, color: 'bg-emerald-500/20 text-emerald-300' },
-              { label: '나스닥100 단독', count: breakdown?.nasdaq100 ?? 0, color: 'bg-green-500/20 text-green-300' },
-              { label: 'Russell1000 단독', count: breakdown?.russell1000 ?? 0, color: 'bg-orange-500/20 text-orange-300' },
+              { label: 'S&P 500', count: breakdown?.sp500 ?? 0, color: 'bg-emerald-500/20 text-emerald-300', activeColor: 'ring-1 ring-emerald-400', cat: 'sp500' as const },
+              { label: '나스닥100', count: breakdown?.nasdaq100 ?? 0, color: 'bg-green-500/20 text-green-300', activeColor: 'ring-1 ring-green-400', cat: 'nasdaq100' as const },
+              { label: 'Russell1000', count: breakdown?.russell1000 ?? 0, color: 'bg-orange-500/20 text-orange-300', activeColor: 'ring-1 ring-orange-400', cat: 'russell1000' as const },
+              { label: '미국 ETF', count: breakdown?.us_etf ?? 0, color: 'bg-yellow-500/20 text-yellow-300', activeColor: 'ring-1 ring-yellow-400', cat: 'usEtf' as const },
             ].map(b => (
-              <span key={b.label} className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${b.color}`}>
+              <button
+                key={b.label}
+                onClick={() => selectCategory(b.cat)}
+                className={`text-[10px] px-2 py-0.5 rounded-full font-mono transition-all cursor-pointer hover:brightness-125 ${b.color} ${selectedCategory === b.cat ? b.activeColor : ''}`}
+              >
                 {b.label} {b.count > 0 ? `${b.count}` : ''}
-              </span>
+              </button>
             ))}
           </div>
         </div>
@@ -820,7 +858,7 @@ export default function BuyList() {
         <div>
           <div className="flex items-center gap-2 mb-2">
             <span className="text-[10px] text-emerald-400 font-semibold">🇺🇸 미국+암호화폐 스캔</span>
-            <span className="text-[9px] text-[var(--muted)]">19:50 / 03:50 KST · S&P500+나스닥100+Russell1000+암호화폐</span>
+            <span className="text-[9px] text-[var(--muted)]">19:50 / 03:50 KST · S&P500+나스닥100+Russell1000+미국ETF+암호화폐</span>
           </div>
           <div className="flex gap-2">
             {usSlots.map(slot => <SlotCard key={slot.time} slot={slot} onClick={() => setSelectedSlot(slot)} />)}
@@ -900,7 +938,7 @@ export default function BuyList() {
       </div>
 
       {/* ── 국내/미국 탭 ── */}
-      {!searchQuery && (
+      {!searchQuery && !selectedCategory && (
         <div className="flex border-b border-[var(--border)] mb-4">
           {(['KR', 'US'] as const).map(tab => (
             <button
@@ -915,6 +953,21 @@ export default function BuyList() {
               {tab === 'KR' ? `국내 (${krTotal.toLocaleString()})` : `미국 (${usTotal.toLocaleString()})`}
             </button>
           ))}
+        </div>
+      )}
+      {selectedCategory && !searchQuery && (
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-xs text-[var(--muted)]">필터:</span>
+          <button
+            onClick={() => setSelectedCategory(null)}
+            className="flex items-center gap-1 text-xs bg-white/10 hover:bg-white/15 text-white px-2.5 py-1 rounded-full transition-colors"
+          >
+            {{
+              kospi: '코스피200', kospiEtf: '국내 ETF', kosdaq: '코스닥150',
+              nasdaq100: '나스닥100', sp500: 'S&P 500', russell1000: 'Russell1000', usEtf: '미국 ETF',
+            }[selectedCategory]}
+            <X size={11} />
+          </button>
         </div>
       )}
 
@@ -938,6 +991,13 @@ export default function BuyList() {
             </div>
           )}
         </div>
+      ) : selectedCategory ? (
+        // 카테고리 필터 선택됨
+        <SymbolTable
+          title={{ kospi: '코스피200', kospiEtf: '국내 ETF', kosdaq: '코스닥150', nasdaq100: 'NASDAQ 100 (QQQ)', sp500: 'S&P 500', russell1000: 'Russell 1000', usEtf: '미국 ETF' }[selectedCategory]}
+          items={byCategory[selectedCategory]}
+          onRowClick={handleRowClick}
+        />
       ) : activeTab === 'KR' ? (
         // 국내 탭
         <>

@@ -271,7 +271,7 @@ export default function Dashboard() {
         {/* ── 섹션 3: 차트 BUY 신호 ── */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
           <SnapSectionHeader title="차트 BUY 신호" color="text-[var(--buy)]" currentSection={currentSection} />
-          <p className="text-[15px] text-[var(--muted)] px-3 py-1 shrink-0">일봉 3일 이내 · 데드크로스 제외</p>
+          <p className="text-[15px] text-[var(--muted)] px-3 py-1 shrink-0">일봉 3일 이내 · 데드크로스 제외 · 거래량 5일 평균 1.5배↑</p>
           <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
             {mobileScan.buyItems.length === 0 ? (
               <p className="text-[var(--muted)] text-sm py-8 text-center">BUY 신호 종목이 없습니다</p>
@@ -453,8 +453,8 @@ function isAllMarketsClosed(): boolean {
 }
 
 // ── 시간대별 BUY 신호 표시 모드 ───────────────────────────────
-// KR 스캔: 평일 09:30~15:30 KST (매시 :30)  → 코스피200+코스닥150+KRX섹터 ~354종목
-// US 스캔: 평일 19:50 / 화~토 03:50 KST     → S&P500+나스닥100+암호화폐 ~522종목
+// KR 스캔: 평일 09:30~15:30 KST (매시 :30)  → 코스피200+코스닥150+KRX섹터+국내ETF ~502종목
+// US 스캔: 평일 19:50 / 화~토 03:50 KST     → S&P500+나스닥100+Russell1000+미국ETF+암호화폐 ~1041종목
 function getKSTHour(): number {
   return (new Date().getUTCHours() + 9) % 24
 }
@@ -480,7 +480,7 @@ function getBuyDisplayMode(): { mode: BuyDisplayMode; label: string } {
     const nowMin = h * 60 + m
     const lastSlot = krSlots.filter(sh => sh * 60 + 30 <= nowMin).pop()
     const slotLabel = lastSlot !== undefined ? `${lastSlot}:30 스캔 · ` : ''
-    return { mode: 'KR', label: `🇰🇷 국내장 · ${slotLabel}코스피200+코스닥150` }
+    return { mode: 'KR', label: `🇰🇷 국내장 · ${slotLabel}코스피200+코스닥150+국내ETF` }
   }
 
   // 미국 저녁 스캔 시간대 (평일 19:50 전후)
@@ -774,7 +774,7 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
           <div className="mb-2">
             <div className="flex items-center gap-2 mb-3 flex-wrap">
               <h2 className="text-sm font-bold text-[var(--buy)]">차트 BUY 신호</h2>
-              <span className="text-[9px] text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">일봉 3일 이내 + 데드크로스 제외</span>
+              <span className="text-[9px] text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">일봉 3일 이내 + 데드크로스 제외 + 거래량 5일 평균 1.5배↑</span>
               <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${
                 mode === 'KR' ? 'bg-blue-500/15 text-blue-300' :
                 mode === 'US' ? 'bg-emerald-500/15 text-emerald-300' :
