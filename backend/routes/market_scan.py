@@ -24,10 +24,13 @@ async def scan_status():
 
 @router.post("/scan/unified")
 async def unified_scan():
-    """통합 스캔 — 1회 다운로드로 추천/MAX SQ/차트 BUY 동시 생성."""
-    from services.unified_scanner import scan_all
-    result = await scan_all()
-    return result
+    """통합 스캔 트리거 — 백그라운드 실행 후 즉시 반환."""
+    from services.unified_scanner import get_scan_status, scan_all
+    status = get_scan_status()
+    if status.get("scanning"):
+        return {"status": "already_running", "scanning": True}
+    asyncio.ensure_future(scan_all())
+    return {"status": "started", "scanning": True}
 
 
 @router.get("/scan/unified")

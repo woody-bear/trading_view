@@ -615,13 +615,29 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
     setScanning(true)
     setScanMsg('전체 시장 스캔 중...')
     setScanElapsed(0)
+    const elapsed = { v: 0 }
+    const elapsedTimer = setInterval(() => { elapsed.v += 1; setScanElapsed(elapsed.v) }, 1000)
     try {
-      const result = await runUnifiedScan()
+      await runUnifiedScan()
+      // 백그라운드 스캔 완료까지 폴링 (최대 10분)
+      const maxPolls = 120
+      let polls = 0
+      await new Promise<void>((resolve, reject) => {
+        const poll = setInterval(async () => {
+          polls++
+          if (polls > maxPolls) { clearInterval(poll); reject(new Error('timeout')); return }
+          try {
+            const status = await fetchScanStatus()
+            if (!status.scanning) { clearInterval(poll); resolve() }
+          } catch { /* 폴링 실패 무시, 계속 */ }
+        }, 5000)
+      })
+      const result = await fetchUnifiedCache()
       applyResult(result)
       setScanMsg('스캔 완료')
       setTimeout(() => setScanMsg(''), 3000)
     } catch { setScanMsg('스캔 실패') }
-    finally { setScanning(false); setScanElapsed(0) }
+    finally { clearInterval(elapsedTimer); setScanning(false); setScanElapsed(0) }
   }
 
   // 마운트 시: full_market_scanner 스냅샷 우선 로드 → 없으면 unified_scanner fallback
@@ -629,23 +645,32 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
     if (autoLoaded.current) return
     autoLoaded.current = true
 
-    // 1차: full_market_scanner 스냅샷, 없으면 unified 캐시 fallback
-    // 데이터 로드 성공 여부를 반환해 스캔 실행 여부 판단에 사용
-    const loadData: Promise<boolean> = fetchFullScanLatest()
-      .then(r => {
-        if (r?.status !== 'no_data' && r?.picks) {
-          applyResult(r)
-          return true
+    // full_market_scanner + unified_scanner 둘 다 로드해 더 최신 결과 사용
+    const loadData: Promise<boolean> = Promise.all([
+      fetchFullScanLatest().catch(() => null),
+      fetchUnifiedCache().catch(() => null),
+    ]).then(([full, unified]) => {
+      const fullTs = full?.completed_at || full?.scan_time || null
+      const unifiedTs = unified?.scan_time || null
+      const fullHasData = full?.status !== 'no_data' && full?.picks
+      const unifiedHasData = !!unifiedTs
+
+      if (!fullHasData && !unifiedHasData) return false
+
+      // 둘 다 있으면 더 최신 타임스탬프 우선
+      if (fullHasData && unifiedHasData && fullTs && unifiedTs) {
+        if (new Date(unifiedTs) > new Date(fullTs)) {
+          applyResult(unified)
+        } else {
+          applyResult(full)
         }
-        return fetchUnifiedCache()
-          .then(r2 => { applyResult(r2); return true })
-          .catch(() => false)
-      })
-      .catch(() =>
-        fetchUnifiedCache()
-          .then(r => { applyResult(r); return true })
-          .catch(() => false)
-      )
+      } else if (fullHasData) {
+        applyResult(full)
+      } else {
+        applyResult(unified)
+      }
+      return true as boolean
+    })
 
     // 스캔 상태 + 데이터 로드를 함께 기다린 후 스캔 실행 여부 결정
     // → fetchScanStatus 실패만으로 runScan()을 트리거하지 않음 (레이스 컨디션 방지)

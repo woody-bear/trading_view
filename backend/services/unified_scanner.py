@@ -1,7 +1,7 @@
 """통합 시장 스캔 — 1회 다운로드로 추천/MAX SQ/차트 BUY 3개 결과 동시 생성."""
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pandas as pd
 import yfinance as yf
@@ -52,19 +52,23 @@ async def _get_all_stocks() -> dict[str, dict]:
 
 
 def _batch_download(tickers: list[str]) -> pd.DataFrame | None:
-    import concurrent.futures
+    """단일 배치 다운로드. threads=True로 시도하고 race condition 발생 시 threads=False 재시도."""
+    kwargs = dict(period="2y", interval="1d", progress=False, auto_adjust=True)
     try:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(
-                yf.download, tickers,
-                period="2y", interval="1d", progress=False, auto_adjust=True, threads=True
-            )
-            return future.result(timeout=180)  # 3분 초과 시 포기
-    except concurrent.futures.TimeoutError:
-        logger.error(f"통합 스캔 배치 다운로드 타임아웃 (3분 초과, {len(tickers)}개 종목)")
-        return None
-    except Exception as e:
-        logger.error(f"통합 스캔 배치 다운로드 실패: {e}")
+        df = yf.download(tickers, threads=True, **kwargs)
+        if df is not None and not df.empty:
+            return df
+    except (RuntimeError, Exception) as e:
+        if "dictionary changed size" not in str(e) and "size changed" not in str(e):
+            logger.error(f"통합 스캔 다운로드 실패: {e}")
+            return None
+        logger.warning(f"threads=True race condition — threads=False로 재시도: {e}")
+    # fallback: threads=False (느리지만 안전)
+    try:
+        df = yf.download(tickers, threads=False, **kwargs)
+        return df if df is not None and not df.empty else None
+    except Exception as e2:
+        logger.error(f"통합 스캔 다운로드 fallback 실패: {e2}")
         return None
 
 
@@ -122,7 +126,7 @@ def get_scan_status() -> dict:
     import time
     elapsed = round(time.time() - _scan_started_at) if _scanning and _scan_started_at else 0
     # 상태 조회 시에도 고착 감지 — scan_all() 재호출 없이도 자동 해제
-    if _scanning and _scan_started_at and time.time() - _scan_started_at > 300:
+    if _scanning and _scan_started_at and time.time() - _scan_started_at > 420:
         logger.warning(f"스캔 고착 감지 ({elapsed}초 경과) — 상태 조회 중 강제 해제")
         _scanning = False
         elapsed = 0
@@ -145,8 +149,8 @@ async def scan_all() -> dict:
 
     if _scanning:
         # 5분 이상 스캔 중이면 고착으로 판단하고 강제 해제
-        if time.time() - _scan_started_at > 300:
-            logger.warning("스캔 플래그 고착 감지 (5분 초과) — 강제 해제")
+        if time.time() - _scan_started_at > 420:
+            logger.warning("스캔 플래그 고착 감지 (7분 초과) — 강제 해제")
             _scanning = False
         else:
             return _cache
@@ -231,6 +235,10 @@ async def scan_all() -> dict:
                     maxsq_by_market.setdefault(mtype, []).append(item)
 
                 # 3. 차트 BUY 신호 (일봉 3일 이내)
+                # stale 데이터 확인 — 마지막 봉이 7일 이상 오래됐으면 스킵
+                last_bar_date = df.index[-1].date() if hasattr(df.index[-1], "date") else None
+                if last_bar_date and (datetime.utcnow().date() - last_bar_date).days > 7:
+                    continue
                 timestamps = [int(idx.timestamp()) for idx in df.index]
                 indicators_data, _, current = _calc_all(df, timestamps)
                 markers = _simulate_signals(df, timestamps, indicators_data, "1d")
@@ -238,8 +246,18 @@ async def scan_all() -> dict:
                     last_marker = markers[-1]
                     if last_marker["text"] in ("BUY", "SQZ BUY"):
                         signal_dt = datetime.utcfromtimestamp(last_marker["time"])
-                        if (datetime.utcnow() - signal_dt) <= timedelta(days=3):
-                            buy_items.append({
+                        # 10거래일 이내 (실제 거래일 기준)
+                        signal_date = signal_dt.date()
+                        sig_matching = [i for i, idx in enumerate(df.index) if idx.date() == signal_date]
+                        if not sig_matching:
+                            continue
+                        if len(df) - 1 - sig_matching[0] > 10:
+                            continue
+                        # 거래량 필터: 신호일 거래량 > 직전 5거래일 평균 × 1.5
+                        from services.full_market_scanner import _passes_volume_filter
+                        if not _passes_volume_filter(df, signal_dt.strftime("%Y-%m-%d")):
+                            continue
+                        buy_items.append({
                                 "symbol": sym, "display_name": name,
                                 "market": info["market"], "market_type": mtype,
                                 "last_signal": last_marker["text"],

@@ -223,6 +223,13 @@ def _check_buy_signal_precise(df: pd.DataFrame, last_rsi: float, last_sq: int) -
     if last_rsi >= 80 and last_sq == 0:
         return None, None
 
+    # 데이터 신선도 확인 — 마지막 봉이 7일 이상 오래됐으면 stale 데이터 → 스킵
+    from datetime import datetime as _dt, timezone as _tz
+    today_utc = _dt.now(_tz.utc).date()
+    last_bar_date = df.index[-1].date() if hasattr(df.index[-1], "date") else None
+    if last_bar_date and (today_utc - last_bar_date).days > 7:
+        return None, None
+
     try:
         from routes.charts import _calc_all, _simulate_signals
 
@@ -294,8 +301,11 @@ def _analyze_ticker(df: pd.DataFrame, info: dict) -> dict | None:
 
         # 차트 BUY 신호 (Pine Script 정밀 판정 + 사전 필터)
         buy_signal, buy_date = _check_buy_signal_precise(df, last_rsi, last_sq)
-        if buy_signal and _passes_volume_filter(df, buy_date):
-            categories.append("chart_buy")
+        if buy_signal:
+            pvf = _passes_volume_filter(df, buy_date)
+            logger.debug(f"[chart_buy] {info['symbol']} signal={buy_signal} date={buy_date} pvf={pvf}")
+            if pvf:
+                categories.append("chart_buy")
 
         # 투자과열: RSI >= 70 또는 (RSI >= 65 + 거래량 2배+) — 한국 개별주, 거래량 있는 종목만
         if info["market"] == "KR" and not info.get("is_etf", False) and last_vol >= 0.1:
