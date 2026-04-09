@@ -106,7 +106,7 @@ KR_ETF_SYMBOLS: set[str] = {
     "132030",  # KODEX 골드선물(H)
     "411060",  # KODEX 골드(현물)
     "228790",  # KODEX 은선물(H)
-    "176950",  # KODEX 구리선물(H)
+    "138910",  # KODEX 구리선물(H)
     "394670",  # KODEX 반도체
     "091160",  # KODEX 반도체(구)
     "091170",  # KODEX 은행
@@ -149,7 +149,7 @@ KR_ETF_SYMBOLS: set[str] = {
     "195980",  # TIGER 일본니케이225(H)
     "192720",  # TIGER 차이나CSI300
     "267980",  # TIGER 원유선물Enhanced(H)
-    "139230",  # TIGER 구리실물
+    "160580",  # TIGER 구리실물
     "441680",  # TIGER 미국AI반도체핵심공정
     "395160",  # TIGER 미국필라델피아반도체나스닥
     "371460",  # TIGER 미국테크TOP10INDXX
