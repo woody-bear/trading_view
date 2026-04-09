@@ -108,6 +108,46 @@ export const fetchSnapshotBuyItems = (snapshotId: number) =>
 export const fetchFinancials = (symbol: string, market: string) =>
   api.get(`/financials/${symbol}`, { params: { market } }).then(r => r.data)
 
+// 회사 정보 + 확장 투자 지표 (yfinance, KIS 불필요)
+export interface CompanyInfo {
+  name: string
+  logo_url: string | null
+  description: string | null
+  industry: string | null
+  sector: string | null
+  country: string | null
+  exchange: string | null
+  employees: number | null
+  website: string | null
+}
+export interface InvestmentMetrics {
+  per: number | null
+  pbr: number | null
+  roe: number | null
+  roa: number | null
+  eps: number | null
+  bps: number | null
+  dividend_yield: number | null
+  market_cap: number | null
+  operating_margin: number | null
+  debt_to_equity: number | null
+  currency: 'KRW' | 'USD'
+}
+export interface RevenueSegment {
+  name: string
+  revenue: number
+  percentage: number
+  period: string
+}
+export interface CompanyInfoResponse {
+  company: CompanyInfo | null
+  metrics: InvestmentMetrics | null
+  revenue_segments: RevenueSegment[] | null
+  cached_at: string | null
+}
+export const fetchCompanyInfo = (symbol: string, market: string): Promise<CompanyInfoResponse> =>
+  api.get(`/company/${symbol}`, { params: { market } }).then(r => r.data)
+
 // BUY 사인조회 — 전체 스캔 대상 종목 목록 (인증 불필요, 인터셉터 우회)
 export const fetchScanSymbols = () => fetch('/api/scan/symbols').then(r => r.json())
 

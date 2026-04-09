@@ -10,6 +10,9 @@ import ChartEmptyState from '../components/charts/ChartEmptyState'
 import ChartErrorBoundary from '../components/charts/ChartErrorBoundary'
 import ChartSkeleton from '../components/charts/ChartSkeleton'
 import FinancialChart from '../components/charts/FinancialChart'
+import CompanyInfoPanel from '../components/CompanyInfoPanel'
+import InvestmentMetricsPanel from '../components/InvestmentMetricsPanel'
+import RevenueSegmentChart from '../components/RevenueSegmentChart'
 import PositionGuide from '../components/PositionGuide'
 import RiskWarningBanner from '../components/RiskWarningBanner'
 import StockFundamentals from '../components/StockFundamentals'
@@ -481,6 +484,15 @@ export default function SignalDetail() {
 
       {/* 실적 차트 */}
       <FinancialChart symbol={lookupSymbol} market={s.market} />
+
+      {/* 회사 정보 */}
+      <CompanyInfoPanel symbol={lookupSymbol} market={guessMarket || 'US'} />
+
+      {/* 확장 투자 지표 */}
+      <InvestmentMetricsPanel symbol={lookupSymbol} market={guessMarket || 'US'} />
+
+      {/* 매출 구성 */}
+      <RevenueSegmentChart symbol={lookupSymbol} market={guessMarket || 'US'} />
 
       {/* 기본 정보 */}
       <div className="grid grid-cols-2 gap-2 md:gap-3 mt-4 md:mt-6 mb-4">
