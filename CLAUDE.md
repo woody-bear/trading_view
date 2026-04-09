@@ -63,6 +63,10 @@ pnpm lint && pnpm format
 pnpm test
 ```
 
+## Critical Rules
+
+- **스캔 종목 ↔ 조회 종목 동기화 필수**: `backend/services/scan_symbols_list.py`에 종목을 추가/수정할 때, 해당 종목이 `/api/scan/symbols` 응답(즉, `get_all_symbols()` → `stock_master` DB 테이블)에도 포함되는지 반드시 확인할 것. KR 종목은 `stock_master` DB에 존재해야 조회 리스트에 나타남. 두 리스트 불일치 시 즉시 수정.
+
 ## Key Design Decisions
 
 - **Docker 미사용** — 로컬 실행, venv + Node.js
@@ -120,6 +124,7 @@ BUY/SELL/NEUTRAL. 조건: BB %B, RSI, MACD 전환, 거래량. 민감도 3단계(
 
 | Endpoint | Purpose |
 |----------|---------|
+| `GET /api/company/{symbol}` | 회사 정보 + 확장 투자 지표 + 매출 세그먼트 (yfinance, 1h 캐시) |
 | `GET /api/signals` | 관심종목 신호 목록 |
 | `GET /api/chart/quick?symbol=&market=` | 차트 데이터 (캐시 우선) |
 | `GET /api/prices/stream/{symbol}` | SSE 실시간 가격 (1초) |
@@ -169,6 +174,9 @@ BUY/SELL/NEUTRAL. 조건: BB %B, RSI, MACD 전환, 거래량. 민감도 3단계(
 - N/A (DB 스키마 변경 없음 — 신호 데이터는 이미 scan item에 포함) (015-buy-signal-reason)
 - Python 3.12 (backend), TypeScript 5.x / React 18 (frontend) + pandas (데이터 처리), yfinance (OHLCV 데이터), FastAPI (기존), React Query / Tailwind CSS (기존) (017-buy-scan-volume-filter)
 - SQLite WAL (aiosqlite) — `scan_snapshot_item` 테이블 읽기 전용 (스키마 변경 없음) (017-buy-scan-volume-filter)
+- Python 3.12 (backend), TypeScript 5.x / React 18 (frontend) + FastAPI, yfinance (이미 설치), React Query, Tailwind CSS v4 (018-stock-detail-info)
+- N/A — 메모리 캐시만 사용 (DB 변경 없음) (018-stock-detail-info)
 
 ## Recent Changes
+- 018-stock-detail-info: 회사 정보·확장 투자 지표·매출 구성 패널 추가 — GET /api/company/{symbol} (yfinance, 1h 캐시) + CompanyInfoPanel·InvestmentMetricsPanel·RevenueSegmentChart 컴포넌트
 - 002-fix-chart-usability: Added TypeScript 5.x (React 18) + Python 3.12 (변경 없음) + React 18, lightweight-charts v5, Zustand, React Query, Tailwind CSS
