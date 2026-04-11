@@ -74,24 +74,27 @@ async def get_signals(
 
 @router.get("/signals/latest-buy")
 async def get_latest_buy():
-    """차트 마지막 신호가 BUY/SQZ BUY인 종목 목록."""
-    from services.chart_scanner import get_cache, scan_latest_buy
+    """최신 스냅샷에서 chart_buy 종목 반환 (KR 5 + US 5)."""
+    from services.full_market_scanner import get_latest_snapshot
 
-    results, scan_time = get_cache()
-    if not results and not scan_time:
-        results = await scan_latest_buy()
-        _, scan_time = get_cache()
-
-    return {"items": results, "scan_time": scan_time, "count": len(results)}
+    snapshot = await get_latest_snapshot()
+    if not snapshot:
+        return {"items": [], "scan_time": None, "count": 0}
+    items = snapshot.get("chart_buy", {}).get("items", [])
+    scan_time = snapshot.get("completed_at")
+    return {"items": items, "scan_time": scan_time, "count": len(items)}
 
 
 @router.post("/signals/latest-buy/refresh")
 async def refresh_latest_buy():
-    """수동 재스캔 트리거."""
-    from services.chart_scanner import scan_latest_buy
+    """스냅샷 재조회 — 실시간 스캔 없이 최신 스냅샷 반환."""
+    from services.full_market_scanner import get_latest_snapshot
 
-    results = await scan_latest_buy()
-    return {"items": results, "count": len(results), "status": "refreshed"}
+    snapshot = await get_latest_snapshot()
+    if not snapshot:
+        return {"items": [], "count": 0, "status": "no_snapshot"}
+    items = snapshot.get("chart_buy", {}).get("items", [])
+    return {"items": items, "count": len(items), "status": "ok"}
 
 
 @router.get("/signals/{watchlist_id}")

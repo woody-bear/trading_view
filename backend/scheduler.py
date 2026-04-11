@@ -17,7 +17,7 @@ def setup_scheduler():
     scheduler.add_job(
         _scheduled_scan,
         trigger="interval",
-        minutes=10,
+        minutes=30,
         max_instances=1,
         coalesce=True,
         misfire_grace_time=60,
@@ -54,12 +54,27 @@ def setup_scheduler():
         replace_existing=True,
     )
 
-    # 국내 시장 스캔 — 평일 매시 :30 (9:30~15:30 KST) · 코스피200+코스닥150+KRX섹터 (~351종목)
+    # 국내 시장 스캔 — 평일 매시 :00/:30 (9:30~15:30 KST) · 코스피200+코스닥150+KRX섹터 (~351종목)
+    # 9:00은 개장 직후라 스킵, 10:00~15:00은 정각도 포함
     scheduler.add_job(
         _scheduled_full_market_scan_kr,
         trigger="cron",
-        hour="9,10,11,12,13,14,15",
+        hour="9",
         minute=30,
+        day_of_week="mon-fri",
+        timezone=KST,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=600,
+        id="full_market_scan_kr_930",
+        name="국내 시장 스캔 9:30 (KR)",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _scheduled_full_market_scan_kr,
+        trigger="cron",
+        hour="10,11,12,13,14,15",
+        minute="0,30",
         day_of_week="mon-fri",
         timezone=KST,
         max_instances=1,
@@ -179,13 +194,6 @@ async def _scheduled_scan():
     logger.info(f"자동 스캔 시작 — 활성 시장: {active}")
     result = await run_scan()
     logger.info(f"자동 스캔 완료: {result}")
-
-    # 차트 BUY 신호 스캔 (주봉 기준)
-    try:
-        from services.chart_scanner import scan_latest_buy
-        await scan_latest_buy("1d")
-    except Exception as e:
-        logger.warning(f"차트 BUY 스캔 실패: {e}")
 
 
 async def _scheduled_buy_alert():
