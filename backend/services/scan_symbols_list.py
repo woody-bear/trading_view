@@ -1,7 +1,7 @@
-"""스캔 대상 종목 리스트 — 코스피200, 코스닥150, KRX 반도체/2차전지, S&P500, 나스닥100, Russell1000, 국내/미국 ETF.
+"""스캔 대상 종목 리스트 — 코스피200, 코스닥150, KRX 반도체/2차전지, S&P500, 나스닥100, 다우존스30, 국내/미국 ETF.
 
-출처: .claude/docs/buy종목리스트정리.md (2026-04-06 기준)
-중복 제거 후 국내 ~540종목 + 미국 ~1050종목 = 총 ~1590종목
+출처: .claude/docs/buy종목리스트정리.md (2026-04-12 기준)
+중복 제거 후 국내 ~470종목 + 미국 ~718종목 = 총 ~1198종목
 """
 
 # ── 코스피200 (200종목) ────────────────────────────────────────────────────────
@@ -275,57 +275,40 @@ NASDAQ100_EXTRA_TICKERS: set[str] = {
     "TEAM",   # Atlassian
 }
 
-# ── Russell 1000 단독 (S&P500·나스닥100 미포함, ~323종목) ───────────────────────
-RUSSELL1000_EXTRA_TICKERS: set[str] = {
-    # 기술 — 소프트웨어/클라우드
-    "SNOW", "NET", "ZM", "HUBS", "DOCU", "OKTA", "MDB", "GTLB", "PCTY", "TOST",
-    "PRCT", "CFLT", "NTNX", "PATH", "S", "FRSH", "BRZE", "BILL", "ZI", "CWAN",
-    "ASAN", "DBX", "BOX", "DOCN", "WK", "ESTC", "AFRM", "RBLX", "U", "VEEV",
-    "CDAY", "PYCR", "INFA", "CCCS", "SPSC", "NCNO", "ALKT", "ALRM", "AVPT",
-    "FLYW", "AGYS", "PEGA", "DOMO", "YEXT", "APPN", "DSGX", "EXLS", "TASK", "BIGC",
-    # 기술 — 반도체/하드웨어
-    "COHR", "ONTO", "ACLS", "CRUS", "SLAB", "AMBA", "UCTT", "CRDO", "AEIS",
-    "ALGM", "FORM", "DIOD", "MTSI", "IPGP", "RMBS", "POWI", "LSCC", "SITM",
-    "CGNX", "LITE", "VIAV", "SMTC", "MKSI", "PLXS", "NSIT", "KLIC", "CEVA",
-    # 소비재 — 임의소비재
-    "DKNG", "RH", "BOOT", "WING", "TXRH", "ELF", "KMX", "AN", "LAD", "ABG",
-    "GPI", "SAH", "PAG", "CPRI", "LEVI", "VFC", "GIII", "COTY", "HGV", "VAC",
-    "TNL", "SHAK", "SG", "HAYW", "PENN", "CZR", "CHDN", "PLNT", "CAKE", "EAT",
-    "BLMN", "DIN", "BROS", "PLAY", "IAC", "CARS", "MODG", "WGO", "BC", "FOXF",
-    "FL", "GPS", "URBN", "VSCO", "PVH", "HBI", "CRI", "ANF", "AEO", "CHWY",
-    "YETI", "PTON", "GENI",
-    # 헬스케어
-    "NTRA", "EXAS", "HALO", "IONS", "ROIV", "LEGN", "DNLI", "RGEN", "ARWR",
-    "ACAD", "NVCR", "MDGL", "KRYS", "IRTC", "RXRX", "FOLD", "PCVX", "HIMS",
-    "DOCS", "GKOS", "MMSI", "LIVN", "RARE", "ARDX", "IMVT", "AXSM", "PTCT",
-    "RCKT", "KYMR", "TVTX", "XNCR", "APLS", "BEAM", "NTLA", "PRAX", "SAGE",
-    "NVAX", "LNTH", "OMCL", "SDGR", "CLDX", "DAWN", "GMED", "ICUI", "MRUS",
-    "IMCR", "ARQT", "PTGX",
-    # 금융
-    "LPLA", "RYAN", "WTFC", "PIPR", "VOYA", "STEP", "FCNCA", "WD", "PNFP",
-    "SFBS", "CVBF", "BANR", "WSFS", "INDB", "FULT", "FFIN", "BOKF", "UMBF",
-    "GBCI", "CATY", "HWC", "OFG", "COLB", "SYBT", "JLL", "NMRK", "RDFN",
-    "COMP", "EXPI", "HASI", "STWD", "BXMT", "GCMG", "GDOT", "UWMC", "COOP",
-    "IIPR",
-    # 산업재
-    "GXO", "SAIA", "NVT", "IBP", "SITE", "TREX", "WMS", "CSWI", "RBC", "BMI",
-    "FLR", "KBR", "KTOS", "CACI", "PSN", "DRS", "MRCY", "BAH", "ICFI", "APOG",
-    "GFF", "MWA", "UFPI", "BCC", "LPX", "AZEK", "LGIH", "GRBK", "TMHC", "MHO",
-    "SKY", "CVCO", "KNX", "RXO", "HUBG", "MATX", "R", "J", "EXPO", "ACA",
-    "RUSHA", "HERC", "LBRT", "PTEN", "OII", "TDW", "GEO", "CXW", "GATX", "NE",
-    "ASGN", "KFY", "MAN", "KFRC",
-    # 에너지
-    "CIVI", "SM", "CHRD", "MUR", "SWN", "PBF", "VTLE", "TALO", "RRC", "GPOR",
-    "CNX", "MTDR", "CRGY", "NOG", "DINO", "INT", "HESM", "AM", "KNTK", "SBOW",
-    # 소재
-    "CC", "OLN", "CRS", "HXL", "IOSP", "TROX", "KALU", "CENX", "SXT",
-    # 통신/미디어
-    "LSXMA", "FWONA", "LBTYA", "CARG", "ZD", "AMCX", "NXST", "SEAT",
-    # 부동산 (S&P500 미포함 REIT)
-    "STAG", "TRNO", "KRG", "IRT", "NHI", "OHI", "SBRA", "AIV", "UE", "ROIC",
-    "FCPT", "GTY",
-    # 암호화폐 채굴/관련
-    "MARA", "RIOT", "HUT", "IREN", "CORZ", "CLSK",
+# ── 다우존스30 (S&P500 완전 포함 — 참조용) ──────────────────────────────────────
+# 모든 DJIA 종목은 SP500_TICKERS에 이미 포함되어 있음
+# ALL_US_TICKERS 계산에는 별도 추가 불필요 (SP500으로 자동 포함)
+DJIA30_TICKERS: set[str] = {
+    "AAPL",  # Apple
+    "MSFT",  # Microsoft
+    "AMZN",  # Amazon
+    "NVDA",  # NVIDIA (2024-11 INTC 대체)
+    "JPM",   # JPMorgan Chase
+    "V",     # Visa
+    "UNH",   # UnitedHealth
+    "HD",    # Home Depot
+    "KO",    # Coca-Cola
+    "WMT",   # Walmart
+    "MCD",   # McDonald's
+    "GS",    # Goldman Sachs
+    "AXP",   # American Express
+    "CVX",   # Chevron
+    "CAT",   # Caterpillar
+    "BA",    # Boeing
+    "HON",   # Honeywell
+    "IBM",   # IBM
+    "JNJ",   # Johnson & Johnson
+    "MRK",   # Merck
+    "MMM",   # 3M
+    "PG",    # Procter & Gamble
+    "SHW",   # Sherwin-Williams
+    "TRV",   # Travelers
+    "NKE",   # Nike
+    "VZ",    # Verizon
+    "DIS",   # Disney
+    "CRM",   # Salesforce
+    "AMGN",  # Amgen
+    "DOW",   # Dow Inc.
 }
 
 # ── 미국 ETF (지수/채권/원자재/섹터/레버리지/해외/테마) ──────────────────────────
@@ -373,8 +356,9 @@ US_ETF_TICKERS: set[str] = {
     "IBIT", "FBTC", "BITO", "GBTC", "ETHA",
 }
 
-# SP500/나스닥100/러셀1000과 중복 제거 (개별주 티커가 ETF 세트에 들어올 경우 방지)
-US_ETF_TICKERS -= SP500_TICKERS | NASDAQ100_EXTRA_TICKERS | RUSSELL1000_EXTRA_TICKERS
+# SP500/나스닥100과 중복 제거 (개별주 티커가 ETF 세트에 들어올 경우 방지)
+US_ETF_TICKERS -= SP500_TICKERS | NASDAQ100_EXTRA_TICKERS
 
 # 미국 전체 스캔 대상 (중복 제거)
-ALL_US_TICKERS: set[str] = SP500_TICKERS | NASDAQ100_EXTRA_TICKERS | RUSSELL1000_EXTRA_TICKERS | US_ETF_TICKERS
+# DJIA30_TICKERS는 SP500_TICKERS의 부분집합이므로 별도 추가 불필요
+ALL_US_TICKERS: set[str] = SP500_TICKERS | NASDAQ100_EXTRA_TICKERS | US_ETF_TICKERS

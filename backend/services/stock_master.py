@@ -194,11 +194,11 @@ async def get_master_count() -> int:
 async def get_all_symbols() -> dict:
     """큐레이션 스캔 대상 종목 목록 + 카테고리별 집계 반환.
 
-    코스피200, 코스닥150, KRX반도체/2차전지 추가 + S&P500 + 나스닥100 단독 + Russell1000 단독 종목 포함.
+    코스피200, 코스닥150, KRX반도체/2차전지 추가 + S&P500(다우존스30 포함) + 나스닥100 단독 + 미국 ETF 포함.
     """
     from services.scan_symbols_list import (
         ALL_KR_SYMBOLS, ALL_US_TICKERS, KOSPI200_SYMBOLS, KOSDAQ150_SYMBOLS,
-        NASDAQ100_EXTRA_TICKERS, RUSSELL1000_EXTRA_TICKERS, SP500_TICKERS,
+        NASDAQ100_EXTRA_TICKERS, DJIA30_TICKERS, SP500_TICKERS,
         US_ETF_TICKERS,
     )
 
@@ -220,7 +220,7 @@ async def get_all_symbols() -> dict:
         )).scalars().all()
         us_map: dict[str, StockMaster] = {r.symbol: r for r in us_rows}
 
-        breakdown = {"kospi": 0, "kospi_etf": 0, "kosdaq": 0, "nasdaq100": 0, "sp500": 0, "russell1000": 0, "us_etf": 0}
+        breakdown = {"kospi": 0, "kospi_etf": 0, "kosdaq": 0, "nasdaq100": 0, "sp500": 0, "djia30": 0, "us_etf": 0}
         symbols = []
 
         for r in kr_rows:
@@ -247,21 +247,20 @@ async def get_all_symbols() -> dict:
                 indices.append("SP500")
             if ticker in NASDAQ100_EXTRA_TICKERS:
                 indices.append("NASDAQ100")
-            if ticker in RUSSELL1000_EXTRA_TICKERS:
-                indices.append("RUSSELL1000")
-            # 1차 분류 기준 (NASDAQ100 > RUSSELL1000 > ETF > SP500)
+            if ticker in DJIA30_TICKERS:
+                indices.append("DJIA30")
+            # 1차 분류 기준 (NASDAQ100 > ETF > SP500)
             if ticker in NASDAQ100_EXTRA_TICKERS:
                 mtype = "NASDAQ100"
                 breakdown["nasdaq100"] += 1
-            elif ticker in RUSSELL1000_EXTRA_TICKERS:
-                mtype = "RUSSELL1000"
-                breakdown["russell1000"] += 1
             elif ticker in US_ETF_TICKERS:
                 mtype = "ETF"
                 breakdown["us_etf"] += 1
             else:
                 mtype = "SP500"
                 breakdown["sp500"] += 1
+                if ticker in DJIA30_TICKERS:
+                    breakdown["djia30"] += 1
             symbols.append({
                 "symbol": ticker,
                 "name": r.name if r else ticker,
