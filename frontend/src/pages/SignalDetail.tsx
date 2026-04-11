@@ -204,7 +204,12 @@ export default function SignalDetail() {
   const handleAddToWatchlist = async () => {
     setAdding(true)
     try {
-      const m = (guessMarket === 'KOSPI' || guessMarket === 'KOSDAQ') ? 'KR' : guessMarket
+      // guessMarket이 market_type(NASDAQ100/SP500/ETF/KOSPI/KOSDAQ)일 수 있으므로 KR/US/CRYPTO로 정규화
+      const m: 'KR' | 'US' | 'CRYPTO' =
+        (guessMarket === 'KR' || guessMarket === 'KOSPI' || guessMarket === 'KOSDAQ') ? 'KR'
+        : guessMarket === 'CRYPTO' ? 'CRYPTO'
+        : lookupSymbol.match(/^\d{6}$/) ? 'KR'
+        : 'US'
       await addSymbol({ market: m, symbol: lookupSymbol, timeframe: '1d' })
       setAddedNow(true)
       addToast('success', '관심종목에 추가되었습니다')
