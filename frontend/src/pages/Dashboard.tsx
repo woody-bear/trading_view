@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, ChevronRight, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { addSymbol, deleteSymbol, fetchBatchPrices, fetchFullScanLatest, fetchFullScanStatus, fetchScanStatus, fetchSignals, fetchUnifiedCache, runUnifiedScan, searchSymbols } from '../api/client'
+import { addSymbol, deleteSymbol, fetchBatchPrices, fetchFullScanLatest, fetchFullScanStatus, fetchScanStatus, fetchSignals, searchSymbols, triggerFullScan } from '../api/client'
 import SentimentPanel from '../components/SentimentPanel'
 import SignalCard from '../components/SignalCard'
 import { usePriceFlash } from '../hooks/usePriceFlash'
@@ -77,15 +77,11 @@ export default function Dashboard() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // 모바일 스냅 레이아웃용 스캔 데이터 로드
+  // 모바일 스냅 레이아웃용 스캔 데이터 로드 (스냅샷 단일 소스)
   useEffect(() => {
     fetchFullScanLatest().then(r => {
-      if (r?.status !== 'no_data' && r?.picks) {
+      if (r?.status !== 'no_data' && r?.chart_buy) {
         setMobileScan({ buyItems: r.chart_buy?.items || [], overheatItems: r.overheat?.items || [], picks: r.picks })
-      } else {
-        fetchUnifiedCache().then(r2 => {
-          setMobileScan({ buyItems: r2?.chart_buy?.items || [], overheatItems: r2?.overheat?.items || [], picks: r2?.picks || null })
-        }).catch(() => {})
       }
     }).catch(() => {})
   }, [])
@@ -271,7 +267,7 @@ export default function Dashboard() {
         {/* ── 섹션 3: 차트 BUY 신호 ── */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
           <SnapSectionHeader title="차트 BUY 신호" color="text-[var(--buy)]" currentSection={currentSection} />
-          <p className="text-[15px] text-[var(--muted)] px-3 py-1 shrink-0">일봉 3일 이내 · 데드크로스 제외 · 거래량 5일 평균 1.5배↑</p>
+          <p className="text-[15px] text-[var(--muted)] px-3 py-1 shrink-0">일봉 10거래일 이내 · 데드크로스 제외 · 거래량 5일 평균 1.5배↑</p>
           <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
             {mobileScan.buyItems.length === 0 ? (
               <p className="text-[var(--muted)] text-sm py-8 text-center">BUY 신호 종목이 없습니다</p>
@@ -469,37 +465,18 @@ type BuyDisplayMode = 'KR' | 'US' | 'ALL'
 
 function getBuyDisplayMode(): { mode: BuyDisplayMode; label: string } {
   const h = getKSTHour()
-  const m = new Date().getUTCMinutes()  // KST분 = UTC분
   const wd = getKSTWeekday()  // 0=일~6=토
   const isWeekday = wd >= 1 && wd <= 5
-  const isTueSat = wd >= 2 && wd <= 6
 
-  // 국내장 스캔 시간 (평일 09:30~16:10, 최근 슬롯 계산)
-  if (isWeekday && h >= 9 && h < 17) {
-    const krSlots = [9, 10, 11, 12, 13, 14, 15]
-    const nowMin = h * 60 + m
-    const lastSlot = krSlots.filter(sh => sh * 60 + 30 <= nowMin).pop()
-    const slotLabel = lastSlot !== undefined ? `${lastSlot}:30 스캔 · ` : ''
-    return { mode: 'KR', label: `🇰🇷 국내장 · ${slotLabel}코스피200+코스닥150+국내ETF` }
+  // 시간대에 상관없이 항상 ALL — 스냅샷에서 KR 5 + US 5 전체 표시
+  // 라벨만 현재 시간대 컨텍스트 표시용
+  if (isWeekday && h >= 9 && h < 16) {
+    return { mode: 'ALL', label: '🇰🇷🇺🇸 국내장 · 최근 스캔 기준' }
   }
-
-  // 미국 저녁 스캔 시간대 (평일 19:50 전후)
   if (isWeekday && h >= 19 && h < 23) {
-    return { mode: 'US', label: '🇺🇸 미국장 · 19:50 스캔 · S&P500+나스닥100' }
+    return { mode: 'ALL', label: '🇰🇷🇺🇸 미국장 · 최근 스캔 기준' }
   }
-
-  // 미국 새벽 스캔 시간대 (화~토 03:50 전후, 00:00~07:00)
-  if (isTueSat && h < 7) {
-    return { mode: 'US', label: '🇺🇸 미국장 · 03:50 스캔 · S&P500+나스닥100' }
-  }
-
-  // 전환 시간 (장 마감 후, 미국 스캔 전: 17:00~19:50)
-  if (h >= 17 && h < 20) {
-    return { mode: 'ALL', label: '전체 · 국내 마감 후 대기중 (미국 스캔 19:50)' }
-  }
-
-  // 기본: 미국장 데이터 기준 (주말 등)
-  return { mode: 'US', label: '🇺🇸 미국장 · 최근 스캔 기준' }
+  return { mode: 'ALL', label: '🇰🇷🇺🇸 최근 스캔 기준' }
 }
 
 function filterBuyByMode(items: any[], mode: BuyDisplayMode): any[] {
@@ -618,8 +595,8 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
     const elapsed = { v: 0 }
     const elapsedTimer = setInterval(() => { elapsed.v += 1; setScanElapsed(elapsed.v) }, 1000)
     try {
-      await runUnifiedScan()
-      // 백그라운드 스캔 완료까지 폴링 (최대 10분)
+      await triggerFullScan()
+      // full_market_scanner 완료까지 폴링 (최대 10분)
       const maxPolls = 120
       let polls = 0
       await new Promise<void>((resolve, reject) => {
@@ -627,12 +604,12 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
           polls++
           if (polls > maxPolls) { clearInterval(poll); reject(new Error('timeout')); return }
           try {
-            const status = await fetchScanStatus()
-            if (!status.scanning) { clearInterval(poll); resolve() }
+            const status = await fetchFullScanStatus()
+            if (!status.running) { clearInterval(poll); resolve() }
           } catch { /* 폴링 실패 무시, 계속 */ }
         }, 5000)
       })
-      const result = await fetchUnifiedCache()
+      const result = await fetchFullScanLatest()
       applyResult(result)
       setScanMsg('스캔 완료')
       setTimeout(() => setScanMsg(''), 3000)
@@ -640,36 +617,19 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
     finally { clearInterval(elapsedTimer); setScanning(false); setScanElapsed(0) }
   }
 
-  // 마운트 시: full_market_scanner 스냅샷 우선 로드 → 없으면 unified_scanner fallback
+  // 마운트 시: full_market_scanner 스냅샷 로드 (단일 소스)
   useEffect(() => {
     if (autoLoaded.current) return
     autoLoaded.current = true
 
-    // full_market_scanner + unified_scanner 둘 다 로드해 더 최신 결과 사용
-    const loadData: Promise<boolean> = Promise.all([
-      fetchFullScanLatest().catch(() => null),
-      fetchUnifiedCache().catch(() => null),
-    ]).then(([full, unified]) => {
-      const fullTs = full?.completed_at || full?.scan_time || null
-      const unifiedTs = unified?.scan_time || null
+    // 스냅샷 단일 소스
+    const loadData: Promise<boolean> = fetchFullScanLatest().catch(() => null).then(full => {
       const fullHasData = full?.status !== 'no_data' && full?.picks
-      const unifiedHasData = !!unifiedTs
-
-      if (!fullHasData && !unifiedHasData) return false
-
-      // 둘 다 있으면 더 최신 타임스탬프 우선
-      if (fullHasData && unifiedHasData && fullTs && unifiedTs) {
-        if (new Date(unifiedTs) > new Date(fullTs)) {
-          applyResult(unified)
-        } else {
-          applyResult(full)
-        }
-      } else if (fullHasData) {
+      if (fullHasData) {
         applyResult(full)
-      } else {
-        applyResult(unified)
+        return true as boolean
       }
-      return true as boolean
+      return false as boolean
     })
 
     // 스캔 상태 + 데이터 로드를 함께 기다린 후 스캔 실행 여부 결정
@@ -709,14 +669,8 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
             const full = await fetchFullScanLatest()
             if (full?.status !== 'no_data' && full?.picks) {
               applyResult(full)
-            } else {
-              const result = await fetchUnifiedCache()
-              applyResult(result)
             }
-          } catch {
-            const result = await fetchUnifiedCache()
-            applyResult(result)
-          }
+          } catch { /* 결과 로드 실패 무시 */ }
           setScanMsg('스캔 완료')
           setTimeout(() => setScanMsg(''), 3000)
           clearInterval(poll)
@@ -799,12 +753,8 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
           <div className="mb-2">
             <div className="flex items-center gap-2 mb-3 flex-wrap">
               <h2 className="text-sm font-bold text-[var(--buy)]">차트 BUY 신호</h2>
-              <span className="text-[9px] text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">일봉 3일 이내 + 데드크로스 제외 + 거래량 5일 평균 1.5배↑</span>
-              <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${
-                mode === 'KR' ? 'bg-blue-500/15 text-blue-300' :
-                mode === 'US' ? 'bg-emerald-500/15 text-emerald-300' :
-                'bg-[var(--bg)] text-[var(--muted)]'
-              }`}>{label}</span>
+              <span className="text-[9px] text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">일봉 10거래일 이내 + 데드크로스 제외 + 거래량 5일 평균 1.5배↑</span>
+              <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-[var(--bg)] text-[var(--muted)]">{label}</span>
               {Object.keys(livePrices).length > 0 && (
                 <span className="text-[9px] text-green-400 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
@@ -819,7 +769,7 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
                 ))}
               </div>
             ) : !scanning ? (
-              <p className="text-[var(--muted)] text-xs text-center py-4">3일 이내 BUY 신호 종목이 없습니다</p>
+              <p className="text-[var(--muted)] text-xs text-center py-4">10거래일 이내 BUY 신호 종목이 없습니다</p>
             ) : null}
           </div>
         )
