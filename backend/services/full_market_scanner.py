@@ -549,6 +549,13 @@ async def run_full_scan(markets: list[str] | None = None) -> dict:
         _progress["current_snapshot_id"] = None
 
 
+def _cap_chart_buy(items: list[dict]) -> list[dict]:
+    """chart_buy 항목을 KR 5개 + US 5개로 제한."""
+    kr = [i for i in items if i.get("market") == "KR"][:5]
+    us = [i for i in items if i.get("market") == "US"][:5]
+    return kr + us
+
+
 async def get_latest_snapshot() -> dict | None:
     """최신 완료된 스냅샷 + 아이템 조회. 스캔 중이면 running snapshot의 chart_buy도 포함."""
     async with async_session() as session:
@@ -595,7 +602,7 @@ async def get_latest_snapshot() -> dict | None:
                     "scanned_count": _progress.get("scanned_count", 0),
                     "picks_count": 0, "buy_count": len(live_chart_buy_items),
                     "started_at": None, "completed_at": None,
-                    "picks": {}, "chart_buy": {"items": live_chart_buy_items},
+                    "picks": {}, "chart_buy": {"items": _cap_chart_buy(live_chart_buy_items)},
                     "overheat": {"items": []},
                 }
             return None
@@ -635,8 +642,8 @@ async def get_latest_snapshot() -> dict | None:
             elif item.category == "overheat":
                 overheat_items.append(d)
 
-        # 스캔 진행 중이면 live chart_buy 우선, 아니면 완료 스냅샷 데이터 사용
-        final_chart_buy = live_chart_buy_items if live_chart_buy_items else chart_buy_items
+        # 스캔 진행 중이면 live chart_buy 우선, 아니면 완료 스냅샷 데이터 사용 (KR 5 + US 5)
+        final_chart_buy = _cap_chart_buy(live_chart_buy_items if live_chart_buy_items else chart_buy_items)
 
         return {
             "snapshot_id": snapshot.id,

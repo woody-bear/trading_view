@@ -277,9 +277,9 @@ async def scan_all() -> dict:
         for lst in maxsq_by_market.values():
             lst.sort(key=lambda r: (r["squeeze_level"], r["confidence"]), reverse=True)
 
-        # 차트 BUY: 한국 2개 + 미국 1개
-        kr_buy = [r for r in buy_items if r["market"] == "KR"][:2]
-        us_buy = [r for r in buy_items if r["market"] == "US"][:2]
+        # 차트 BUY: 한국 5개 + 미국 5개
+        kr_buy = [r for r in buy_items if r["market"] == "KR"][:5]
+        us_buy = [r for r in buy_items if r["market"] == "US"][:5]
 
         _cache = {
             "picks": {

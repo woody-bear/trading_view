@@ -34,9 +34,12 @@ async def get_recent_buy_signals() -> list[dict]:
                 ScanSnapshotItem.category == "chart_buy",
             )
             .order_by(ScanSnapshotItem.confidence.desc())
-            .limit(20)
         )
-        items = result.scalars().all()
+        all_items = result.scalars().all()
+        # 시장별 각 5개 제한 (KR 5 + US 5)
+        kr_items = [i for i in all_items if i.market == "KR"][:5]
+        us_items = [i for i in all_items if i.market == "US"][:5]
+        items = kr_items + us_items
 
     signals = []
     for item in items:

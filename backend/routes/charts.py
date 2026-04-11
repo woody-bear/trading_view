@@ -248,9 +248,15 @@ def _simulate_signals(df: pd.DataFrame, timestamps: list[int], indicators: dict,
     from indicators.bollinger import calculate_bb, detect_squeeze
     from indicators.macd import calculate_macd
     from indicators.rsi import calculate_rsi
+    from indicators.signal_engine import SENSITIVITY_PRESETS, load_sensitivity
 
     if len(df) < 35:
         return []
+
+    # 민감도 로드 — 루프 외부 1회 (파일 I/O 최소화)
+    _sensitivity = load_sensitivity()
+    _preset = SENSITIVITY_PRESETS.get(_sensitivity, SENSITIVITY_PRESETS["strict"])
+    rsi_buy_threshold = _preset["rsi_buy"]   # strict:30, normal:35, sensitive:40
 
     rsi = calculate_rsi(df)
     bb = calculate_bb(df)
@@ -296,8 +302,8 @@ def _simulate_signals(df: pd.DataFrame, timestamps: list[int], indicators: dict,
         mom_rising = m > m_prev
         mom_falling = m < m_prev
 
-        # RSI 필터 — Pine Script 원본 기준
-        rsi_buy_filter = r < 40
+        # RSI 필터 — 민감도 프리셋 반영 (strict:30, normal:35, sensitive:40)
+        rsi_buy_filter = r < rsi_buy_threshold
         rsi_sell_filter = r > 60
 
         # BB 터치/복귀 조건 — Pine Script crossunder/crossover 정확히 구현
