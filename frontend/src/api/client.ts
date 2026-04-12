@@ -38,14 +38,6 @@ export const fetchQuickChart = (symbol: string, market: string, timeframe?: stri
   api.get('/chart/quick', { params: { symbol, market, timeframe: timeframe || '1d' } }).then(r => r.data)
 export const fetchHealth = () => api.get('/health').then(r => r.data)
 
-// 시장 스캔
-export const scanMarket = (topN: number = 3) =>
-  api.post(`/scan/market?top_n=${topN}`).then(r => r.data)
-export const scanMaxSqueeze = (topN: number = 5) =>
-  api.post(`/scan/market?top_n=${topN}&min_squeeze=3`).then(r => r.data)
-export const fetchLatestPicks = () =>
-  api.get('/scan/market/latest').then(r => r.data)
-
 // 통합 스캔
 export const runUnifiedScan = () => api.post('/scan/unified').then(r => r.data)
 export const fetchUnifiedCache = () => api.get('/scan/unified').then(r => r.data)

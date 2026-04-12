@@ -18,9 +18,6 @@ interface SearchResult {
   symbol: string; name: string; market: string; market_type: string; display: string
 }
 
-const sqColors: Record<number, string> = { 0: '#22c55e', 1: '#eab308', 2: '#f97316', 3: '#ef4444' }
-const sqLabels: Record<number, string> = { 0: 'NO SQ', 1: 'LOW SQ', 2: 'MID SQ', 3: 'MAX SQ' }
-
 export default function Dashboard() {
   const qc = useQueryClient()
   const nav = useNavigate()
@@ -43,8 +40,8 @@ export default function Dashboard() {
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const snapRef = useRef<HTMLDivElement>(null)
   const [currentSection, setCurrentSection] = useState(0)
-  const [mobileScan, setMobileScan] = useState<{ buyItems: any[]; overheatItems: any[]; picks: any | null }>({
-    buyItems: [], overheatItems: [], picks: null,
+  const [mobileScan, setMobileScan] = useState<{ buyItems: any[]; overheatItems: any[] }>({
+    buyItems: [], overheatItems: [],
   })
 
   const deleteMut = useMutation({
@@ -81,7 +78,7 @@ export default function Dashboard() {
   useEffect(() => {
     fetchFullScanLatest().then(r => {
       if (r?.status !== 'no_data' && r?.chart_buy) {
-        setMobileScan({ buyItems: r.chart_buy?.items || [], overheatItems: r.overheat?.items || [], picks: r.picks })
+        setMobileScan({ buyItems: r.chart_buy?.items || [], overheatItems: r.overheat?.items || [] })
       }
     }).catch(() => {})
   }, [])
@@ -141,13 +138,6 @@ export default function Dashboard() {
 
   // 거래량 내림차순 정렬 헬퍼
   const byVolume = (arr: any[]) => [...arr].sort((a, b) => (b.volume_ratio || 0) - (a.volume_ratio || 0))
-
-  // 추천 종목 병합 (모바일용) — 코스피 2, 코스닥 2, 미국 1, 암호화폐 제외
-  const allPicks: any[] = mobileScan.picks ? [
-    ...byVolume(mobileScan.picks.kospi || []).slice(0, 2),
-    ...byVolume(mobileScan.picks.kosdaq || []).slice(0, 2),
-    ...byVolume(mobileScan.picks.us || []).slice(0, 1),
-  ] : []
 
   const sH = 'calc(100dvh - 64px)' // 각 스냅 섹션 높이
   usePageSwipe(snapRef)
@@ -219,7 +209,7 @@ export default function Dashboard() {
 
         {/* ── 섹션 2: 관심종목 ── */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
-          <SnapSectionHeader title="관심종목" color="text-white" currentSection={currentSection} total={5} />
+          <SnapSectionHeader title="관심종목" color="text-white" currentSection={currentSection} />
           {searchInputJSX(true)}
           <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-3" style={{ overscrollBehaviorY: 'contain' } as any}>
             {isLoading && <p className="text-[var(--muted)] text-sm py-8 text-center">로딩 중...</p>}
@@ -328,28 +318,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* ── 섹션 4: 추천 종목 ── */}
-        <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
-          <SnapSectionHeader title="추천 종목" color="text-orange-400" currentSection={currentSection} />
-          <p className="text-[15px] text-[var(--muted)] px-3 py-1 shrink-0">스퀴즈 + 상승추세 + 데드크로스 제외 · 시장별 Top 15</p>
-          <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
-            {allPicks.length === 0 ? (
-              <p className="text-[var(--muted)] text-sm py-8 text-center">추천 종목이 없습니다</p>
-            ) : allPicks.map((p: any, i: number) => (
-              <PickCard key={p.symbol} p={p} index={i}
-                onAdd={(p, e) => {
-                  e.stopPropagation()
-                  const market = (p.market_type === 'KOSPI' || p.market_type === 'KOSDAQ') ? 'KR' : 'US'
-                  addSymbol({ market, symbol: p.symbol, timeframe: '1d' })
-                    .then(() => qc.invalidateQueries({ queryKey: ['signals'] }))
-                    .catch(() => {})
-                }}
-                onNavigate={(p) => nav(`/${p.symbol.replace(/\//g, '_')}?market=${p.market_type || 'KR'}`)}
-                adding={false} added={false}
-              />
-            ))}
-          </div>
-        </div>
       </div>
 
       {/* ══ PC 레이아웃 (모바일 숨김) ══ */}
@@ -413,7 +381,7 @@ export default function Dashboard() {
 
 // ══════════════════════════════════════════════════════════════
 // ── 모바일 스냅 섹션 헤더 (외부 컴포넌트 — 내부 정의 시 매 렌더마다 리마운트됨) ──
-function SnapSectionHeader({ title, color, currentSection, total = 5 }: { title: string; color: string; currentSection: number; total?: number }) {
+function SnapSectionHeader({ title, color, currentSection, total = 4 }: { title: string; color: string; currentSection: number; total?: number }) {
   return (
     <div className="flex items-center justify-between px-3 pt-3 pb-2 shrink-0 border-b border-[var(--border)]/50">
       <h2 className={`text-[34px] font-bold ${color}`}>{title}</h2>
@@ -505,20 +473,17 @@ function fmtScanTime(isoStr: string | null | undefined): string {
 
 // 통합 시장 스캔 박스 (1회 다운로드, 3개 결과 동시 생성)
 // ══════════════════════════════════════════════════════════════
-export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
+export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
   const [scanning, setScanning] = useState(false)
   const [scanMsg, setScanMsg] = useState('')
   const [scanTime, setScanTime] = useState<string | null>(null)
   const autoLoaded = useRef(false)
 
-  const [picks, setPicks] = useState<any>(null)
   const [maxSq] = useState<any>(null)  // 하위 호환용 (제거 예정)
   const [buyItems, setBuyItems] = useState<any[]>([])
   const [overheatItems, setOverheatItems] = useState<any[]>([])
 
   // 섹션 토글 (localStorage 유지)
-  const [showPicks, setShowPicks] = useState(() => localStorage.getItem('dash_showPicks') === 'true')
-  const togglePicks = () => { setShowPicks(v => { localStorage.setItem('dash_showPicks', String(!v)); return !v }) }
   const [showOverheat, setShowOverheat] = useState(() => localStorage.getItem('dash_showOverheat') === 'true')
   const toggleOverheat = () => { setShowOverheat(v => { localStorage.setItem('dash_showOverheat', String(!v)); return !v }) }
 
@@ -527,8 +492,6 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
   const priceTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const applyResult = (result: any) => {
-    if (result?.picks) setPicks(result.picks)
-    // max_sq는 picks에 통합됨
     if (result?.chart_buy) setBuyItems(result.chart_buy.items || [])
     if (result?.overheat) setOverheatItems(result.overheat.items || [])
     // 마지막 스캔 시각 (full_market_scanner: completed_at, unified_scanner: scan_time)
@@ -550,10 +513,6 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
         syms.push({ symbol: item.symbol, market })
       }
     }
-    if (picks) {
-      add(picks.kospi, 'KOSPI'); add(picks.kosdaq, 'KOSDAQ')
-      add(picks.us, 'US'); add(picks.crypto, 'CRYPTO')
-    }
     if (maxSq) {
       add(maxSq.kospi, 'KOSPI'); add(maxSq.kosdaq, 'KOSDAQ')
       add(maxSq.us, 'US'); add(maxSq.crypto, 'CRYPTO')
@@ -561,7 +520,7 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
     add(buyItems)
     add(overheatItems)
     return syms
-  }, [picks, maxSq, buyItems, overheatItems])
+  }, [maxSq, buyItems, overheatItems])
 
   // 실시간 가격 fetch
   const refreshPrices = useCallback(async () => {
@@ -582,7 +541,7 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
     refreshPrices()
     priceTimer.current = setInterval(refreshPrices, 5_000)
     return () => { if (priceTimer.current) clearInterval(priceTimer.current) }
-  }, [picks, maxSq, buyItems, overheatItems])
+  }, [maxSq, buyItems, overheatItems])
 
   const [scanElapsed, setScanElapsed] = useState(0)
   const [fullScanRunning, setFullScanRunning] = useState(false)
@@ -624,7 +583,7 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
 
     // 스냅샷 단일 소스
     const loadData: Promise<boolean> = fetchFullScanLatest().catch(() => null).then(full => {
-      const fullHasData = full?.status !== 'no_data' && full?.picks
+      const fullHasData = full?.status !== 'no_data' && full?.chart_buy
       if (fullHasData) {
         applyResult(full)
         return true as boolean
@@ -667,7 +626,7 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
           setScanElapsed(0)
           try {
             const full = await fetchFullScanLatest()
-            if (full?.status !== 'no_data' && full?.picks) {
+            if (full?.status !== 'no_data' && full?.chart_buy) {
               applyResult(full)
             }
           } catch { /* 결과 로드 실패 무시 */ }
@@ -700,7 +659,6 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
     return () => { if (fullScanPollTimer.current) clearInterval(fullScanPollTimer.current) }
   }, [fullScanRunning])
 
-  const hasPicks = picks && (picks.kospi?.length > 0 || picks.kosdaq?.length > 0 || picks.us?.length > 0 || picks.crypto?.length > 0)
   const allClosed = isAllMarketsClosed()
 
   return (
@@ -729,13 +687,13 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
         </div>
       </div>
 
-      {scanning && !hasPicks && buyItems.length === 0 && (
+      {scanning && buyItems.length === 0 && (
         <div className="text-center py-8 text-[var(--muted)]">
           <RefreshCw size={20} className="animate-spin mx-auto mb-2 text-orange-400" />
           <p className="text-sm">전체 시장 스캔 중... {scanElapsed > 0 ? `(${scanElapsed}초 경과)` : '(약 30초~1분)'}</p>
         </div>
       )}
-      {scanning && (hasPicks || buyItems.length > 0) && (
+      {scanning && buyItems.length > 0 && (
         <div className="flex items-center gap-2 mb-3 px-2 py-1.5 bg-orange-500/10 border border-orange-500/30 rounded-lg">
           <RefreshCw size={14} className="animate-spin text-orange-400" />
           <span className="text-xs text-orange-400">스캔 진행 중... {scanElapsed > 0 ? `(${scanElapsed}초)` : ''}</span>
@@ -842,148 +800,6 @@ export function MarketScanBox({ nav, qc }: { nav: any; qc: any }) {
         </>
       )}
 
-      {/* 3. 추천 종목 */}
-      {hasPicks && (
-        <>
-        <div className="border-t border-[var(--border)] my-4" />
-        <div className="mb-5">
-          <button onClick={togglePicks} className="flex items-center gap-2 mb-3 w-full text-left">
-            {showPicks ? <ChevronDown size={14} className="text-orange-400" /> : <ChevronRight size={14} className="text-orange-400" />}
-            <h2 className="text-sm font-bold text-orange-400">추천 종목</h2>
-            <span className="text-[9px] text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">스퀴즈 + 상승추세 + 데드크로스 제외 · 강도순 시장별 Top 15</span>
-            {!showPicks && <span className="text-[9px] text-[var(--muted)]">접힘</span>}
-          </button>
-          {showPicks && (
-            <div className="space-y-3">
-              {picks.kospi?.length > 0 && <PickSection title="코스피" picks={picks.kospi.slice(0, 15)} nav={nav} qc={qc} livePrices={livePrices} />}
-              {picks.kosdaq?.length > 0 && <PickSection title="코스닥" picks={picks.kosdaq.slice(0, 15)} nav={nav} qc={qc} livePrices={livePrices} />}
-              {picks.us?.length > 0 && <PickSection title="미국" picks={picks.us.slice(0, 15)} nav={nav} qc={qc} livePrices={livePrices} />}
-              {picks.crypto?.length > 0 && <PickSection title="암호화폐" picks={picks.crypto.slice(0, 15)} nav={nav} qc={qc} livePrices={livePrices} />}
-            </div>
-          )}
-        </div>
-        </>
-      )}
-    </div>
-  )
-}
-
-// ══════════════════════════════════════════════════════════════
-// Pick 섹션 (추천/MAX SQ 공용)
-// ══════════════════════════════════════════════════════════════
-interface Pick {
-  symbol: string; name: string; price: number; change_pct: number;
-  rsi: number; bb_pct_b: number; squeeze_level: number; volume_ratio: number; confidence: number;
-  market_type?: string; trend?: string; trend_label?: string; macd_hist?: number;
-}
-
-function PickSection({ title, picks, nav, qc, livePrices = {} }: { title: string; picks: Pick[]; nav: any; qc: any; livePrices?: Record<string, any> }) {
-  const [addingId, setAddingId] = useState<string | null>(null)
-  const [addedIds, setAddedIds] = useState<Set<string>>(new Set())
-
-  const handleAdd = async (p: Pick, e: React.MouseEvent) => {
-    e.stopPropagation()
-    setAddingId(p.symbol)
-    try {
-      const market = (p.market_type === 'KOSPI' || p.market_type === 'KOSDAQ') ? 'KR' : 'US'
-      await addSymbol({ market, symbol: p.symbol, timeframe: '1d' })
-      setAddedIds(prev => new Set(prev).add(p.symbol))
-      qc.invalidateQueries({ queryKey: ['signals'] })
-    } catch {} finally { setAddingId(null) }
-  }
-
-  const handleClick = (p: Pick) => {
-    const market = p.market_type || 'KR'
-    nav(`/${p.symbol.replace(/\//g, '_')}?market=${market}`)
-  }
-
-  return (
-    <div>
-      <h3 className="text-xs text-[var(--muted)] mb-1.5">{title}</h3>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-        {picks.map((p, i) => (
-          <PickCard key={p.symbol} p={p} index={i} livePrice={livePrices[p.symbol]}
-            onAdd={handleAdd} onNavigate={handleClick}
-            adding={addingId === p.symbol} added={addedIds.has(p.symbol)} />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ══════════════════════════════════════════════════════════════
-// PickCard — 가격 변동 시 깜빡임 효과
-// ══════════════════════════════════════════════════════════════
-function PickCard({ p, index, livePrice, onAdd, onNavigate, adding, added }: {
-  p: Pick; index: number; livePrice?: any;
-  onAdd: (p: Pick, e: React.MouseEvent) => void; onNavigate: (p: Pick) => void;
-  adding: boolean; added: boolean;
-}) {
-  const price = livePrice?.price ?? p.price
-  const pct = livePrice?.change_pct ?? p.change_pct
-  const { flashClass } = usePriceFlash(price)
-
-  return (
-    <div onClick={() => onNavigate(p)}
-      className="bg-[var(--bg)] border border-[var(--border)] rounded-lg p-3.5 md:p-2.5 cursor-pointer hover:border-orange-500/50 transition active:scale-[0.98]">
-      <div className="flex items-center justify-between mb-1.5 md:mb-1">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className="text-[11px] md:text-[10px] bg-[var(--border)] text-white w-5 h-5 md:w-4 md:h-4 rounded flex items-center justify-center font-mono">{index + 1}</span>
-          <span className="text-white font-semibold text-[24px] md:text-sm truncate">{p.name}</span>
-          <span className="text-[var(--muted)] text-[17px] md:text-[10px] shrink-0">{p.symbol}</span>
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          {p.trend === 'BULL' && (
-            <span className="text-[10px] md:text-[9px] font-bold text-[var(--buy)] bg-[var(--buy)]/10 px-1.5 md:px-1 py-0.5 rounded">상승추세</span>
-          )}
-          <div className="flex items-center gap-0.5">
-            <div className="w-2.5 h-2.5 md:w-2 md:h-2 rounded-full" style={{ background: sqColors[p.squeeze_level] }} />
-            <span className="text-[10px] md:text-[9px] font-bold" style={{ color: sqColors[p.squeeze_level] }}>{sqLabels[p.squeeze_level]}</span>
-          </div>
-          {!added ? (
-            <button onClick={(e) => onAdd(p, e)} disabled={adding}
-              className="p-1 md:p-0.5 text-blue-400 hover:text-white hover:bg-blue-600 rounded transition" title="워치리스트에 추가">
-              <Plus size={14} className="md:w-3 md:h-3" />
-            </button>
-          ) : (
-            <span className="text-[10px] md:text-[9px] text-[var(--buy)]">추가됨</span>
-          )}
-        </div>
-      </div>
-      <div className="md:flex md:items-center md:justify-between mt-1 md:mt-0">
-        <div className="flex items-baseline gap-1.5">
-          <span className={`text-xl md:text-sm font-mono font-semibold transition-colors duration-300 ${flashClass}`}>
-            {fmtPrice(price, p.market_type)}
-          </span>
-          <span className={`text-sm md:text-[10px] font-mono ${pct >= 0 ? 'text-[var(--buy)]' : 'text-[var(--sell)]'}`}>
-            {pct >= 0 ? '+' : ''}{pct}%
-          </span>
-        </div>
-        <div className="flex items-center gap-3 md:gap-2 text-[18px] md:text-[9px] mt-1.5 md:mt-0">
-          <span className="text-[var(--muted)]">RSI <span className="text-[var(--text)] font-mono font-semibold">{p.rsi}</span></span>
-          <span className="text-[var(--muted)]">%B <span className="text-white font-mono font-semibold">{p.bb_pct_b}%</span></span>
-          <span className="text-[var(--muted)]">Vol <span className="text-white font-mono font-semibold">{p.volume_ratio}x</span></span>
-        </div>
-      </div>
-      {/* 시장 배지 + 지표 라벨 */}
-      {(() => {
-        const indicators = indicatorBadges({
-          squeeze_level: p.squeeze_level,
-          rsi: p.rsi,
-          bb_pct_b: p.bb_pct_b != null ? p.bb_pct_b / 100 : undefined,
-          volume_ratio: p.volume_ratio,
-          macd_hist: p.macd_hist ?? undefined,
-        })
-        const tags = [marketBadge(p.market_type || 'KR'), ...indicators]
-        if (tags.length === 0) return null
-        return (
-          <div className="flex flex-wrap gap-1.5 md:gap-1 mt-2 md:mt-1">
-            {tags.map(t => (
-              <span key={t.label} className={`text-[18px] md:text-[8px] px-2 md:px-1.5 py-0.5 rounded ${t.cls}`}>{t.label}</span>
-            ))}
-          </div>
-        )
-      })()}
     </div>
   )
 }

@@ -295,9 +295,6 @@ def _analyze_ticker(df: pd.DataFrame, info: dict) -> dict | None:
 
         # 카테고리 분류
         categories = []
-        # 추천 종목: SQ Lv1 이상 + BULL 트렌드
-        if last_sq >= 1 and trend == "BULL":
-            categories.append("picks")
 
         # 차트 BUY 신호 (Pine Script 정밀 판정 + 사전 필터)
         buy_signal, buy_date = _check_buy_signal_precise(df, last_rsi, last_sq)

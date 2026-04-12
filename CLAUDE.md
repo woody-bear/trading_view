@@ -176,6 +176,10 @@ BUY/SELL/NEUTRAL. 조건: BB %B, RSI, MACD 전환, 거래량. 민감도 3단계(
 - SQLite WAL (aiosqlite) — `scan_snapshot_item` 테이블 읽기 전용 (스키마 변경 없음) (017-buy-scan-volume-filter)
 - Python 3.12 (backend), TypeScript 5.x / React 18 (frontend) + FastAPI, yfinance (이미 설치), React Query, Tailwind CSS v4 (018-stock-detail-info)
 - N/A — 메모리 캐시만 사용 (DB 변경 없음) (018-stock-detail-info)
+- Python 3.12 + pandas, pandas-ta, yfinance (기존 그대로) (020-chart-buy-uptrend-filter)
+- SQLite WAL — `scan_snapshot_item` 테이블 읽기 (스키마 변경 없음) (020-chart-buy-uptrend-filter)
+- Python 3.12 (backend) + TypeScript 5.x / React 18 (frontend) + FastAPI, SQLAlchemy 2.0 async, Alembic (backend) / React 18, React Query, Tailwind CSS v4 (frontend) (021-remove-toppicks)
+- SQLite WAL (aiosqlite) — `daily_top_pick` 테이블 삭제 대상 (021-remove-toppicks)
 
 ## Recent Changes
 - 018-stock-detail-info: 회사 정보·확장 투자 지표·매출 구성 패널 추가 — GET /api/company/{symbol} (yfinance, 1h 캐시) + CompanyInfoPanel·InvestmentMetricsPanel·RevenueSegmentChart 컴포넌트

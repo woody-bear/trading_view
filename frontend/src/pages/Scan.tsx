@@ -30,24 +30,22 @@ export default function Scan() {
   const snapRef = useRef<HTMLDivElement>(null)
   const [currentSection, setCurrentSection] = useState(0)
   const [scanData, setScanData] = useState<{
-    buyItems: any[]; overheatItems: any[]; picks: any | null
-  }>({ buyItems: [], overheatItems: [], picks: null })
+    buyItems: any[]; overheatItems: any[]
+  }>({ buyItems: [], overheatItems: [] })
 
   useEffect(() => {
     fetchFullScanLatest()
       .then(r => {
-        if (r?.status !== 'no_data' && r?.picks) {
+        if (r?.status !== 'no_data' && r?.chart_buy) {
           setScanData({
             buyItems: r.chart_buy?.items || [],
             overheatItems: r.overheat?.items || [],
-            picks: r.picks,
           })
         } else {
           fetchUnifiedCache().then(r2 => {
             setScanData({
               buyItems: r2?.chart_buy?.items || [],
               overheatItems: r2?.overheat?.items || [],
-              picks: r2?.picks || null,
             })
           }).catch(() => {})
         }
@@ -70,11 +68,6 @@ export default function Scan() {
   usePageSwipe(snapRef)
 
   const byVol = (arr: any[]) => [...arr].sort((a, b) => (b.volume_ratio || 0) - (a.volume_ratio || 0))
-  const allPicks = scanData.picks ? [
-    ...byVol(scanData.picks.kospi || []).slice(0, 2),
-    ...byVol(scanData.picks.kosdaq || []).slice(0, 2),
-    ...byVol(scanData.picks.us || []).slice(0, 1),
-  ] : []
 
   return (
     <>
@@ -86,7 +79,7 @@ export default function Scan() {
       >
         {/* Section 1: 차트 BUY 신호 */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
-          <SnapHdr title="차트 BUY 신호" color="text-[var(--buy)]" currentSection={currentSection} total={3} />
+          <SnapHdr title="차트 BUY 신호" color="text-[var(--buy)]" currentSection={currentSection} total={2} />
           <div
             className="flex-1 overflow-y-auto px-3 pb-3 pt-2 space-y-2"
             style={{ overscrollBehaviorY: 'contain' } as any}>
@@ -134,7 +127,7 @@ export default function Scan() {
 
         {/* Section 2: 투자과열 */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
-          <SnapHdr title="투자과열 종목" color="text-orange-400" currentSection={currentSection} total={3} />
+          <SnapHdr title="투자과열 종목" color="text-orange-400" currentSection={currentSection} total={2} />
           <div
             className="flex-1 overflow-y-auto px-3 pb-3 pt-2 space-y-2"
             style={{ overscrollBehaviorY: 'contain' } as any}>
@@ -166,40 +159,6 @@ export default function Scan() {
           </div>
         </div>
 
-        {/* Section 3: 추천종목 */}
-        <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
-          <SnapHdr title="추천종목" color="text-yellow-400" currentSection={currentSection} total={3} />
-          <div
-            className="flex-1 overflow-y-auto px-3 pb-3 pt-2 space-y-2"
-            style={{ overscrollBehaviorY: 'contain' } as any}>
-            {allPicks.length === 0 ? (
-              <div className="text-center py-12 text-[var(--muted)] text-sm">추천 데이터가 없습니다</div>
-            ) : allPicks.map((item: any, i: number) => (
-              <div
-                key={item.symbol}
-                onClick={() => nav(`/${item.symbol}?market=${item.market_type || item.market || 'KR'}`)}
-                className="bg-[var(--card)] border border-yellow-500/20 rounded-lg p-3 cursor-pointer hover:border-yellow-500/50 transition active:scale-[0.98]"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-[10px] bg-[var(--border)] text-white w-5 h-5 rounded flex items-center justify-center font-mono shrink-0">{i + 1}</span>
-                    <span className="text-white font-bold text-[21px] truncate">{item.display_name || item.name || item.symbol}</span>
-                    <span className="text-[var(--muted)] text-[15px] shrink-0">{item.symbol}</span>
-                  </div>
-                  {item.score != null && (
-                    <span className="text-[15px] text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded font-mono shrink-0">{item.score}점</span>
-                  )}
-                </div>
-                {(item.squeeze_level != null || item.rsi != null) && (
-                  <div className="text-[15px] text-[var(--muted)] mt-1.5 flex gap-3">
-                    {item.squeeze_level != null && item.squeeze_level > 0 && <span>SQ Lv{item.squeeze_level}</span>}
-                    {item.rsi != null && <span>RSI {item.rsi.toFixed(0)}</span>}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
 
       {/* ── PC layout ── */}

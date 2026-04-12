@@ -154,33 +154,6 @@ class OHLCVCache(Base):
     watchlist: Mapped["Watchlist"] = relationship(back_populates="ohlcv_cache")
 
 
-class DailyTopPick(Base):
-    """일일 시장 스캔 Top 종목 — 하루 1번 기록."""
-    __tablename__ = "daily_top_pick"
-    __table_args__ = (
-        Index("idx_daily_top_pick_date", "scan_date", "market_type"),
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    scan_date: Mapped[str] = mapped_column(String(10), nullable=False)  # YYYY-MM-DD
-    market_type: Mapped[str] = mapped_column(String(10), nullable=False)  # KOSPI / KOSDAQ
-    rank: Mapped[int] = mapped_column(Integer, nullable=False)  # 1, 2, 3
-    symbol: Mapped[str] = mapped_column(String(20), nullable=False)
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
-    price: Mapped[float] = mapped_column(Float, nullable=True)
-    change_pct: Mapped[float] = mapped_column(Float, nullable=True)
-    signal_state: Mapped[str] = mapped_column(String(10), nullable=False)
-    confidence: Mapped[float] = mapped_column(Float, nullable=True)
-    grade: Mapped[str] = mapped_column(String(20), nullable=True)
-    rsi: Mapped[float] = mapped_column(Float, nullable=True)
-    bb_pct_b: Mapped[float] = mapped_column(Float, nullable=True)
-    squeeze_level: Mapped[int] = mapped_column(Integer, nullable=True)
-    macd_hist: Mapped[float] = mapped_column(Float, nullable=True)
-    volume_ratio: Mapped[float] = mapped_column(Float, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-
-
-
 
 class ScanSnapshot(Base):
     """전체 시장 스캔 스냅샷 — 1회 스캔 실행 기록."""
