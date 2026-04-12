@@ -429,9 +429,11 @@ async def run_full_scan(markets: list[str] | None = None) -> dict:
 
                 result = _analyze_ticker(df, info)
                 if result == "dead_cross":
-                    dead_cross_count += 1
+                    if info["market"] != "CRYPTO":
+                        dead_cross_count += 1
                     continue
-                alive_count += 1
+                if info["market"] != "CRYPTO":
+                    alive_count += 1
                 if result:
                     all_items.append(result)
                     if "chart_buy" in result["categories"]:

@@ -45,13 +45,15 @@
 
 | 파일 | 읽어야 할 상황 |
 |------|--------------|
-| `.claude/frontend/router.md` | 페이지 라우팅, 네비게이션 수정 |
-| `.claude/frontend/pages.md` | 각 페이지 기능, API 호출 목록 |
-| `.claude/frontend/components.md` | 컴포넌트 목록, SignalCard/차트 등 |
-| `.claude/frontend/api.md` | API 함수 추가/수정, axios 인터셉터 |
-| `.claude/frontend/store.md` | Zustand 스토어, React Query 패턴 |
-| `.claude/frontend/hooks.md` | 커스텀 훅 추가/수정 |
-| `.claude/frontend/types.md` | TypeScript 타입 정의 확인 |
+| `.claude/frontend/router/router.md` | 페이지 라우팅, 네비게이션 수정 |
+| `.claude/frontend/pages/pages.md` | 각 페이지 기능, API 호출 목록 |
+| `.claude/frontend/components/components.md` | 컴포넌트 목록, SignalCard/차트 등 |
+| `.claude/frontend/api/api.md` | API 함수 추가/수정, axios 인터셉터 |
+| `.claude/frontend/store/store.md` | Zustand 스토어, React Query 패턴 |
+| `.claude/frontend/hooks/hooks.md` | 커스텀 훅 추가/수정 |
+| `.claude/frontend/types/types.md` | TypeScript 타입 정의 확인 |
+| `.claude/frontend/css/mobile.md` | 모바일 레이아웃, 스냅 스크롤, BottomNav |
+| `.claude/frontend/css/pc.md` | PC 레이아웃, TopNav, 그리드, CSS 변수 |
 
 ### 도메인 지식
 
@@ -103,17 +105,19 @@
 
 | 작업 유형 | 읽을 파일 |
 |----------|----------|
-| 새 페이지 추가 | `router.md` → `pages.md` → `api.md` |
-| 컴포넌트 수정 | `components.md` → `types.md` |
-| API 연동 | `api.md` → `types.md` → `store.md` |
-| 상태 관리 수정 | `store.md` → `hooks.md` |
+| 새 페이지 추가 | `router/router.md` → `pages/pages.md` → `api/api.md` |
+| 컴포넌트 수정 | `components/components.md` → `types/types.md` |
+| API 연동 | `api/api.md` → `types/types.md` → `store/store.md` |
+| 상태 관리 수정 | `store/store.md` → `hooks/hooks.md` |
+| 모바일 레이아웃 수정 | `css/mobile.md` → `components/components.md` |
+| PC 레이아웃 수정 | `css/pc.md` → `components/components.md` |
 
 ### 풀스택 작업
 
 | 작업 유형 | 읽을 파일 |
 |----------|----------|
-| 새 기능 전체 구현 | `stack.md` → `db.md` → `router.md` → `schemas.md` → `api.md` → `types.md` |
-| 스캔 결과 표시 변경 | `domain/scan.md` → `services.md` → `api.md` → `components.md` |
+| 새 기능 전체 구현 | `stack.md` → `db.md` → `router.md` → `schemas.md` → `api/api.md` → `types/types.md` |
+| 스캔 결과 표시 변경 | `domain/scan.md` → `services.md` → `api/api.md` → `components/components.md` |
 
 ---
 
