@@ -39,3 +39,5 @@ backend/data/charts/*.parquet
 specs/*
 backend/data/*
 .claude/settings.local.json
+
+CLAUDE.md

@@ -1,186 +1,290 @@
-# CLAUDE.md
+# 🔧 하네스 엔지니어링 (Harness Engineering)
 
-This file provides guidance to Claude Code when working with this repository.
+> Claude Code가 프로젝트를 분석하고 개발을 수행할 때 반드시 따라야 하는 규칙 체계.
 
-## Project Overview
+---
 
-**UBB Pro Signal System** — 기술적 지표 기반 한국/미국/암호화폐 종목 실시간 모니터링 + 텔레그램 자동 알림 시스템. 단일 FastAPI 프로세스에서 모든 기능이 동작한다 (Docker 없음).
-
-## Architecture
-
-단일 서버 구조: FastAPI가 스케줄링, 데이터 수집, 지표 계산, 신호 판정, 텔레그램 발송, 웹훅 수신, 대시보드 서빙을 모두 처리.
-
-- **Backend**: `backend/` — Python 3.12 + FastAPI + Uvicorn
-- **Frontend**: `frontend/` — React 18 + TypeScript + Vite + Tailwind CSS
-- **DB**: SQLite WAL — `backend/data/ubb_pro.db` (SQLAlchemy 2.0 async + aiosqlite)
-- **Scheduler**: APScheduler (10분 크론, 임베디드)
-- **Realtime**: 한국투자증권 WebSocket (40종목) + SSE (상세화면 1초) + WebSocket (브라우저)
-- **Chart**: lightweight-charts v5 (TradingView)
-
-### Data Flow
+## 0. 핵심 원칙 (Core Principles)
 
 ```
-APScheduler 10분 → fetcher(yfinance/pykrx/ccxt) → indicators → signal_engine
-  → current_signal DB 업데이트 → 상태 전환 시 텔레그램 + WebSocket 브로드캐스트
-
-한투 WebSocket → 실시간 체결가 → 메모리 캐시 → price_feed 5초 → DB + WebSocket
-
-SSE /api/prices/stream/{symbol} → 한투 REST 1초 → 브라우저 직접 수신
-
-차트 데이터: chart_cache(SQLite) → 캐시 HIT 시 즉시 반환 / MISS 시 yfinance 다운로드 → 캐시 저장
+1. 먼저 이해하고, 그 다음에 코딩한다 (Understand First, Code Second)
+2. 작은 단위로 쪼개고, 각 단위를 검증한다 (Small & Verified)
+3. 기존 코드를 존중한다 — 동작하는 것을 깨뜨리지 않는다 (Don't Break What Works)
+4. 모든 결정에는 이유가 있어야 한다 (No Silent Decisions)
+5. 사용자의 의도를 코드보다 우선한다 (Intent Over Implementation)
 ```
 
-## Setup & Run
+---
 
-```bash
-# Initial setup
-cd backend && uv venv && source .venv/bin/activate
-uv pip install -r requirements.txt && mkdir -p data
-alembic upgrade head
-cd ../frontend && pnpm install
-cp .env.example .env  # Set TELEGRAM_BOT_TOKEN, KIS_APP_KEY, etc.
+## 1. 프로젝트 컨텍스트 파일 경로
 
-# Development (two terminals)
-cd backend && source .venv/bin/activate && uvicorn app:app --reload --port 8000
-cd frontend && pnpm dev  # localhost:3000, proxy → :8000
+> 작업 시작 전, 관련 파일을 읽어 컨텍스트를 파악한 뒤 진행한다.
 
-# Production (single port)
-cd frontend && pnpm build
-cd ../backend && uvicorn app:app --host 0.0.0.0 --port 8000
+### 프로젝트 개요
+
+| 파일 | 내용 |
+|------|------|
+| `.claude/context/stack.md` | 프로젝트 개요, 기술 스택, 디렉토리 구조, 실행 명령어 |
+| `.claude/context/db.md` | DB 테이블 13개 전체, 관계, 마이그레이션 이력 |
+
+### 백엔드 (FastAPI)
+
+| 파일 | 읽어야 할 상황 |
+|------|--------------|
+| `.claude/backend/router.md` | API 엔드포인트 추가/수정, 라우터 파악 |
+| `.claude/backend/models.md` | DB 모델 수정, ORM 쿼리 작성 |
+| `.claude/backend/schemas.md` | Pydantic 스키마 추가/수정, 요청·응답 형식 |
+| `.claude/backend/services.md` | 서비스 로직 추가/수정, 의존성 파악 |
+| `.claude/backend/fetchers.md` | 데이터 수신 로직 (yfinance/pykrx/ccxt/KIS) |
+| `.claude/backend/indicators.md` | 기술 지표, 신호 엔진, 민감도 프리셋 |
+| `.claude/backend/scheduler.md` | APScheduler 작업 추가/수정 |
+| `.claude/backend/auth.md` | 인증 미들웨어, JWT 검증 로직 |
+| `.claude/backend/config.md` | 환경 변수, 설정값 |
+
+### 프론트엔드 (React + TypeScript)
+
+| 파일 | 읽어야 할 상황 |
+|------|--------------|
+| `.claude/frontend/router.md` | 페이지 라우팅, 네비게이션 수정 |
+| `.claude/frontend/pages.md` | 각 페이지 기능, API 호출 목록 |
+| `.claude/frontend/components.md` | 컴포넌트 목록, SignalCard/차트 등 |
+| `.claude/frontend/api.md` | API 함수 추가/수정, axios 인터셉터 |
+| `.claude/frontend/store.md` | Zustand 스토어, React Query 패턴 |
+| `.claude/frontend/hooks.md` | 커스텀 훅 추가/수정 |
+| `.claude/frontend/types.md` | TypeScript 타입 정의 확인 |
+
+### 도메인 지식
+
+| 파일 | 읽어야 할 상황 |
+|------|--------------|
+| `.claude/domain/scan.md` | 전체 시장 스캔 조건, 카테고리 판정 로직 |
+| `.claude/domain/signals.md` | BUY/SELL 신호 판정, 쿨다운, 지표 파라미터 |
+
+---
+
+## 2. 보호된 비즈니스 규칙 (rules/)
+
+> ⚠️ **`rules/` 폴더의 파일은 자동으로 변경하지 않는다.**  
+> 수정이 필요한 경우 반드시 사용자에게 먼저 확인을 받은 뒤 진행한다.
+
+| 파일 | 내용 | 변경 시 확인 사항 |
+|------|------|-----------------|
+| `.claude/rules/scan-symbols.md` | 스캔 대상 종목 리스트 (KR/US/CRYPTO) | 종목 추가/삭제 시 StockMaster 동기화 필요 여부 |
+| `.claude/rules/chart-buy-label.md` | 차트 BUY 라벨 표시 기준 | 신호 판정 로직 변경의 전체적 파급 효과 |
+| `.claude/rules/chart-sell-label.md` | 차트 SELL 라벨 표시 기준 | RSI 고정값(60) 변경 여부, 하위 호환성 |
+
+---
+
+## 3. 가이드
+
+| 파일 | 내용 |
+|------|------|
+| `.claude/guides/verification.md` | 검증 프로토콜 (구문 검사, 서버 기동, 엔드포인트 테스트) |
+| `.claude/guides/tdd.md` | 테스트 전략, 테스트 파일 구조, 실행 명령어 |
+| `.claude/프로젝트개선.md` | 개선 제안 목록 (우선순위별) |
+
+---
+
+## 4. 작업 유형별 파일 참조 가이드 (Strategy A)
+
+### 백엔드 작업
+
+| 작업 유형 | 읽을 파일 |
+|----------|----------|
+| 새 API 엔드포인트 추가 | `router.md` → `schemas.md` → `services.md` |
+| DB 모델 변경 | `db.md` → `models.md` → (스키마 변경 시) `schemas.md` |
+| 스캔 로직 수정 | `domain/scan.md` → `services.md` → `rules/chart-buy-label.md` |
+| 신호 판정 수정 | `domain/signals.md` → `indicators.md` → `rules/chart-buy-label.md` |
+| 스케줄 작업 추가 | `scheduler.md` → `services.md` |
+| 인증 관련 작업 | `auth.md` → `config.md` |
+| 데이터 수신 수정 | `fetchers.md` → `rules/scan-symbols.md` |
+
+### 프론트엔드 작업
+
+| 작업 유형 | 읽을 파일 |
+|----------|----------|
+| 새 페이지 추가 | `router.md` → `pages.md` → `api.md` |
+| 컴포넌트 수정 | `components.md` → `types.md` |
+| API 연동 | `api.md` → `types.md` → `store.md` |
+| 상태 관리 수정 | `store.md` → `hooks.md` |
+
+### 풀스택 작업
+
+| 작업 유형 | 읽을 파일 |
+|----------|----------|
+| 새 기능 전체 구현 | `stack.md` → `db.md` → `router.md` → `schemas.md` → `api.md` → `types.md` |
+| 스캔 결과 표시 변경 | `domain/scan.md` → `services.md` → `api.md` → `components.md` |
+
+---
+
+## 5. 작업 분해 프로토콜 (Task Decomposition Protocol)
+
+### 5.1 작업 크기 분류
+
+| 등급 | 기준 | 접근법 |
+|------|------|--------|
+| **S** (Small) | 단일 파일, 10줄 이내 변경 | 즉시 실행 |
+| **M** (Medium) | 2~5개 파일, 기존 패턴 내 변경 | 계획 → 실행 → 검증 |
+| **L** (Large) | 새로운 기능, 다수 파일 생성 | 설계 → 승인 → 단계별 실행 → 검증 |
+| **XL** (Extra Large) | 아키텍처 변경, DB 스키마 변경 | 제안서 작성 → 승인 → 마이그레이션 계획 → 단계별 실행 |
+
+### 5.2 작업 계획서 양식 (M 이상)
+
+```
+🎯 작업: [작업 제목]
+━━━━━━━━━━━━━━━━━━━━
+
+📌 목표: [이 작업이 완료되면 달라지는 것]
+
+📂 영향 범위:
+  - 수정: [파일 목록]
+  - 생성: [파일 목록]
+  - 삭제: [파일 목록]
+
+⚠️ 리스크:
+  - [깨질 수 있는 기존 기능]
+  - [주의해야 할 의존성]
+
+📋 실행 단계:
+  1. [구체적 단계]
+  2. [구체적 단계]
+
+✅ 완료 기준:
+  - [검증 가능한 조건 1]
+  - [검증 가능한 조건 2]
 ```
 
-## Lint & Test
+---
 
-```bash
-# Python
-cd backend && source .venv/bin/activate
-ruff check . && ruff format .
-pytest
+## 6. 코딩 규칙 (Coding Rules)
 
-# Frontend
-cd frontend
-pnpm lint && pnpm format
-pnpm test
+### 6.1 범용 규칙
+
+```
+[R-01] 한 번에 하나의 관심사만 변경한다
+[R-02] 새 코드는 기존 프로젝트의 네이밍 컨벤션을 따른다
+[R-03] 매직 넘버/스트링 금지 — 상수 또는 설정값으로 추출한다
+[R-04] 주석은 "왜(Why)"를 설명한다, "무엇(What)"은 코드가 설명한다
+[R-05] 에러 메시지는 사용자가 다음 행동을 알 수 있도록 작성한다
+[R-06] 기존 유틸리티/헬퍼가 있으면 재사용한다, 중복 생성하지 않는다
+[R-07] import 구문은 프로젝트의 기존 정렬 방식을 따른다
+[R-08] 타입 힌트(Python) 또는 타입 정의(TypeScript)를 반드시 포함한다
 ```
 
-## Critical Rules
+### 6.2 Python (FastAPI) 전용 규칙
 
-- **스캔 종목 ↔ 조회 종목 동기화 필수**: `backend/services/scan_symbols_list.py`에 종목을 추가/수정할 때, 해당 종목이 `/api/scan/symbols` 응답(즉, `get_all_symbols()` → `stock_master` DB 테이블)에도 포함되는지 반드시 확인할 것. KR 종목은 `stock_master` DB에 존재해야 조회 리스트에 나타남. 두 리스트 불일치 시 즉시 수정.
+```
+[PY-01] 비동기 함수(async def)를 기본으로 사용한다
+[PY-02] Pydantic 모델로 요청/응답 스키마를 정의한다
+[PY-03] DB 세션은 의존성 주입(Depends)으로 관리한다
+[PY-04] 환경별 설정은 pydantic-settings 또는 .env로 관리한다
+[PY-05] SQL 쿼리는 파라미터 바인딩을 사용한다 (SQL Injection 방지)
+[PY-06] 로깅은 print() 대신 loguru logger를 사용한다
+```
 
-## Key Design Decisions
+### 6.3 프론트엔드 전용 규칙
 
-- **Docker 미사용** — 로컬 실행, venv + Node.js
-- **SQLite** — 1인 시스템, 별도 DB 서버 불필요
-- **pandas-ta** (not ta-lib) — 순수 Python, C 바인딩 불필요
-- **단일 포트 8000** — FastAPI StaticFiles로 React SPA 서빙
-- **chart_cache 테이블** — yfinance 반복 다운로드 방지, 재조회 시 <1초
-- **stock_master 테이블** — 한투 종목 마스터 파일에서 3,700+ 종목 검색
-- **current_signal 테이블** — 대시보드 빠른 조회 캐시
+```
+[FE-01] 컴포넌트는 단일 책임 원칙을 따른다
+[FE-02] 상태 관리: 서버 상태 → React Query, 전역 상태 → Zustand
+[FE-03] API 호출은 frontend/src/api/client.ts에 집중한다
+[FE-04] 하드코딩된 API URL 금지 — 환경 변수(VITE_API_URL)로 관리한다
+[FE-05] 에러/로딩/빈 상태(empty state)를 반드시 처리한다
+```
 
-## DB Tables (9개)
+---
 
-| Table | Purpose |
-|-------|---------|
-| `watchlist` | 관심종목 목록 |
-| `current_signal` | 최신 신호 캐시 (1:1 with watchlist) |
-| `signal_history` | 신호 전환 이력 |
-| `alert_log` | 텔레그램 발송 기록 |
-| `ohlcv_cache` | 관심종목 OHLCV 캐시 (스캐너용) |
-| `chart_cache` | 전종목 차트 캔들 캐시 (symbol 기반) |
-| `stock_master` | 종목 마스터 (한투 FTP, 3,700+) |
-| `daily_top_pick` | 일일 스캔 추천 종목 |
-| `system_log` | 시스템 로그 |
+## 7. Git 워크플로 규칙
 
-## Signal Logic
+### 브랜치 전략
 
-BUY/SELL/NEUTRAL. 조건: BB %B, RSI, MACD 전환, 거래량. 민감도 3단계(strict/normal/sensitive). Confidence 0~100 → STRONG(90+)/NORMAL(70+)/WEAK(60+).
+```
+main
+ └── feature/[기능명]     — 새 기능
+ └── fix/[이슈-설명]      — 버그 수정
+ └── refactor/[대상]      — 리팩토링
+ └── chore/[내용]         — 설정, 의존성 등
+```
 
-## Environment Variables
+### 커밋 규칙
 
-`.env` at project root. Required: none (all optional with graceful degradation).
-- `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` — alerts
-- `KIS_APP_KEY`, `KIS_APP_SECRET`, `KIS_ACCOUNT_NO` — realtime KR prices
-- `DATABASE_URL` — SQLite path (auto-default)
+```
+형식: <type>: <설명> (한국어 허용)
+  feat / fix / refactor / style / docs / test / chore / hotfix
 
-## Frontend Routing
+예시:
+  feat: 관심종목 알림 설정 추가
+  fix: 차트 BUY 거래량 필터 오작동 수정
+  refactor: 스캔 청크 처리 로직 분리
+```
 
-| Path | Page | Description |
-|------|------|-------------|
-| `/` | Dashboard | 관심종목 + 시장 스캔(PC) |
-| `/scan` | Scan | 시장 스캔 (모바일 탭) |
-| `/:symbol` | SignalDetail | 종목 상세 (통합 뷰) |
-| `/picks` | TopPicks | 스퀴즈 추천 |
-| `/forex` | Forex | 환율 분석 |
-| `/settings` | Settings | 설정 |
+---
 
-## Mobile vs PC
+## 8. 작업 완료 후 서버 재시작 규칙
 
-- PC: 상단 헤더 네비게이션 + footer
-- Mobile: 하단 탭바 (5탭: 홈/스캔/환율/추천/설정) + 헤더 없음
-- 반응형 breakpoint: `md` (768px)
-- 카드 텍스트: 모바일 13px / PC 9~10px
+```
+[SR-01] 모든 작업 완료 후 백엔드와 프론트엔드를 반드시 재시작한다 (등급 무관)
+[SR-02] 백엔드 재시작: uvicorn app:app --reload --host 0.0.0.0 --port 8000
+[SR-03] 프론트엔드 재빌드: pnpm build (dist/ 갱신)
+[SR-04] 프론트엔드 재시작: pnpm dev
+[SR-05] 재시작 순서: 백엔드 → 프론트 빌드 → 프론트 서버
+[SR-06] 상세 명령어: .claude/guides/verification.md 참조
+```
 
-## API Endpoints (주요)
+> 백엔드가 `frontend/dist/`를 SPA로 직접 서빙하므로,  
+> 빌드를 건너뛰면 변경 사항이 실제 서비스에 반영되지 않는다.
 
-| Endpoint | Purpose |
-|----------|---------|
-| `GET /api/company/{symbol}` | 회사 정보 + 확장 투자 지표 + 매출 세그먼트 (yfinance, 1h 캐시) |
-| `GET /api/signals` | 관심종목 신호 목록 |
-| `GET /api/chart/quick?symbol=&market=` | 차트 데이터 (캐시 우선) |
-| `GET /api/prices/stream/{symbol}` | SSE 실시간 가격 (1초) |
-| `POST /api/prices/batch` | 배치 가격 조회 |
-| `GET /api/financials/{symbol}` | 연간/분기 실적 |
-| `POST /api/scan/unified` | 전체 시장 스캔 |
-| `GET /api/search?q=` | 종목 검색 (stock_master DB) |
-| `/ws` | WebSocket 실시간 브로드캐스트 |
+---
 
-## Documentation
+## 9. 에러 대응 프로토콜
 
-- `.claude/docs/ERD.md` — 데이터베이스 ERD
-- `.claude/docs/기능명세서_홈화면.md` — 홈화면 기능명세
-- `.claude/docs/기능명세서_추천.md` — 추천 탭 기능명세
-- `.claude/docs/기능명세서_환율.md` — 환율 탭 기능명세
-- `.claude/docs/기능명세서_설정.md` — 설정 탭 기능명세
+```
+[E-01] 에러를 만나면 즉시 멈추고 분석한다 — 추측으로 수정하지 않는다
+[E-02] 에러 메시지를 전문(full text) 읽는다
+[E-03] 3단계 분석법:
+       1단계: 에러 메시지가 직접 가리키는 원인 확인
+       2단계: 스택 트레이스에서 내 코드의 마지막 호출 지점 확인
+       3단계: 관련 코드의 최근 변경 이력 확인
+[E-04] 같은 해결책을 3번 이상 시도하지 않는다 — 접근 방식 변경
+[D-01] 5번의 시도 이상 같은 문제에 머물면 사용자에게 보고한다
+```
 
-## Active Technologies
-- TypeScript 5.x (React 18) + Python 3.12 (변경 없음) + React 18, lightweight-charts v5, Zustand, React Query, Tailwind CSS (002-fix-chart-usability)
-- N/A (프론트엔드 상태만 변경, DB 스키마 변경 없음) (002-fix-chart-usability)
-- TypeScript 5.x (React 18) + Python 3.12 + React 18, lightweight-charts v5, Zustand, React Query, Tailwind CSS / FastAPI, pandas, yfinance (002-fix-chart-usability)
-- SQLite chart_cache (스키마 변경 없음, 로직만 변경) + localStorage (매수지점) (002-fix-chart-usability)
-- Python 3.12 + TypeScript 5.x (React 18) + APScheduler (기존), telegram Bot API (기존), SQLAlchemy (기존) (003-kr-buy-telegram-alert)
-- SQLite — alert_log 테이블 확장 (alert_type, symbol_count 컬럼 추가) (003-kr-buy-telegram-alert)
-- Python 3.12 + TypeScript 5.x (React 18) + yfinance (기존), pandas (기존), lightweight-charts (기존) (005-market-sentiment-dashboard)
-- 없음 (실시간 조회, DB 변경 없음) (005-market-sentiment-dashboard)
-- Python 3.12 (backend) + TypeScript 5.x (frontend) + FastAPI, pykis (한투 API), React 18, Tailwind CSS (006-kis-stock-detail)
-- SQLite WAL (aiosqlite) — 투자지표 캐시용 메모리 캐시 (dict + TTL) (006-kis-stock-detail)
-- TypeScript 5.x (React 18) — 프론트엔드 전용 + React 18, Tailwind CSS (007-position-guide)
-- N/A (DB 변경 없음, 상태 저장 없음) (007-position-guide)
-- Python 3.12 (backend) + TypeScript 5.x / React 18 (frontend) + FastAPI, SQLAlchemy 2.0 async, asyncpg, PyJWT, @supabase/supabase-js v2, Zustand, Tailwind CSS (008-google-auth-personalization)
-- Supabase PostgreSQL (이미 전환 완료) (008-google-auth-personalization)
-- Python 3.12 (backend) / TypeScript 5.x React 18 (frontend) + FastAPI, SQLAlchemy 2.0 async (backend) / React Query, Tailwind CSS (frontend) (009-buy-scan-watchlist)
-- SQLite WAL — stock_master 테이블 읽기 전용 + ScanSnapshot 기존 읽기 (009-buy-scan-watchlist)
-<<<<<<< HEAD
-- TypeScript 5.x (React 18) + Python 3.12 + React 18, Tailwind CSS v4, Zustand, React Query / FastAPI, SQLAlchemy 2.0 async (011-stock-card-redesign)
-- SQLite WAL — stock_master 테이블 읽기 전용 (market_type 조회), 스키마 변경 없음 (011-stock-card-redesign)
-=======
-- Python 3.12 (backend) + TypeScript 5.x / React 18 (frontend) + FastAPI, SQLAlchemy 2.0 async, Alembic / React 18, lightweight-charts v5, React Query, Tailwind CSS, Zustand (010-chart-buy-scrap)
-- SQLite WAL (aiosqlite) — `pattern_case` 테이블 컬럼 2개 추가 (source, user_id) (010-chart-buy-scrap)
->>>>>>> main
-- TypeScript 5.x (React 18) + Python 3.12 + lightweight-charts v5 (기존), FastAPI (기존), yfinance (기존), React Query (기존) (013-fear-index-chart)
-- 없음 (DB 스키마 변경 없음, 실시간 조회 + 메모리 캐시) (013-fear-index-chart)
-- TypeScript 5.x (React 18) + React 18, Tailwind CSS v4 (`@tailwindcss/vite`), lightweight-charts v5, Zustand, React Query (014-toss-ui-redesign)
-- N/A (DB 스키마 변경 없음) (014-toss-ui-redesign)
-- TypeScript 5.x (React 18) + React Router v6, React 18, Tailwind CSS v4 (015-buy-signal-reason)
-- N/A (DB 스키마 변경 없음 — 신호 데이터는 이미 scan item에 포함) (015-buy-signal-reason)
-- Python 3.12 (backend), TypeScript 5.x / React 18 (frontend) + pandas (데이터 처리), yfinance (OHLCV 데이터), FastAPI (기존), React Query / Tailwind CSS (기존) (017-buy-scan-volume-filter)
-- SQLite WAL (aiosqlite) — `scan_snapshot_item` 테이블 읽기 전용 (스키마 변경 없음) (017-buy-scan-volume-filter)
-- Python 3.12 (backend), TypeScript 5.x / React 18 (frontend) + FastAPI, yfinance (이미 설치), React Query, Tailwind CSS v4 (018-stock-detail-info)
-- N/A — 메모리 캐시만 사용 (DB 변경 없음) (018-stock-detail-info)
-- Python 3.12 + pandas, pandas-ta, yfinance (기존 그대로) (020-chart-buy-uptrend-filter)
-- SQLite WAL — `scan_snapshot_item` 테이블 읽기 (스키마 변경 없음) (020-chart-buy-uptrend-filter)
-- Python 3.12 (backend) + TypeScript 5.x / React 18 (frontend) + FastAPI, SQLAlchemy 2.0 async, Alembic (backend) / React 18, React Query, Tailwind CSS v4 (frontend) (021-remove-toppicks)
-- SQLite WAL (aiosqlite) — `daily_top_pick` 테이블 삭제 대상 (021-remove-toppicks)
+---
 
-## Recent Changes
-- 018-stock-detail-info: 회사 정보·확장 투자 지표·매출 구성 패널 추가 — GET /api/company/{symbol} (yfinance, 1h 캐시) + CompanyInfoPanel·InvestmentMetricsPanel·RevenueSegmentChart 컴포넌트
-- 002-fix-chart-usability: Added TypeScript 5.x (React 18) + Python 3.12 (변경 없음) + React 18, lightweight-charts v5, Zustand, React Query, Tailwind CSS
+## 10. DB 규칙
+
+```
+[DB-01] 스키마 변경 전 반드시 롤백 SQL도 함께 작성한다
+[DB-02] NOT NULL 컬럼 추가 시 DEFAULT 값을 반드시 지정한다
+[DB-03] SELECT * 사용 금지 — 필요한 컬럼만 명시한다
+[DB-04] N+1 쿼리 패턴을 피한다
+```
+
+---
+
+## 11. 보안 규칙
+
+```
+[S-01] 비밀번호, API 키, 토큰을 코드에 하드코딩하지 않는다
+[S-02] .env 파일은 .gitignore에 반드시 포함한다
+[S-03] 사용자 입력은 항상 검증(validation)한다
+[S-04] SQL 파라미터 바인딩을 사용한다
+```
+
+---
+
+## 12. 커뮤니케이션 규칙
+
+```
+[C-01] 작업 시작 전: 무엇을 할 것인지 요약한다
+[C-02] 작업 완료 후: 무엇을 했는지 + 검증 결과를 보고한다
+[C-03] 불확실한 결정이 필요할 때: 선택지를 제시하고 의견을 묻는다
+[C-04] 예상치 못한 상황 발견 시: 즉시 보고하고 진행 여부를 확인한다
+[C-05] 사용자가 요청하지 않은 리팩토링을 하지 않는다
+[C-06] speckit(/spec 명령)은 사용자가 명시적으로 요청할 때만 실행한다
+```
+
+---
+
+*Last updated: 2026-04-12*
+*Version: 2.0 — Strategy A (trigger table)*
