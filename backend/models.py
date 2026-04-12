@@ -166,6 +166,8 @@ class ScanSnapshot(Base):
     picks_count: Mapped[int] = mapped_column(Integer, default=0)
     max_sq_count: Mapped[int] = mapped_column(Integer, default=0)
     buy_count: Mapped[int] = mapped_column(Integer, default=0)
+    dead_cross_count: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
+    alive_count: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

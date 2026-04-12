@@ -65,6 +65,8 @@ def get_progress() -> dict:
         "live_chart_buy_count": _progress.get("live_chart_buy_count", 0),
         "elapsed_seconds": elapsed,
         "markets": _progress.get("markets"),
+        "live_dead_cross": _progress.get("live_dead_cross", 0),
+        "live_alive": _progress.get("live_alive", 0),
     }
 
 
@@ -267,7 +269,7 @@ def _analyze_ticker(df: pd.DataFrame, info: dict) -> dict | None:
         ema = calculate_ema(df)
 
         if _is_dead_cross(ema):
-            return None
+            return "dead_cross"
 
         trend = _check_trend(df, ema)
         last_sq = int(squeeze_series.iloc[-1]) if not pd.isna(squeeze_series.iloc[-1]) else 0
@@ -362,6 +364,8 @@ async def run_full_scan(markets: list[str] | None = None) -> dict:
     _progress["scanned_count"] = 0
     _progress["current_snapshot_id"] = None
     _progress["live_chart_buy_count"] = 0
+    _progress["live_dead_cross"] = 0
+    _progress["live_alive"] = 0
     _progress["markets"] = markets
 
     # 스냅샷 생성
@@ -389,6 +393,8 @@ async def run_full_scan(markets: list[str] | None = None) -> dict:
 
         all_items = []
         scanned = 0
+        dead_cross_count = 0
+        alive_count = 0
 
         for ci, chunk in enumerate(chunks):
             tickers = [s["ticker"] for s in chunk]
@@ -422,6 +428,10 @@ async def run_full_scan(markets: list[str] | None = None) -> dict:
                     pass
 
                 result = _analyze_ticker(df, info)
+                if result == "dead_cross":
+                    dead_cross_count += 1
+                    continue
+                alive_count += 1
                 if result:
                     all_items.append(result)
                     if "chart_buy" in result["categories"]:
@@ -459,6 +469,8 @@ async def run_full_scan(markets: list[str] | None = None) -> dict:
 
             _progress["completed_chunks"] = ci + 1
             _progress["scanned_count"] = scanned
+            _progress["live_dead_cross"] = dead_cross_count
+            _progress["live_alive"] = alive_count
 
             if ci < len(chunks) - 1:
                 await asyncio.sleep(1)  # rate limit 방지
@@ -507,6 +519,8 @@ async def run_full_scan(markets: list[str] | None = None) -> dict:
             snap.picks_count = picks_count
             snap.max_sq_count = max_sq_count
             snap.buy_count = buy_count
+            snap.dead_cross_count = dead_cross_count
+            snap.alive_count = alive_count
             snap.completed_at = datetime.utcnow()
             await session.commit()
 
@@ -601,6 +615,10 @@ async def get_latest_snapshot() -> dict | None:
                     "started_at": None, "completed_at": None,
                     "picks": {}, "chart_buy": {"items": _cap_chart_buy(live_chart_buy_items)},
                     "overheat": {"items": []},
+                    "market_health": {
+                        "dead_cross": _progress.get("live_dead_cross", 0),
+                        "alive": _progress.get("live_alive", 0),
+                    },
                 }
             return None
 
@@ -654,6 +672,10 @@ async def get_latest_snapshot() -> dict | None:
             "picks": picks_by_market,
             "chart_buy": {"items": final_chart_buy},
             "overheat": {"items": overheat_items},
+            "market_health": {
+                "dead_cross": snapshot.dead_cross_count or 0,
+                "alive": snapshot.alive_count or 0,
+            },
         }
 
 

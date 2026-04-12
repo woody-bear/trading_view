@@ -40,8 +40,8 @@ export default function Dashboard() {
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const snapRef = useRef<HTMLDivElement>(null)
   const [currentSection, setCurrentSection] = useState(0)
-  const [mobileScan, setMobileScan] = useState<{ buyItems: any[]; overheatItems: any[] }>({
-    buyItems: [], overheatItems: [],
+  const [mobileScan, setMobileScan] = useState<{ buyItems: any[]; overheatItems: any[]; marketHealth: { dead_cross: number; alive: number } | null }>({
+    buyItems: [], overheatItems: [], marketHealth: null,
   })
 
   const deleteMut = useMutation({
@@ -78,7 +78,7 @@ export default function Dashboard() {
   useEffect(() => {
     fetchFullScanLatest().then(r => {
       if (r?.status !== 'no_data' && r?.chart_buy) {
-        setMobileScan({ buyItems: r.chart_buy?.items || [], overheatItems: r.overheat?.items || [] })
+        setMobileScan({ buyItems: r.chart_buy?.items || [], overheatItems: r.overheat?.items || [], marketHealth: r.market_health || null })
       }
     }).catch(() => {})
   }, [])
@@ -259,6 +259,31 @@ export default function Dashboard() {
           <SnapSectionHeader title="차트 BUY 신호" color="text-[var(--buy)]" currentSection={currentSection} />
           <p className="text-[15px] text-[var(--muted)] px-3 py-1 shrink-0">일봉 10거래일 이내 · 데드크로스 제외 · 거래량 5일 평균 1.5배↑</p>
           <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
+            {/* Dead Cross 비율 바 (모바일) */}
+            {mobileScan.marketHealth && (mobileScan.marketHealth.dead_cross + mobileScan.marketHealth.alive) > 0 && (() => {
+              const mh = mobileScan.marketHealth
+              const total = mh.dead_cross + mh.alive
+              const alivePct = Math.round(mh.alive / total * 100)
+              const deadPct = 100 - alivePct
+              return (
+                <div className="w-1/2 mb-1">
+                  <p className="text-[12px] text-[var(--muted)] mb-1.5">EMA 추세 · {total.toLocaleString()}종목</p>
+                  <div className="relative">
+                    <div className="absolute -top-2.5 z-10" style={{ left: `${alivePct}%`, transform: 'translateX(-50%)' }}>
+                      <div className="w-0 h-0 border-l-[4px] border-r-[4px] border-t-[5px] border-l-transparent border-r-transparent border-t-[var(--muted)]" />
+                    </div>
+                    <div className="flex h-[5px] rounded-full overflow-hidden">
+                      <div className="bg-blue-500 rounded-l-full" style={{ width: `${alivePct}%` }} />
+                      <div className="bg-red-500 rounded-r-full" style={{ width: `${deadPct}%` }} />
+                    </div>
+                  </div>
+                  <div className="flex justify-between mt-1">
+                    <span className="text-[12px] text-blue-400">정상 {alivePct}%</span>
+                    <span className="text-[12px] text-red-400">데드크로스 {deadPct}%</span>
+                  </div>
+                </div>
+              )
+            })()}
             {mobileScan.buyItems.length === 0 ? (
               <p className="text-[var(--muted)] text-sm py-8 text-center">BUY 신호 종목이 없습니다</p>
             ) : (() => {
@@ -482,6 +507,7 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
   const [maxSq] = useState<any>(null)  // 하위 호환용 (제거 예정)
   const [buyItems, setBuyItems] = useState<any[]>([])
   const [overheatItems, setOverheatItems] = useState<any[]>([])
+  const [marketHealth, setMarketHealth] = useState<{ dead_cross: number; alive: number } | null>(null)
 
   // 섹션 토글 (localStorage 유지)
   const [showOverheat, setShowOverheat] = useState(() => localStorage.getItem('dash_showOverheat') === 'true')
@@ -494,6 +520,7 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
   const applyResult = (result: any) => {
     if (result?.chart_buy) setBuyItems(result.chart_buy.items || [])
     if (result?.overheat) setOverheatItems(result.overheat.items || [])
+    if (result?.market_health) setMarketHealth(result.market_health)
     // 마지막 스캔 시각 (full_market_scanner: completed_at, unified_scanner: scan_time)
     const ts = result?.completed_at || result?.scan_time
     if (ts) setScanTime(ts)
@@ -720,6 +747,30 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
                 </span>
               )}
             </div>
+            {/* Dead Cross 비율 바 */}
+            {marketHealth && (marketHealth.dead_cross + marketHealth.alive) > 0 && (() => {
+              const total = marketHealth.dead_cross + marketHealth.alive
+              const alivePct = Math.round(marketHealth.alive / total * 100)
+              const deadPct = 100 - alivePct
+              return (
+                <div className="w-1/2 mb-3">
+                  <p className="text-[10px] text-[var(--muted)] mb-1.5">EMA 추세 · {total.toLocaleString()}종목</p>
+                  <div className="relative">
+                    <div className="absolute -top-2.5 z-10" style={{ left: `${alivePct}%`, transform: 'translateX(-50%)' }}>
+                      <div className="w-0 h-0 border-l-[4px] border-r-[4px] border-t-[5px] border-l-transparent border-r-transparent border-t-[var(--muted)]" />
+                    </div>
+                    <div className="flex h-[5px] rounded-full overflow-hidden">
+                      <div className="bg-blue-500 rounded-l-full" style={{ width: `${alivePct}%` }} />
+                      <div className="bg-red-500 rounded-r-full" style={{ width: `${deadPct}%` }} />
+                    </div>
+                  </div>
+                  <div className="flex justify-between mt-1">
+                    <span className="text-[10px] text-blue-400">정상 {alivePct}%</span>
+                    <span className="text-[10px] text-red-400">데드크로스 {deadPct}%</span>
+                  </div>
+                </div>
+              )
+            })()}
             {displayItems.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                 {displayItems.map((item: any, i: number) => (
@@ -799,6 +850,7 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
         </div>
         </>
       )}
+
 
     </div>
   )
