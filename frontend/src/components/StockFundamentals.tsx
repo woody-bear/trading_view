@@ -44,7 +44,7 @@ export default function StockFundamentals({ symbol, market }: Props) {
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           {data.sector_name && (
-            <span className="text-[10px] text-[var(--muted)] bg-[var(--bg)] px-2 py-0.5 rounded">{data.sector_name}</span>
+            <span className="text-caption text-[var(--muted)] bg-[var(--bg)] px-2 py-0.5 rounded">{data.sector_name}</span>
           )}
         </div>
         <span className="text-xs text-[var(--muted)]">시가총액 <span className="text-white font-mono">{fmtNum(data.market_cap)}</span></span>
@@ -61,7 +61,7 @@ export default function StockFundamentals({ symbol, market }: Props) {
       {/* 52주 범위 */}
       {(data.week52_high > 0 || data.week52_low > 0) && (
         <div className="mb-3">
-          <div className="flex items-center justify-between text-[10px] text-[var(--muted)] mb-1">
+          <div className="flex items-center justify-between text-caption text-[var(--muted)] mb-1">
             <span>52주 최저 <span className="text-blue-400 font-mono">{fmtPrice(data.week52_low)}</span></span>
             <span>52주 최고 <span className="text-[var(--buy)] font-mono">{fmtPrice(data.week52_high)}</span></span>
           </div>
@@ -76,12 +76,12 @@ export default function StockFundamentals({ symbol, market }: Props) {
             />
           </div>
           <div className="flex items-center justify-between mt-1">
-            <span className="text-[9px] text-[var(--muted)]">
+            <span className="text-micro text-[var(--muted)]">
               {data.week52_low_date}
             </span>
-            {isNearLow && <span className="text-[10px] text-blue-400 font-bold">52주 저점 근처</span>}
-            {isNearHigh && <span className="text-[10px] text-[var(--buy)] font-bold">52주 고점 근처</span>}
-            <span className="text-[9px] text-[var(--muted)]">
+            {isNearLow && <span className="text-caption text-blue-400 font-bold">52주 저점 근처</span>}
+            {isNearHigh && <span className="text-caption text-[var(--buy)] font-bold">52주 고점 근처</span>}
+            <span className="text-micro text-[var(--muted)]">
               {data.week52_high_date}
             </span>
           </div>
@@ -90,7 +90,7 @@ export default function StockFundamentals({ symbol, market }: Props) {
 
       {/* 가격제한 (한국만) */}
       {isKR && data.base_price > 0 && (
-        <div className="flex items-center gap-3 text-[10px] text-[var(--muted)] pt-2 border-t border-[var(--border)]">
+        <div className="flex items-center gap-3 text-caption text-[var(--muted)] pt-2 border-t border-[var(--border)]">
           <span>기준가 <span className="text-white font-mono">{fmtPrice(data.base_price)}</span></span>
           <span>상한가 <span className="text-[var(--buy)] font-mono">{fmtPrice(data.high_limit)}</span></span>
           <span>하한가 <span className="text-[var(--sell)] font-mono">{fmtPrice(data.low_limit)}</span></span>
@@ -113,12 +113,12 @@ function MetricCard({ label, value, suffix = '', highlight }: {
 
   return (
     <div className={`${bg} rounded-lg p-2 text-center`}>
-      <div className="text-[10px] text-[var(--muted)] mb-0.5">{label}</div>
+      <div className="text-caption text-[var(--muted)] mb-0.5">{label}</div>
       <div className={`text-sm font-mono font-bold ${color}`}>
         {value ? value.toLocaleString('ko-KR', { maximumFractionDigits: 2 }) : '-'}
       </div>
-      {suffix && value > 0 && <div className="text-[9px] text-[var(--muted)]">{suffix}</div>}
-      {hint && <div className={`text-[9px] font-bold ${color} mt-0.5`}>{hint}</div>}
+      {suffix && value > 0 && <div className="text-micro text-[var(--muted)]">{suffix}</div>}
+      {hint && <div className={`text-micro font-bold ${color} mt-0.5`}>{hint}</div>}
     </div>
   )
 }

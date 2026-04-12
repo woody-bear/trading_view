@@ -1,5 +1,18 @@
 @import "tailwindcss";
 
+@theme {
+  /* ── 모바일 폰트 스케일 (시맨틱 이름) ──────────────────────
+     변경 시 .claude/frontend/css/mobile.md 도 함께 업데이트
+     ──────────────────────────────────────────────────────── */
+  --text-micro:   9px;   /* 최소 뱃지, 설명 주석          ← text-[8px]/[9px] 통합 */
+  --text-caption: 11px;  /* 보조 레이블, 날짜, 단위        ← text-[10px]/[11px] 통합 */
+  --text-label:   13px;  /* 기본 라벨, BottomNav 탭        ← text-[12px]/[13px] 통합 */
+  --text-body:    15px;  /* 본문 텍스트, 항목 설명         ← text-[15px] */
+  --text-value:   18px;  /* 수치, 가격, 지표값             ← text-[17px]/[18px] 통합 */
+  --text-title:   22px;  /* 카드 종목명, 항목 헤더          ← text-[21px]/[22px]/[24px] 통합 */
+  --text-display: 34px;  /* 스냅 섹션 헤더                 ← text-[34px] */
+}
+
 :root {
   --bg: #000000;
   --card: #1c1c1e;

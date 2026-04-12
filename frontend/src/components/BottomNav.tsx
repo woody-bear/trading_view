@@ -31,7 +31,7 @@ export default function BottomNav() {
               className="flex flex-col items-center justify-center gap-1 flex-1 h-full"
             >
               <tab.icon size={26} className={active ? 'text-[var(--buy)]' : 'text-[var(--neutral)]'} strokeWidth={active ? 2.2 : 1.5} />
-              <span className={`text-[12px] leading-none ${active ? 'text-[var(--buy)] font-semibold' : 'text-[var(--neutral)]'}`}>
+              <span className={`text-label leading-none ${active ? 'text-[var(--buy)] font-semibold' : 'text-[var(--neutral)]'}`}>
                 {tab.label}
               </span>
             </button>

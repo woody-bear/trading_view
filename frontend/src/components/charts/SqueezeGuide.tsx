@@ -18,7 +18,7 @@ export default function SqueezeGuide({ defaultOpen = false }: { defaultOpen?: bo
         className="w-full flex items-center justify-between px-3.5 md:px-3 py-2.5 md:py-2 text-left"
       >
         <div className="flex items-center gap-2.5 md:gap-2">
-          <span className="text-[13px] md:text-[10px] text-[var(--muted)] font-semibold">스퀴즈 4단계</span>
+          <span className="text-label md:text-caption text-[var(--muted)] font-semibold">스퀴즈 4단계</span>
           <div className="flex items-center gap-1.5 md:gap-1">
             {stages.map((s) => (
               <div key={s.label} className="w-2.5 h-2.5 md:w-2 md:h-2 rounded-full" style={{ background: s.color }} />
@@ -34,27 +34,27 @@ export default function SqueezeGuide({ defaultOpen = false }: { defaultOpen?: bo
               <div key={s.label} className="flex items-center gap-2 md:gap-1.5">
                 <div className="w-3 h-3 md:w-2.5 md:h-2.5 rounded-full shrink-0" style={{ background: s.color }} />
                 <div>
-                  <div className="text-[13px] md:text-[10px] font-bold text-white">{s.label}</div>
-                  <div className="text-[11px] md:text-[9px] text-[var(--muted)]">{s.title}</div>
+                  <div className="text-label md:text-caption font-bold text-white">{s.label}</div>
+                  <div className="text-caption md:text-micro text-[var(--muted)]">{s.title}</div>
                 </div>
               </div>
             ))}
           </div>
-          <div className="text-[11px] md:text-[9px] text-[var(--muted)] mt-2 md:mt-1.5 opacity-60">
+          <div className="text-caption md:text-micro text-[var(--muted)] mt-2 md:mt-1.5 opacity-60">
             MAX 스퀴즈 해제 시 강한 방향성 움직임 발생
           </div>
           <div className="grid grid-cols-3 gap-3 md:gap-2 mt-3 md:mt-2 pt-3 md:pt-2 border-t border-[var(--border)]">
             <div>
-              <div className="text-[13px] md:text-[10px] font-bold text-white">RSI</div>
-              <div className="text-[11px] md:text-[9px] text-[var(--muted)] leading-relaxed">과매수/과매도 강도. 30 이하 매수, 70 이상 매도</div>
+              <div className="text-label md:text-caption font-bold text-white">RSI</div>
+              <div className="text-caption md:text-micro text-[var(--muted)] leading-relaxed">과매수/과매도 강도. 30 이하 매수, 70 이상 매도</div>
             </div>
             <div>
-              <div className="text-[13px] md:text-[10px] font-bold text-white">%B</div>
-              <div className="text-[11px] md:text-[9px] text-[var(--muted)] leading-relaxed">볼린저 밴드 위치. 0% 하단, 100% 상단 돌파</div>
+              <div className="text-label md:text-caption font-bold text-white">%B</div>
+              <div className="text-caption md:text-micro text-[var(--muted)] leading-relaxed">볼린저 밴드 위치. 0% 하단, 100% 상단 돌파</div>
             </div>
             <div>
-              <div className="text-[13px] md:text-[10px] font-bold text-white">Vol</div>
-              <div className="text-[11px] md:text-[9px] text-[var(--muted)] leading-relaxed">평균 대비 거래량. 1.2x 이상 거래 활발</div>
+              <div className="text-label md:text-caption font-bold text-white">Vol</div>
+              <div className="text-caption md:text-micro text-[var(--muted)] leading-relaxed">평균 대비 거래량. 1.2x 이상 거래 활발</div>
             </div>
           </div>
         </div>

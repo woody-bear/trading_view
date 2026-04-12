@@ -31,7 +31,7 @@ function SnapHdr({ title, color, currentSection, total }: {
 }) {
   return (
     <div className="flex items-center justify-between px-3 pt-3 pb-2 shrink-0 border-b border-[var(--border)]/50">
-      <h2 className={`text-[34px] font-bold ${color}`}>{title}</h2>
+      <h2 className={`text-display font-bold ${color}`}>{title}</h2>
       <div className="flex gap-1.5">
         {Array.from({ length: total }, (_, i) => (
           <div key={i} className={`h-1.5 rounded-full transition-all ${
@@ -250,7 +250,7 @@ export default function Settings() {
               </div>
               <span className="text-xs text-[var(--muted)]">{s.desc}</span>
             </div>
-            <div className="text-[10px] text-[var(--muted)] ml-4 font-mono">{s.detail}</div>
+            <div className="text-caption text-[var(--muted)] ml-4 font-mono">{s.detail}</div>
           </button>
         ))}
       </div>
@@ -276,7 +276,7 @@ export default function Settings() {
           <input type="text" value={tgToken} onChange={e => setTgToken(e.target.value)}
             placeholder={tgTokenHint || '123456:ABC-DEF...'} autoComplete="off"
             className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder-[var(--muted)] focus:border-sky-500 focus:outline-none" />
-          <p className="text-[10px] text-[var(--muted)] mt-1">{tgConfigured ? '변경 시에만 새 토큰 입력 (현재 설정됨)' : '@BotFather에서 봇 생성 후 발급'}</p>
+          <p className="text-caption text-[var(--muted)] mt-1">{tgConfigured ? '변경 시에만 새 토큰 입력 (현재 설정됨)' : '@BotFather에서 봇 생성 후 발급'}</p>
         </div>
         <div>
           <label className="block text-xs text-[var(--muted)] mb-1">Chat ID</label>
@@ -294,7 +294,7 @@ export default function Settings() {
             <Send size={14} />{tgTesting ? '발송 중...' : '테스트 발송'}
           </button>
         </div>
-        {tgConfigured && <div className="text-[10px] text-green-400 flex items-center gap-1 mt-1"><Check size={12} /> 텔레그램 연동됨</div>}
+        {tgConfigured && <div className="text-caption text-green-400 flex items-center gap-1 mt-1"><Check size={12} /> 텔레그램 연동됨</div>}
       </div>
     </div>
   )
@@ -429,7 +429,7 @@ export default function Settings() {
                 </div>
                 <span className="text-xs text-[var(--muted)]">{s.desc}</span>
               </div>
-              <div className="text-[10px] text-[var(--muted)] ml-4 font-mono">{s.detail}</div>
+              <div className="text-caption text-[var(--muted)] ml-4 font-mono">{s.detail}</div>
             </button>
           ))}
         </div>
@@ -462,7 +462,7 @@ export default function Settings() {
               placeholder={tgTokenHint || '123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11'}
               className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder-[var(--muted)] focus:border-sky-500 focus:outline-none"
             />
-            <p className="text-[10px] text-[var(--muted)] mt-1">
+            <p className="text-caption text-[var(--muted)] mt-1">
               {tgConfigured ? '변경 시에만 새 토큰 입력 (현재 설정됨)' : '@BotFather에서 봇 생성 후 받은 토큰'}
             </p>
           </div>
@@ -475,7 +475,7 @@ export default function Settings() {
               placeholder="-1001234567890"
               className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder-[var(--muted)] focus:border-sky-500 focus:outline-none"
             />
-            <p className="text-[10px] text-[var(--muted)] mt-1">@userinfobot으로 확인 가능 (그룹은 - 접두사)</p>
+            <p className="text-caption text-[var(--muted)] mt-1">@userinfobot으로 확인 가능 (그룹은 - 접두사)</p>
           </div>
           <div className="flex gap-2 pt-1">
             <button
@@ -495,7 +495,7 @@ export default function Settings() {
             </button>
           </div>
           {tgConfigured && (
-            <div className="text-[10px] text-green-400 flex items-center gap-1 mt-1">
+            <div className="text-caption text-green-400 flex items-center gap-1 mt-1">
               <Check size={12} /> 텔레그램 연동됨
             </div>
           )}
@@ -554,7 +554,7 @@ export default function Settings() {
                   <td className="py-2 text-[var(--muted)]">전체 스캔 차트 BUY 종목 목록 (최대 20개)</td>
                 </tr>
                 <tr className="text-[var(--text)]">
-                  <td className="py-2 pr-3 font-mono text-yellow-400">평일 09:00~15:30<br/><span className="text-[10px] text-[var(--muted)]">(30분마다)</span></td>
+                  <td className="py-2 pr-3 font-mono text-yellow-400">평일 09:00~15:30<br/><span className="text-caption text-[var(--muted)]">(30분마다)</span></td>
                   <td className="py-2 pr-3 whitespace-nowrap">🔴 SELL 체크 (국내 관심종목)</td>
                   <td className="py-2 text-[var(--muted)]">국내 관심종목 중 SELL 신호 종목 (장중 14회)</td>
                 </tr>
@@ -581,7 +581,7 @@ export default function Settings() {
               </tbody>
             </table>
           </div>
-          <p className="text-[10px] text-[var(--muted)] mt-3">
+          <p className="text-caption text-[var(--muted)] mt-3">
             ※ BUY 알림은 전체 시장 스캔 완료 후 발송 · SELL 체크는 관심종목에 등록된 종목만 대상
           </p>
         </div>
@@ -611,7 +611,7 @@ export default function Settings() {
                 style={{ width: `${scanStatus.progress_pct}%` }}
               />
             </div>
-            <div className="text-[10px] text-[var(--muted)] mt-1">
+            <div className="text-caption text-[var(--muted)] mt-1">
               경과: {scanStatus.elapsed_seconds}초
             </div>
           </div>
@@ -659,7 +659,7 @@ export default function Settings() {
                         }) : '-'}
                       </td>
                       <td className="py-1.5 px-1 text-center">
-                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                        <span className={`inline-block px-1.5 py-0.5 rounded text-caption font-medium ${
                           h.status === 'completed' ? 'bg-[var(--buy)]/20 text-[var(--buy)]' :
                           h.status === 'failed' ? 'bg-[var(--sell)]/20 text-[var(--sell)]' :
                           'bg-yellow-500/20 text-yellow-400'

@@ -60,7 +60,7 @@ export default function AlertHistory() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-white">{fmtTime(a.sent_at)}</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${a.success ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                  <span className={`text-caption px-1.5 py-0.5 rounded ${a.success ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
                     {a.success ? '성공' : '실패'}
                   </span>
                 </div>

@@ -191,32 +191,32 @@ export default function CompanyInfoPanel({ symbol, market }: Props) {
           <div className="text-sm font-bold text-white truncate">{c.name}</div>
           <div className="flex flex-wrap gap-1 mt-0.5">
             {c.industry && (
-              <span className="text-[10px] text-[var(--muted)] bg-[var(--bg)] px-2 py-0.5 rounded">
+              <span className="text-caption text-[var(--muted)] bg-[var(--bg)] px-2 py-0.5 rounded">
                 {koLabel(c.industry)}
               </span>
             )}
             {c.sector && c.sector !== c.industry && (
-              <span className="text-[10px] text-[var(--muted)] bg-[var(--bg)] px-2 py-0.5 rounded">
+              <span className="text-caption text-[var(--muted)] bg-[var(--bg)] px-2 py-0.5 rounded">
                 {koLabel(c.sector)}
               </span>
             )}
           </div>
         </div>
         {c.country && (
-          <span className="text-[10px] text-[var(--muted)] flex-shrink-0">{koLabel(c.country)}</span>
+          <span className="text-caption text-[var(--muted)] flex-shrink-0">{koLabel(c.country)}</span>
         )}
       </div>
 
       {/* 사업 개요 */}
       {c.description && (
         <div className="mb-3">
-          <p className={`text-[11px] text-white font-bold leading-relaxed ${descExpanded ? 'line-clamp-none' : 'line-clamp-4'}`}>
+          <p className={`text-caption text-white font-bold leading-relaxed ${descExpanded ? 'line-clamp-none' : 'line-clamp-4'}`}>
             {c.description}
           </p>
           {c.description.length > 200 && (
             <button
               onClick={() => setDescExpanded(v => !v)}
-              className="text-[10px] text-blue-400 mt-1 hover:text-blue-300"
+              className="text-caption text-blue-400 mt-1 hover:text-blue-300"
             >
               {descExpanded ? '접기' : '더 보기'}
             </button>
@@ -226,7 +226,7 @@ export default function CompanyInfoPanel({ symbol, market }: Props) {
 
       {/* 직원 수 + 웹사이트 (US only) */}
       {isUS && (c.employees || c.website) && (
-        <div className="flex items-center gap-4 text-[10px] text-[var(--muted)] border-t border-[var(--border)] pt-2">
+        <div className="flex items-center gap-4 text-caption text-[var(--muted)] border-t border-[var(--border)] pt-2">
           {c.employees && (
             <span>직원 {c.employees.toLocaleString('ko-KR')}명</span>
           )}

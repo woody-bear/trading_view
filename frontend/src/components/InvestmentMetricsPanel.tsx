@@ -69,15 +69,15 @@ function MetricCard({ label, value, sublabel, highlight }: MetricCardProps) {
 
   return (
     <div className={`${bg} rounded-lg p-2 text-center`}>
-      <div className="text-[10px] text-[var(--muted)] mb-0.5">{label}</div>
+      <div className="text-caption text-[var(--muted)] mb-0.5">{label}</div>
       <div className={`text-xs font-mono font-bold ${color} ${value === '-' ? 'text-[var(--muted)]' : ''}`}>
         {value}
       </div>
       {sublabel && value !== '-' && (
-        <div className="text-[9px] text-[var(--muted)]">{sublabel}</div>
+        <div className="text-micro text-[var(--muted)]">{sublabel}</div>
       )}
       {hint && value !== '-' && (
-        <div className={`text-[9px] font-bold ${color} mt-0.5`}>{hint}</div>
+        <div className={`text-micro font-bold ${color} mt-0.5`}>{hint}</div>
       )}
     </div>
   )

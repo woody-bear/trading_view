@@ -494,11 +494,11 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
         </div>
       </div>
       <div className="flex items-center gap-2 px-3 py-1 bg-black border-x border-[var(--border)]">
-        <span className="text-[10px] text-[var(--muted)]">RSI (14)</span>
+        <span className="text-caption text-[var(--muted)]">RSI (14)</span>
       </div>
       <div ref={rsiRef} className="w-full overflow-hidden border-x border-[var(--border)]" />
       <div className="flex items-center gap-2 px-3 py-1 bg-black border-x border-[var(--border)]">
-        <span className="text-[10px] text-[var(--muted)]">MACD (12,26,9)</span>
+        <span className="text-caption text-[var(--muted)]">MACD (12,26,9)</span>
       </div>
       <div ref={macdRef} className="w-full rounded-b-lg overflow-hidden border border-[var(--border)] border-t-0" />
       {markerWarning && (

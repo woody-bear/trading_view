@@ -53,8 +53,8 @@ function Legend({ segments }: { segments: RevenueSegment[] }) {
             className="w-2.5 h-2.5 rounded-full flex-shrink-0"
             style={{ backgroundColor: COLORS[i % COLORS.length] }}
           />
-          <span className="text-[11px] text-[var(--muted)] truncate">{seg.name}</span>
-          <span className="text-[11px] text-white font-mono ml-auto flex-shrink-0">{seg.percentage.toFixed(1)}%</span>
+          <span className="text-caption text-[var(--muted)] truncate">{seg.name}</span>
+          <span className="text-caption text-white font-mono ml-auto flex-shrink-0">{seg.percentage.toFixed(1)}%</span>
         </div>
       ))}
     </div>
@@ -84,7 +84,7 @@ export default function RevenueSegmentChart({ symbol, market }: Props) {
   return (
     <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 md:p-3 mb-4">
       <div className="text-xs text-[var(--muted)] mb-3 font-medium">
-        매출 구성{period && <span className="ml-1 text-[9px]">({period} 기준)</span>}
+        매출 구성{period && <span className="ml-1 text-micro">({period} 기준)</span>}
       </div>
       <div className="flex items-center gap-4">
         <DonutChart segments={segments} />

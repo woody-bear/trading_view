@@ -69,7 +69,7 @@ function Tooltip({ text, children }: { text: string; children: React.ReactNode }
   return (
     <div className="relative group/tip inline-block">
       {children}
-      <div className="pointer-events-none absolute bottom-full right-0 mb-1.5 w-56 bg-[#1a2035] border border-[var(--border)] rounded-lg px-3 py-2 text-[11px] text-white/85 leading-relaxed hidden group-hover/tip:block z-50 shadow-xl whitespace-pre-line">
+      <div className="pointer-events-none absolute bottom-full right-0 mb-1.5 w-56 bg-[#1a2035] border border-[var(--border)] rounded-lg px-3 py-2 text-caption text-white/85 leading-relaxed hidden group-hover/tip:block z-50 shadow-xl whitespace-pre-line">
         {text}
         <div className="absolute top-full right-3 border-4 border-transparent border-t-[#1a2035]" />
       </div>
@@ -195,7 +195,7 @@ function IndicatorTable({ c }: { c: PatternCase }) {
     <div className="overflow-x-auto">
       <table className="w-full text-sm border-collapse">
         <thead>
-          <tr className="bg-[var(--navy)] text-[10px] text-[var(--muted)]">
+          <tr className="bg-[var(--navy)] text-caption text-[var(--muted)]">
             <th className="text-left px-3 py-1.5 border-b border-[var(--border)]">지표</th>
             <th className="text-right px-3 py-1.5 border-b border-[var(--border)]">시그널 시점 값</th>
             <th className="text-left px-3 py-1.5 border-b border-[var(--border)]">기준</th>
@@ -204,8 +204,8 @@ function IndicatorTable({ c }: { c: PatternCase }) {
         <tbody>
           {rows.map(r => (
             <tr key={r.label} className="border-b border-[var(--border)]/40 hover:bg-white/3">
-              <td className="px-3 py-1.5 text-[11px] text-[var(--muted)]">{r.label}</td>
-              <td className={`px-3 py-1.5 text-right text-[12px] font-mono font-semibold ${
+              <td className="px-3 py-1.5 text-caption text-[var(--muted)]">{r.label}</td>
+              <td className={`px-3 py-1.5 text-right text-label font-mono font-semibold ${
                 r.good === true ? 'text-green-400' : r.good === false ? 'text-orange-400' : 'text-white'
               }`}>
                 {r.tooltip ? (
@@ -214,7 +214,7 @@ function IndicatorTable({ c }: { c: PatternCase }) {
                   </Tooltip>
                 ) : r.value}
               </td>
-              <td className="px-3 py-1.5 text-[10px] text-[var(--muted)]/60">{r.hint}</td>
+              <td className="px-3 py-1.5 text-caption text-[var(--muted)]/60">{r.hint}</td>
             </tr>
           ))}
         </tbody>
@@ -271,13 +271,13 @@ function CaseAccordion({ c, onEdit, onDelete }: {
           {PATTERN_LABEL[c.pattern_type] ?? c.pattern_type}
         </span>
         {/* 출처 뱃지 */}
-        <span className="text-[11px] px-1.5 py-0.5 bg-[var(--border)]/60 rounded text-[var(--muted)] shrink-0">
+        <span className="text-caption px-1.5 py-0.5 bg-[var(--border)]/60 rounded text-[var(--muted)] shrink-0">
           {c.source === 'chart' ? '📊 차트' : '✏️ 수동'}
         </span>
 
         {/* 제목 & 종목 */}
         <div className="flex-1 min-w-0">
-          <div className="text-[15px] font-semibold text-white truncate">{c.title}</div>
+          <div className="text-body font-semibold text-white truncate">{c.title}</div>
           <div className="text-xs text-[var(--muted)] flex items-center gap-1.5 mt-0.5">
             <span>{marketLabel} {c.stock_name}</span>
             <span className="text-[var(--border)]">·</span>
@@ -305,7 +305,7 @@ function CaseAccordion({ c, onEdit, onDelete }: {
         {/* 태그들 (PC) */}
         <div className="hidden md:flex gap-1 shrink-0">
           {c.tags.slice(0, 3).map(t => (
-            <span key={t} className="text-[9px] px-1.5 py-0.5 bg-[var(--border)] rounded text-[var(--muted)]">{t}</span>
+            <span key={t} className="text-micro px-1.5 py-0.5 bg-[var(--border)] rounded text-[var(--muted)]">{t}</span>
           ))}
         </div>
 
@@ -313,14 +313,14 @@ function CaseAccordion({ c, onEdit, onDelete }: {
         <div className="shrink-0" onClick={e => e.stopPropagation()}>
           {confirmDelete ? (
             <div className="flex items-center gap-1">
-              <span className="text-[11px] text-red-400">삭제?</span>
+              <span className="text-caption text-red-400">삭제?</span>
               <button
                 onClick={() => onDelete(c.id)}
-                className="text-[11px] text-red-400 hover:text-red-300 px-1.5 py-0.5 border border-red-500/40 rounded"
+                className="text-caption text-red-400 hover:text-red-300 px-1.5 py-0.5 border border-red-500/40 rounded"
               >확인</button>
               <button
                 onClick={() => setConfirmDelete(false)}
-                className="text-[11px] text-[var(--muted)] hover:text-white px-1.5 py-0.5 border border-[var(--border)] rounded"
+                className="text-caption text-[var(--muted)] hover:text-white px-1.5 py-0.5 border border-[var(--border)] rounded"
               >취소</button>
             </div>
           ) : (
@@ -348,7 +348,7 @@ function CaseAccordion({ c, onEdit, onDelete }: {
             <div className="flex gap-4 px-4 py-3 border-b border-[var(--border)]/50">
               {c.entry_price != null && (
                 <div>
-                  <div className="text-[10px] text-[var(--muted)]">진입가</div>
+                  <div className="text-caption text-[var(--muted)]">진입가</div>
                   <div className="text-sm font-mono font-bold text-white">
                     {c.market === 'US' ? `$${c.entry_price.toLocaleString()}` : `${c.entry_price.toLocaleString()}원`}
                   </div>
@@ -356,7 +356,7 @@ function CaseAccordion({ c, onEdit, onDelete }: {
               )}
               {c.exit_price != null && (
                 <div>
-                  <div className="text-[10px] text-[var(--muted)]">청산가</div>
+                  <div className="text-caption text-[var(--muted)]">청산가</div>
                   <div className="text-sm font-mono font-bold text-white">
                     {c.market === 'US' ? `$${c.exit_price.toLocaleString()}` : `${c.exit_price.toLocaleString()}원`}
                   </div>
@@ -371,12 +371,12 @@ function CaseAccordion({ c, onEdit, onDelete }: {
           {/* 메모 인라인 편집 (T014) */}
           <div className="px-4 py-3 border-t border-[var(--border)]/50">
             <div className="flex items-center justify-between mb-1.5">
-              <div className="text-[10px] text-[var(--muted)]">분석 메모</div>
-              {notesStatus === 'saving' && <span className="text-[10px] text-[var(--muted)]">저장 중...</span>}
-              {notesStatus === 'saved' && <span className="text-[10px] text-green-400">저장됨</span>}
+              <div className="text-caption text-[var(--muted)]">분석 메모</div>
+              {notesStatus === 'saving' && <span className="text-caption text-[var(--muted)]">저장 중...</span>}
+              {notesStatus === 'saved' && <span className="text-caption text-green-400">저장됨</span>}
             </div>
             <textarea
-              className="w-full bg-[var(--bg)] border border-[var(--border)] rounded px-2.5 py-2 text-[12px] text-white/90 focus:outline-none focus:border-[var(--gold)] resize-none leading-relaxed"
+              className="w-full bg-[var(--bg)] border border-[var(--border)] rounded px-2.5 py-2 text-label text-white/90 focus:outline-none focus:border-[var(--gold)] resize-none leading-relaxed"
               rows={3}
               value={notesDraft}
               onChange={e => handleNotesChange(e.target.value)}
@@ -388,20 +388,20 @@ function CaseAccordion({ c, onEdit, onDelete }: {
           <div className="px-4 py-3 border-t border-[var(--border)]/50 flex items-center justify-between">
             <div className="flex flex-wrap gap-1">
               {c.tags.map(t => (
-                <span key={t} className="text-[10px] px-1.5 py-0.5 bg-[var(--border)]/60 rounded text-[var(--muted)]">#{t}</span>
+                <span key={t} className="text-caption px-1.5 py-0.5 bg-[var(--border)]/60 rounded text-[var(--muted)]">#{t}</span>
               ))}
             </div>
             <div className="flex gap-2 items-center">
               {/* 차트 보기 버튼 */}
               <button
                 onClick={e => { e.stopPropagation(); nav(`/${c.symbol}?market=${c.market_type || c.market}&highlightDate=${c.signal_date}`) }}
-                className="flex items-center gap-1 text-[11px] text-[var(--muted)] hover:text-blue-400 transition-colors px-2 py-1"
+                className="flex items-center gap-1 text-caption text-[var(--muted)] hover:text-blue-400 transition-colors px-2 py-1"
               >
                 <BarChart2 size={12} /> 차트
               </button>
               <button
                 onClick={() => onEdit(c)}
-                className="flex items-center gap-1 text-[11px] text-[var(--muted)] hover:text-[var(--gold)] transition-colors px-2 py-1"
+                className="flex items-center gap-1 text-caption text-[var(--muted)] hover:text-[var(--gold)] transition-colors px-2 py-1"
               >
                 <Edit3 size={12} /> 수정
               </button>
@@ -487,8 +487,8 @@ function CaseFormModal({
     }
   }
 
-  const inp = "w-full bg-[var(--bg)] border border-[var(--border)] rounded px-2 py-1.5 text-[12px] text-white focus:outline-none focus:border-[var(--gold)]"
-  const lbl = "text-[10px] text-[var(--muted)] mb-0.5 block"
+  const inp = "w-full bg-[var(--bg)] border border-[var(--border)] rounded px-2 py-1.5 text-label text-white focus:outline-none focus:border-[var(--gold)]"
+  const lbl = "text-caption text-[var(--muted)] mb-0.5 block"
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
@@ -571,7 +571,7 @@ function CaseFormModal({
 
           {/* 지표값 */}
           <div className="p-3 bg-[var(--bg)] rounded-lg border border-[var(--border)]/50">
-            <div className="text-[10px] text-[var(--gold)] font-semibold mb-2">시그널 발생 시점 지표값</div>
+            <div className="text-caption text-[var(--gold)] font-semibold mb-2">시그널 발생 시점 지표값</div>
             <div className="grid grid-cols-3 gap-3">
               {[
                 { k: 'rsi',          label: 'RSI',          ph: '46.5' },
@@ -811,7 +811,7 @@ export default function Scrap() {
         <div className="shrink-0 flex items-center justify-between px-3 pt-3 pb-2 border-b border-[var(--border)]/50">
           <div className="flex items-center gap-2">
             <BookMarked size={16} className="text-[var(--gold)]" />
-            <h2 className="text-[34px] font-bold text-[var(--text)]">BUY 사례 스크랩</h2>
+            <h2 className="text-display font-bold text-[var(--text)]">BUY 사례 스크랩</h2>
           </div>
           <button
             onClick={() => { setEditTarget(null); setShowForm(true) }}
@@ -873,7 +873,7 @@ export default function Scrap() {
           ].map(s => (
             <div key={s.label} className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-2.5 text-center">
               <div className={`text-base font-bold font-mono ${s.color}`}>{s.value}</div>
-              <div className="text-[10px] text-[var(--muted)]">{s.label}</div>
+              <div className="text-caption text-[var(--muted)]">{s.label}</div>
             </div>
           ))}
         </div>
@@ -882,10 +882,10 @@ export default function Scrap() {
             const cnt = pt.key === 'all' ? cases.length : cases.filter(c => c.pattern_type === pt.key).length
             return (
               <button key={pt.key} onClick={() => setActiveType(pt.key)}
-                className={`px-3 py-2 text-[12px] font-semibold border-b-2 transition-colors -mb-px ${
+                className={`px-3 py-2 text-label font-semibold border-b-2 transition-colors -mb-px ${
                   activeType === pt.key ? `border-[var(--gold)] ${pt.color}` : 'border-transparent text-[var(--muted)] hover:text-white'
                 }`}>
-                {pt.label}<span className="ml-1 text-[10px] opacity-60">({cnt})</span>
+                {pt.label}<span className="ml-1 text-caption opacity-60">({cnt})</span>
               </button>
             )
           })}

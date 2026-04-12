@@ -38,9 +38,9 @@ export default function OrderbookPanel({ symbol, market }: Props) {
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-xs font-bold text-[var(--muted)]">호가</h3>
         <div className="flex items-center gap-2">
-          {isBuyDominant && <span className="text-[10px] text-green-400 font-bold">매수 우세</span>}
-          {isSellDominant && <span className="text-[10px] text-red-400 font-bold">매도 우세</span>}
-          <span className="text-[10px] text-[var(--muted)]">
+          {isBuyDominant && <span className="text-caption text-green-400 font-bold">매수 우세</span>}
+          {isSellDominant && <span className="text-caption text-red-400 font-bold">매도 우세</span>}
+          <span className="text-caption text-[var(--muted)]">
             매수 <span className="text-green-400 font-mono">{bidRatio.toFixed(0)}%</span>
           </span>
         </div>
@@ -64,7 +64,7 @@ export default function OrderbookPanel({ symbol, market }: Props) {
       </div>
 
       {/* 총잔량 */}
-      <div className="flex justify-between mt-2 text-[10px]">
+      <div className="flex justify-between mt-2 text-caption">
         <span className="text-red-400">매도 {data.total_ask_volume?.toLocaleString()}</span>
         <span className="text-green-400">매수 {data.total_bid_volume?.toLocaleString()}</span>
       </div>
@@ -86,7 +86,7 @@ function HogaRow({ price, volume, maxVol, type }: {
   const textColor = type === 'ask' ? 'text-red-400' : 'text-blue-400'
 
   return (
-    <div className="relative flex items-center justify-between text-[11px] md:text-[10px] h-6 px-2 rounded">
+    <div className="relative flex items-center justify-between text-caption md:text-caption h-6 px-2 rounded">
       <div className={`absolute inset-0 ${barColor} rounded`} style={{ width: `${pct}%` }} />
       <span className={`relative font-mono ${textColor}`}>{price.toLocaleString()}</span>
       <span className="relative font-mono text-[var(--muted)]">{volume.toLocaleString()}</span>

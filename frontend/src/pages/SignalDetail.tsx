@@ -79,13 +79,13 @@ function MiniGauge({ g }: { g: IndicatorGauge }) {
       </div>
 
       {/* 하단 범위 + 중앙값 */}
-      <div className="flex justify-between text-[9px] text-[var(--muted)]">
+      <div className="flex justify-between text-micro text-[var(--muted)]">
         <span className="font-mono">{g.format(g.min)}</span>
         <span className="font-mono text-gray-400">적정 {g.format(g.median)}</span>
         <span className="font-mono">{g.format(g.max)}</span>
       </div>
 
-      {g.warn && <div className="text-[10px] text-yellow-400 mt-1 text-center">{g.warn}</div>}
+      {g.warn && <div className="text-caption text-yellow-400 mt-1 text-center">{g.warn}</div>}
     </div>
   )
 }
@@ -514,14 +514,14 @@ export default function SignalDetail() {
         <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3">
           <div className="text-xs text-[var(--muted)]">EMA 20 / 50 / 200</div>
           <div className="text-white font-mono mt-1 text-xs">{s.ema_20?.toFixed(0)} / {s.ema_50?.toFixed(0)} / {s.ema_200?.toFixed(0)}</div>
-          <div className="text-[9px] mt-0.5" style={{ color: s.ema_20 > s.ema_50 && s.ema_50 > s.ema_200 ? '#ff4b6a' : s.ema_20 < s.ema_50 && s.ema_50 < s.ema_200 ? '#4285f4' : '#8e8e93' }}>
+          <div className="text-micro mt-0.5" style={{ color: s.ema_20 > s.ema_50 && s.ema_50 > s.ema_200 ? '#ff4b6a' : s.ema_20 < s.ema_50 && s.ema_50 < s.ema_200 ? '#4285f4' : '#8e8e93' }}>
             {s.ema_20 > s.ema_50 && s.ema_50 > s.ema_200 ? '정배열 (상승추세)' : s.ema_20 < s.ema_50 && s.ema_50 < s.ema_200 ? '역배열 (하락추세)' : '혼조 (횡보)'}
           </div>
         </div>
         <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3">
           <div className="text-xs text-[var(--muted)]">종합 신호</div>
           {s.signal_state !== 'NEUTRAL' && <div className={`font-mono mt-1 text-lg font-bold ${stateColor}`}>{stateLabel[s.signal_state]}</div>}
-          {s.confidence > 0 && <div className="text-[9px] text-[var(--muted)] mt-0.5">신뢰도 {s.confidence.toFixed(0)}점 / {s.signal_grade}</div>}
+          {s.confidence > 0 && <div className="text-micro text-[var(--muted)] mt-0.5">신뢰도 {s.confidence.toFixed(0)}점 / {s.signal_grade}</div>}
         </div>
       </div>
 
@@ -537,7 +537,7 @@ export default function SignalDetail() {
             <div className="flex gap-0.5 bg-[var(--bg)] rounded-md p-0.5">
               {Object.entries(sensPresets).map(([key, p]) => (
                 <button key={key} onClick={() => handleSensChange(key)} disabled={sensLoading}
-                  className={`px-2 py-1 rounded text-[10px] font-bold transition ${sens === key ? `${p.color} bg-[var(--card)]` : 'text-[var(--muted)] hover:text-white'}`}>
+                  className={`px-2 py-1 rounded text-caption font-bold transition ${sens === key ? `${p.color} bg-[var(--card)]` : 'text-[var(--muted)] hover:text-white'}`}>
                   {p.label}
                 </button>
               ))}
@@ -550,7 +550,7 @@ export default function SignalDetail() {
               <span className={`text-sm ${c.met ? 'text-green-400' : 'text-[var(--muted)]'}`}>{c.met ? '✓' : '✗'}</span>
               <div>
                 <div className={c.met ? 'text-green-400' : 'text-[var(--muted)]'}>{c.label}</div>
-                <div className="text-[10px] text-[var(--muted)] font-mono">현재: {c.value}</div>
+                <div className="text-caption text-[var(--muted)] font-mono">현재: {c.value}</div>
               </div>
             </div>
           ))}

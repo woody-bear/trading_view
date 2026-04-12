@@ -14,13 +14,13 @@ const config = {
 export default function ConnectionIndicator({ status, onReconnect }: Props) {
   const c = config[status]
   return (
-    <span className={`text-[10px] md:text-[9px] ${c.color} flex items-center gap-1`}>
+    <span className={`text-caption md:text-micro ${c.color} flex items-center gap-1`}>
       <span className={`w-1.5 h-1.5 ${c.bg} rounded-full ${status === 'connected' ? 'animate-pulse' : ''}`} />
       {c.text}
       {status === 'disconnected' && (
         <button
           onClick={onReconnect}
-          className="ml-1 px-1.5 py-0.5 text-[9px] bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
+          className="ml-1 px-1.5 py-0.5 text-micro bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
         >
           재연결
         </button>

@@ -161,7 +161,7 @@ function ScanConditionPanel() {
       >
         <span className="text-sm font-semibold text-white">신호 조회 조건</span>
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-[var(--muted)]">
+          <span className="text-caption text-[var(--muted)]">
             {open ? '접기' : '펼쳐서 상세 조건 보기'}
           </span>
           {open ? <ChevronUp size={14} className="text-[var(--muted)]" /> : <ChevronDown size={14} className="text-[var(--muted)]" />}
@@ -172,8 +172,8 @@ function ScanConditionPanel() {
         <div className="border-t border-[var(--border)] p-3 grid grid-cols-1 md:grid-cols-3 gap-3">
           {COND_BLOCKS.map(block => (
             <div key={block.title} className={`rounded-lg border ${block.border} ${block.bg} p-3`}>
-              <div className={`text-[11px] font-bold mb-2 ${block.color}`}>{block.title}</div>
-              <table className="w-full text-[10px]">
+              <div className={`text-caption font-bold mb-2 ${block.color}`}>{block.title}</div>
+              <table className="w-full text-caption">
                 <tbody>
                   {block.rows.map(row => (
                     <tr key={row.label} className="border-b border-white/5 last:border-0">
@@ -215,10 +215,10 @@ function SymbolTable({ title, items, onRowClick }: {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-[var(--border)] bg-[var(--navy)]">
-              <th className="text-left px-3 py-2 text-[10px] text-[var(--muted)] w-10">#</th>
-              <th className="text-left px-3 py-2 text-[10px] text-[var(--muted)] w-24">코드</th>
-              <th className="text-left px-3 py-2 text-[10px] text-[var(--muted)]">종목명</th>
-              <th className="text-left px-3 py-2 text-[10px] text-[var(--muted)]">지수</th>
+              <th className="text-left px-3 py-2 text-caption text-[var(--muted)] w-10">#</th>
+              <th className="text-left px-3 py-2 text-caption text-[var(--muted)] w-24">코드</th>
+              <th className="text-left px-3 py-2 text-caption text-[var(--muted)]">종목명</th>
+              <th className="text-left px-3 py-2 text-caption text-[var(--muted)]">지수</th>
             </tr>
           </thead>
           <tbody>
@@ -228,18 +228,18 @@ function SymbolTable({ title, items, onRowClick }: {
                 onClick={() => onRowClick(item)}
                 className="border-b border-[var(--border)]/50 hover:bg-white/5 cursor-pointer transition-colors active:bg-white/10"
               >
-                <td className="px-3 py-2 text-[11px] text-[var(--muted)] font-mono">{i + 1}</td>
-                <td className="px-3 py-2 text-[11px] text-[var(--gold)] font-mono">{item.symbol}</td>
-                <td className="px-3 py-2 text-[12px] text-white">{item.name}</td>
+                <td className="px-3 py-2 text-caption text-[var(--muted)] font-mono">{i + 1}</td>
+                <td className="px-3 py-2 text-caption text-[var(--gold)] font-mono">{item.symbol}</td>
+                <td className="px-3 py-2 text-label text-white">{item.name}</td>
                 <td className="px-3 py-2">
                   <div className="flex flex-wrap gap-1">
                     {item.is_etf && (
-                      <span className="text-[9px] px-1 py-0.5 rounded bg-purple-500/20 text-purple-400">ETF</span>
+                      <span className="text-micro px-1 py-0.5 rounded bg-purple-500/20 text-purple-400">ETF</span>
                     )}
                     {item.indices && item.indices.map(idx => {
                       const b = INDEX_BADGE[idx]
                       return b ? (
-                        <span key={idx} className={`text-[9px] px-1 py-0.5 rounded ${b.cls}`}>{b.label}</span>
+                        <span key={idx} className={`text-micro px-1 py-0.5 rounded ${b.cls}`}>{b.label}</span>
                       ) : null
                     })}
                   </div>
@@ -300,7 +300,7 @@ function SlotBuyModal({ slot, onClose, nav }: { slot: ScanSlot; onClose: () => v
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-[10px] text-[var(--muted)] border-b border-[var(--border)]">
+                <tr className="text-caption text-[var(--muted)] border-b border-[var(--border)]">
                   <th className="text-left px-2 py-1.5">#</th>
                   <th className="text-left px-2 py-1.5">코드</th>
                   <th className="text-left px-2 py-1.5">종목명</th>
@@ -314,12 +314,12 @@ function SlotBuyModal({ slot, onClose, nav }: { slot: ScanSlot; onClose: () => v
                   <tr key={item.symbol}
                     onClick={() => { nav(`/${item.symbol}?market=${item.market_type}`); onClose() }}
                     className="border-b border-[var(--border)]/40 hover:bg-white/5 cursor-pointer transition-colors">
-                    <td className="px-2 py-1.5 text-[11px] text-[var(--muted)]">{i + 1}</td>
-                    <td className="px-2 py-1.5 text-[11px] text-[var(--gold)] font-mono">{item.symbol}</td>
-                    <td className="px-2 py-1.5 text-[12px] text-white truncate max-w-[140px]">{item.name}</td>
-                    <td className="px-2 py-1.5 text-right text-[11px] text-cyan-400">{item.rsi?.toFixed(0)}</td>
-                    <td className={`px-2 py-1.5 text-right text-[11px] font-bold ${sqColor[item.squeeze_level ?? 0]}`}>Lv{item.squeeze_level}</td>
-                    <td className="px-2 py-1.5 text-right text-[10px] text-[var(--muted)]">{item.last_signal_date ?? '-'}</td>
+                    <td className="px-2 py-1.5 text-caption text-[var(--muted)]">{i + 1}</td>
+                    <td className="px-2 py-1.5 text-caption text-[var(--gold)] font-mono">{item.symbol}</td>
+                    <td className="px-2 py-1.5 text-label text-white truncate max-w-[140px]">{item.name}</td>
+                    <td className="px-2 py-1.5 text-right text-caption text-cyan-400">{item.rsi?.toFixed(0)}</td>
+                    <td className={`px-2 py-1.5 text-right text-caption font-bold ${sqColor[item.squeeze_level ?? 0]}`}>Lv{item.squeeze_level}</td>
+                    <td className="px-2 py-1.5 text-right text-caption text-[var(--muted)]">{item.last_signal_date ?? '-'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -342,10 +342,10 @@ function SlotCard({ slot, onClick }: { slot: ScanSlot; onClick?: () => void }) {
     return (
       <div className={`${base} border-green-500/40 bg-green-500/10 hover:border-green-400/70`} onClick={clickable ? onClick : undefined} title={clickable ? 'BUY 종목 보기' : ''}>
         <CheckCircle size={16} className="text-green-400 mb-1" />
-        <span className="text-[12px] font-bold text-green-400">{slot.label}</span>
-        <span className="text-[10px] text-green-400/70">{isKR ? '국내' : '미국'}</span>
+        <span className="text-label font-bold text-green-400">{slot.label}</span>
+        <span className="text-caption text-green-400/70">{isKR ? '국내' : '미국'}</span>
         {slot.buyCount != null && (
-          <span className="text-[10px] text-green-300 mt-0.5">BUY {slot.buyCount}개</span>
+          <span className="text-caption text-green-300 mt-0.5">BUY {slot.buyCount}개</span>
         )}
       </div>
     )
@@ -355,9 +355,9 @@ function SlotCard({ slot, onClick }: { slot: ScanSlot; onClick?: () => void }) {
     return (
       <div className={`${base} border-orange-500/60 bg-orange-500/10 animate-pulse`}>
         <RefreshCw size={16} className="text-orange-400 mb-1 animate-spin" />
-        <span className="text-[12px] font-bold text-orange-400">{slot.label}</span>
-        <span className="text-[10px] text-orange-400/70">{isKR ? '국내' : '미국'}</span>
-        <span className="text-[10px] text-orange-300 mt-0.5">진행중</span>
+        <span className="text-label font-bold text-orange-400">{slot.label}</span>
+        <span className="text-caption text-orange-400/70">{isKR ? '국내' : '미국'}</span>
+        <span className="text-caption text-orange-300 mt-0.5">진행중</span>
       </div>
     )
   }
@@ -365,9 +365,9 @@ function SlotCard({ slot, onClick }: { slot: ScanSlot; onClick?: () => void }) {
   return (
     <div className={`${base} border-[var(--border)] bg-[var(--bg)]`}>
       <Clock size={16} className="text-[var(--muted)] mb-1" />
-      <span className="text-[12px] font-bold text-[var(--muted)]">{slot.label}</span>
-      <span className="text-[10px] text-[var(--muted)]/60">{isKR ? '국내' : '미국'}</span>
-      <span className="text-[10px] text-[var(--muted)]/50 mt-0.5">예정</span>
+      <span className="text-label font-bold text-[var(--muted)]">{slot.label}</span>
+      <span className="text-caption text-[var(--muted)]/60">{isKR ? '국내' : '미국'}</span>
+      <span className="text-caption text-[var(--muted)]/50 mt-0.5">예정</span>
     </div>
   )
 }
@@ -379,7 +379,7 @@ function SnapHdr({ title, color, currentSection, total }: {
 }) {
   return (
     <div className="flex items-center justify-between px-3 pt-3 pb-2 shrink-0 border-b border-[var(--border)]/50">
-      <h2 className={`text-[34px] font-bold ${color}`}>{title}</h2>
+      <h2 className={`text-display font-bold ${color}`}>{title}</h2>
       <div className="flex gap-1.5">
         {Array.from({ length: total }, (_, i) => (
           <div key={i} className={`h-1.5 rounded-full transition-all ${
@@ -578,15 +578,15 @@ export default function BuyList() {
             <div className="grid grid-cols-3 gap-3">
               <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 text-center">
                 <div className="text-2xl font-bold text-[var(--text)] font-mono">{total.toLocaleString()}</div>
-                <div className="text-[12px] text-[var(--muted)] mt-1">총 스캔</div>
+                <div className="text-label text-[var(--muted)] mt-1">총 스캔</div>
               </div>
               <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 text-center">
                 <div className="text-2xl font-bold text-blue-400 font-mono">{krTotal.toLocaleString()}</div>
-                <div className="text-[12px] text-[var(--muted)] mt-1">국내</div>
+                <div className="text-label text-[var(--muted)] mt-1">국내</div>
               </div>
               <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 text-center">
                 <div className="text-2xl font-bold text-emerald-400 font-mono">{usTotal.toLocaleString()}</div>
-                <div className="text-[12px] text-[var(--muted)] mt-1">미국</div>
+                <div className="text-label text-[var(--muted)] mt-1">미국</div>
               </div>
             </div>
             <ScanConditionPanel />
@@ -622,7 +622,7 @@ export default function BuyList() {
           <SnapHdr title="스캔 현황 (US)" color="text-emerald-400" currentSection={currentSection} total={3} />
           <div className="flex-1 overflow-y-auto px-3 pb-3 pt-2 space-y-3" style={{ overscrollBehaviorY: 'contain' } as any}>
             <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3">
-              <div className="text-[10px] text-emerald-400 font-semibold mb-2">🇺🇸 미국+암호화폐 (19:50 / 03:50)</div>
+              <div className="text-caption text-emerald-400 font-semibold mb-2">🇺🇸 미국+암호화폐 (19:50 / 03:50)</div>
               <div className="flex gap-2">
                 {usSlots.map(slot => <SlotCard key={slot.time} slot={slot} onClick={() => setSelectedSlot(slot)} />)}
               </div>
@@ -642,8 +642,8 @@ export default function BuyList() {
                   { time: '평일 20:00 / 04:00', label: '미국 SELL 체크', color: 'text-orange-400' },
                 ] as const).map((row, idx) => (
                   <div key={idx} className="flex items-center gap-3 py-1 border-b border-[var(--border)]/30 last:border-0">
-                    <span className={`font-mono text-[10px] font-semibold shrink-0 w-[80px] ${row.color}`}>{row.time}</span>
-                    <span className="text-[11px] text-[var(--muted)]">{row.label}</span>
+                    <span className={`font-mono text-caption font-semibold shrink-0 w-[80px] ${row.color}`}>{row.time}</span>
+                    <span className="text-caption text-[var(--muted)]">{row.label}</span>
                   </div>
                 ))}
               </div>
@@ -749,22 +749,22 @@ export default function BuyList() {
       <div className="grid grid-cols-3 gap-2 mb-3">
         <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3 text-center">
           <div className="text-2xl md:text-xl font-bold text-white font-mono">{total.toLocaleString()}</div>
-          <div className="text-[10px] md:text-[10px] text-[var(--muted)]">총 스캔 종목</div>
+          <div className="text-caption md:text-caption text-[var(--muted)]">총 스캔 종목</div>
         </div>
         <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3 text-center">
           <div className="text-2xl md:text-xl font-bold text-blue-400 font-mono">{krTotal.toLocaleString()}</div>
-          <div className="text-[10px] md:text-[10px] text-[var(--muted)]">국내 (9:30~15:30)</div>
+          <div className="text-caption md:text-caption text-[var(--muted)]">국내 (9:30~15:30)</div>
         </div>
         <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3 text-center">
           <div className="text-2xl md:text-xl font-bold text-emerald-400 font-mono">{usTotal.toLocaleString()}</div>
-          <div className="text-[10px] md:text-[10px] text-[var(--muted)]">미국 (19:50/03:50)</div>
+          <div className="text-caption md:text-caption text-[var(--muted)]">미국 (19:50/03:50)</div>
         </div>
       </div>
 
       {/* ── 스캔 범위 설명 ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4">
         <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg px-3 py-2">
-          <div className="text-[10px] font-semibold text-blue-400 mb-1.5">🇰🇷 국내 스캔 대상</div>
+          <div className="text-caption font-semibold text-blue-400 mb-1.5">🇰🇷 국내 스캔 대상</div>
           <div className="flex flex-wrap gap-1.5">
             {[
               { label: '코스피200', count: breakdown?.kospi ?? 0, color: 'bg-blue-500/20 text-blue-300', activeColor: 'ring-1 ring-blue-400', cat: 'kospi' as const },
@@ -776,7 +776,7 @@ export default function BuyList() {
                 key={b.label}
                 onClick={() => b.cat && selectCategory(b.cat)}
                 disabled={!b.cat}
-                className={`text-[10px] px-2 py-0.5 rounded-full font-mono transition-all ${b.color} ${b.cat ? 'cursor-pointer hover:brightness-125' : 'cursor-default opacity-60'} ${selectedCategory === b.cat && b.cat ? b.activeColor : ''}`}
+                className={`text-caption px-2 py-0.5 rounded-full font-mono transition-all ${b.color} ${b.cat ? 'cursor-pointer hover:brightness-125' : 'cursor-default opacity-60'} ${selectedCategory === b.cat && b.cat ? b.activeColor : ''}`}
               >
                 {b.label} {b.count > 0 ? `${b.count}` : ''}
               </button>
@@ -784,7 +784,7 @@ export default function BuyList() {
           </div>
         </div>
         <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg px-3 py-2">
-          <div className="text-[10px] font-semibold text-emerald-400 mb-1.5">🇺🇸 미국+암호화폐 스캔 대상</div>
+          <div className="text-caption font-semibold text-emerald-400 mb-1.5">🇺🇸 미국+암호화폐 스캔 대상</div>
           <div className="flex flex-wrap gap-1.5">
             {[
               { label: 'S&P 500', count: breakdown?.sp500 ?? 0, color: 'bg-emerald-500/20 text-emerald-300', activeColor: 'ring-1 ring-emerald-400', cat: 'sp500' as const },
@@ -795,7 +795,7 @@ export default function BuyList() {
               <button
                 key={b.label}
                 onClick={() => selectCategory(b.cat)}
-                className={`text-[10px] px-2 py-0.5 rounded-full font-mono transition-all cursor-pointer hover:brightness-125 ${b.color} ${selectedCategory === b.cat ? b.activeColor : ''}`}
+                className={`text-caption px-2 py-0.5 rounded-full font-mono transition-all cursor-pointer hover:brightness-125 ${b.color} ${selectedCategory === b.cat ? b.activeColor : ''}`}
               >
                 {b.label} {b.count > 0 ? `${b.count}` : ''}
               </button>
@@ -828,13 +828,13 @@ export default function BuyList() {
             <Loader2 size={12} className="animate-spin text-[var(--muted)]" />
           ) : scanStatus?.running && (
             <div className="flex flex-col items-end gap-0.5">
-              <span className="text-[10px] text-orange-400 flex items-center gap-1">
+              <span className="text-caption text-orange-400 flex items-center gap-1">
                 <RefreshCw size={10} className="animate-spin" />
                 스캔 진행중
                 {scanStatus.progress_pct > 0 && ` ${scanStatus.progress_pct}%`}
               </span>
               {scanStatus.scanned_count > 0 && (
-                <span className="text-[9px] text-[var(--muted)]">
+                <span className="text-micro text-[var(--muted)]">
                   {scanStatus.scanned_count.toLocaleString()} / {scanStatus.total_symbols?.toLocaleString()}종목
                 </span>
               )}
@@ -845,8 +845,8 @@ export default function BuyList() {
         {/* 국내 슬롯 */}
         <div className="mb-3">
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-[10px] text-blue-400 font-semibold">🇰🇷 국내 스캔</span>
-            <span className="text-[10px] text-[var(--muted)] leading-relaxed">평일 매시 :30 (9:30~15:30) · 완료 슬롯 탭 → BUY 종목 확인</span>
+            <span className="text-caption text-blue-400 font-semibold">🇰🇷 국내 스캔</span>
+            <span className="text-caption text-[var(--muted)] leading-relaxed">평일 매시 :30 (9:30~15:30) · 완료 슬롯 탭 → BUY 종목 확인</span>
           </div>
           <div className="grid grid-cols-4 gap-2">
             {krSlots.map(slot => <SlotCard key={slot.time} slot={slot} onClick={() => setSelectedSlot(slot)} />)}
@@ -856,8 +856,8 @@ export default function BuyList() {
         {/* 미국 슬롯 */}
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-[10px] text-emerald-400 font-semibold">🇺🇸 미국+암호화폐 스캔</span>
-            <span className="text-[9px] text-[var(--muted)]">19:50 / 03:50 KST · S&P500(다우존스30)+나스닥100+미국ETF+암호화폐</span>
+            <span className="text-caption text-emerald-400 font-semibold">🇺🇸 미국+암호화폐 스캔</span>
+            <span className="text-micro text-[var(--muted)]">19:50 / 03:50 KST · S&P500(다우존스30)+나스닥100+미국ETF+암호화폐</span>
           </div>
           <div className="flex gap-2">
             {usSlots.map(slot => <SlotCard key={slot.time} slot={slot} onClick={() => setSelectedSlot(slot)} />)}
@@ -874,7 +874,7 @@ export default function BuyList() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {/* BUY 신호 알림 */}
           <div>
-            <div className="text-[10px] text-green-400 font-semibold mb-2">🟢 BUY 신호 알림 (전체 시장 스캔 후 발송)</div>
+            <div className="text-caption text-green-400 font-semibold mb-2">🟢 BUY 신호 알림 (전체 시장 스캔 후 발송)</div>
             <div className="space-y-1.5">
               {[
                 { time: '평일 10:30', label: '국내 BUY 신호', color: 'text-green-400' },
@@ -883,7 +883,7 @@ export default function BuyList() {
                 { time: '화~토 04:00', label: '미국 장중 BUY 신호', color: 'text-emerald-400' },
               ].map(row => (
                 <div key={row.time} className="flex items-start gap-3 py-0.5">
-                  <span className={`font-mono font-semibold shrink-0 whitespace-nowrap text-[11px] ${row.color}`}>{row.time}</span>
+                  <span className={`font-mono font-semibold shrink-0 whitespace-nowrap text-caption ${row.color}`}>{row.time}</span>
                   <span className="text-[var(--muted)]">{row.label}</span>
                 </div>
               ))}
@@ -891,7 +891,7 @@ export default function BuyList() {
           </div>
           {/* SELL 체크 알림 */}
           <div>
-            <div className="text-[10px] text-red-400 font-semibold mb-2">🔴 SELL 체크 (관심종목 대상)</div>
+            <div className="text-caption text-red-400 font-semibold mb-2">🔴 SELL 체크 (관심종목 대상)</div>
             <div className="space-y-1.5">
               {[
                 { time: '평일 09:00~15:30', label: '국내 관심종목 (30분마다 · 14회)', color: 'text-yellow-400' },
@@ -899,14 +899,14 @@ export default function BuyList() {
                 { time: '화~토 04:00', label: '미국 장중 SELL 체크', color: 'text-orange-400' },
               ].map(row => (
                 <div key={row.time} className="flex items-start gap-3 py-0.5">
-                  <span className={`font-mono font-semibold shrink-0 whitespace-nowrap text-[11px] ${row.color}`}>{row.time}</span>
+                  <span className={`font-mono font-semibold shrink-0 whitespace-nowrap text-caption ${row.color}`}>{row.time}</span>
                   <span className="text-[var(--muted)]">{row.label}</span>
                 </div>
               ))}
             </div>
           </div>
         </div>
-        <p className="text-[10px] text-[var(--muted)] mt-3 pt-2 border-t border-[var(--border)]/40">
+        <p className="text-caption text-[var(--muted)] mt-3 pt-2 border-t border-[var(--border)]/40">
           ※ 텔레그램 봇 설정은 설정 페이지에서 관리 · BUY 알림은 스캔 완료 후 자동 발송
         </p>
       </div>

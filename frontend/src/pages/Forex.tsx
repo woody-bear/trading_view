@@ -73,7 +73,7 @@ function AnalysisTab() {
       <div className="bg-blue-600/15 border border-blue-500/30 rounded-lg p-3 mb-4 text-center">
         <div className="text-xs text-blue-300 mb-0.5">다음 매수 적정가</div>
         <div className="text-xl font-bold text-white">{data.next_buy_price.toLocaleString(undefined, { maximumFractionDigits: 0 })}원</div>
-        <div className="text-[10px] text-[var(--muted)]">
+        <div className="text-caption text-[var(--muted)]">
           현재 {data.usdkrw.toLocaleString(undefined, { maximumFractionDigits: 0 })}원 대비{' '}
           <span className="text-green-400">{((data.usdkrw - data.next_buy_price) / data.usdkrw * 100).toFixed(1)}% 하락 시</span>
         </div>
@@ -267,24 +267,24 @@ function ChartTab() {
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div className={`${krwTrend.bg} border border-[var(--border)] rounded-lg p-3 flex items-center justify-between`}>
           <div>
-            <div className="text-[10px] text-[var(--muted)] mb-0.5">원달러 환율 추세</div>
+            <div className="text-caption text-[var(--muted)] mb-0.5">원달러 환율 추세</div>
             <div className={`text-sm font-bold ${krwTrend.color}`}>{krwTrend.arrow} {krwTrend.label}</div>
           </div>
           <div className="text-right">
             <div className="text-white font-mono text-lg">{krwStats.current.toFixed(0)}<span className="text-xs text-[var(--muted)]">원</span></div>
-            <div className={`text-[10px] font-mono ${krwStats.changePct >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+            <div className={`text-caption font-mono ${krwStats.changePct >= 0 ? 'text-red-400' : 'text-green-400'}`}>
               {krwStats.changePct >= 0 ? '+' : ''}{krwStats.changePct.toFixed(2)}%
             </div>
           </div>
         </div>
         <div className={`${dxyTrend.bg} border border-[var(--border)] rounded-lg p-3 flex items-center justify-between`}>
           <div>
-            <div className="text-[10px] text-[var(--muted)] mb-0.5">달러 인덱스 추세</div>
+            <div className="text-caption text-[var(--muted)] mb-0.5">달러 인덱스 추세</div>
             <div className={`text-sm font-bold ${dxyTrend.color}`}>{dxyTrend.arrow} {dxyTrend.label}</div>
           </div>
           <div className="text-right">
             <div className="text-white font-mono text-lg">{dxyStats.current.toFixed(2)}</div>
-            <div className={`text-[10px] font-mono ${dxyStats.changePct >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+            <div className={`text-caption font-mono ${dxyStats.changePct >= 0 ? 'text-red-400' : 'text-green-400'}`}>
               {dxyStats.changePct >= 0 ? '+' : ''}{dxyStats.changePct.toFixed(2)}%
             </div>
           </div>
@@ -331,7 +331,7 @@ function ChartTab() {
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-semibold text-white">원달러 환율 추이</span>
-          <span className="text-[10px] text-[var(--muted)] flex items-center gap-3">
+          <span className="text-caption text-[var(--muted)] flex items-center gap-3">
             <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-red-500" />원달러</span>
             <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-green-500" />적정환율</span>
             <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-red-500/30 border-t border-dashed border-red-400" />상한</span>
@@ -345,7 +345,7 @@ function ChartTab() {
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-semibold text-white">달러 인덱스 (DXY) 추이</span>
-          <span className="text-[10px] text-[var(--muted)] flex items-center gap-3">
+          <span className="text-caption text-[var(--muted)] flex items-center gap-3">
             <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-gray-400" />DXY</span>
             <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-amber-400" />MA20</span>
             <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-green-500 border-t border-dashed" />평균</span>
@@ -360,12 +360,12 @@ function ChartTab() {
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-white">원달러 & 달러지수 복합 추이</span>
             {corr !== 0 && (
-              <span className={`text-[10px] px-1.5 py-0.5 rounded ${corr > 0.5 ? 'bg-green-500/20 text-green-400' : corr > 0 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}`}>
+              <span className={`text-caption px-1.5 py-0.5 rounded ${corr > 0.5 ? 'bg-green-500/20 text-green-400' : corr > 0 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}`}>
                 r={corr.toFixed(2)}
               </span>
             )}
           </div>
-          <span className="text-[10px] text-[var(--muted)] flex items-center gap-3">
+          <span className="text-caption text-[var(--muted)] flex items-center gap-3">
             <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-red-500" />USDKRW (좌)</span>
             <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-blue-500" />DXY (우)</span>
           </span>
@@ -380,14 +380,14 @@ function ChartTab() {
 function StatCard({ label, value, change, sub }: { label: string; value: string; change?: number; sub?: string }) {
   return (
     <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3">
-      <div className="text-[10px] text-[var(--muted)] mb-0.5">{label}</div>
+      <div className="text-caption text-[var(--muted)] mb-0.5">{label}</div>
       <div className="text-sm font-bold text-white">{value}</div>
       {change !== undefined && (
-        <div className={`text-[10px] font-mono ${change >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+        <div className={`text-caption font-mono ${change >= 0 ? 'text-red-400' : 'text-green-400'}`}>
           {change >= 0 ? '+' : ''}{change.toFixed(2)}%
         </div>
       )}
-      {sub && <div className="text-[10px] text-[var(--muted)]">{sub}</div>}
+      {sub && <div className="text-caption text-[var(--muted)]">{sub}</div>}
     </div>
   )
 }
@@ -396,7 +396,7 @@ function StatCard({ label, value, change, sub }: { label: string; value: string;
 function Box({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3 text-center">
-      <div className="text-[10px] text-[var(--muted)] mb-0.5">{label}</div>
+      <div className="text-caption text-[var(--muted)] mb-0.5">{label}</div>
       <div className="text-lg font-bold text-white">{value}</div>
     </div>
   )
@@ -458,17 +458,17 @@ function GaugeBar({ gauge, unit, isGap }: { gauge: Gauge; unit: string; isGap?: 
       {/* 하단: 하한(0%) — 적정(50%) — 상한(100%) */}
       <div className="relative h-10">
         {/* 하한 */}
-        <div className="absolute text-[10px]" style={{ left: `${lowerPos}%`, transform: 'translateX(-50%)' }}>
+        <div className="absolute text-caption" style={{ left: `${lowerPos}%`, transform: 'translateX(-50%)' }}>
           <div className="font-mono text-[var(--muted)]">{fmt(lower)}{unit}</div>
           <div className="text-green-400/80">(+{Math.abs(gap_lower_pct)}%)</div>
         </div>
         {/* 적정 (중앙) */}
-        <div className="absolute text-[10px] text-center" style={{ left: '50%', transform: 'translateX(-50%)' }}>
+        <div className="absolute text-caption text-center" style={{ left: '50%', transform: 'translateX(-50%)' }}>
           <div className="font-mono text-[var(--muted)]">{fmt(center)}{unit}</div>
           <div className="text-[var(--muted)]">({gap_center_pct > 0 ? '+' : ''}{gap_center_pct}%)</div>
         </div>
         {/* 상한 */}
-        <div className="absolute text-[10px] text-right" style={{ left: `${upperPos}%`, transform: 'translateX(-50%)' }}>
+        <div className="absolute text-caption text-right" style={{ left: `${upperPos}%`, transform: 'translateX(-50%)' }}>
           <div className="font-mono text-[var(--muted)]">{fmt(upper)}{unit}</div>
           <div className="text-red-400/80">({gap_upper_pct > 0 ? '+' : ''}{gap_upper_pct}%)</div>
         </div>

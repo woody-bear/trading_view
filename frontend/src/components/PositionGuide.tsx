@@ -96,18 +96,18 @@ export default function PositionGuide({ symbol, signalState, lastSignalText, las
             <Clock size={16} className="text-yellow-400" />
             <span className="text-sm font-bold text-yellow-400">포지션 가이드 — BUY 신호 대기</span>
           </div>
-          <span className="text-[10px] text-[var(--muted)]">직전: {signalLabel}</span>
+          <span className="text-caption text-[var(--muted)]">직전: {signalLabel}</span>
         </div>
         <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 mb-2">
           <div className="flex items-center gap-2 mb-1">
             <AlertCircle size={14} className="text-yellow-400" />
             <span className="text-xs font-bold text-yellow-400">직전 SELL 신호 — 신규 매수 보류</span>
           </div>
-          <p className="text-[11px] text-[var(--muted)]">
+          <p className="text-caption text-[var(--muted)]">
             새로운 BUY 신호가 나올 때까지 매수를 보류하세요.
           </p>
         </div>
-        <div className="text-[10px] text-[var(--muted)]">
+        <div className="text-caption text-[var(--muted)]">
           {distToBuy > 0 ? (
             <span>다음 BUY 조건: RSI {rsi.toFixed(0)} → <span className="text-green-400 font-bold">40 이하</span> ({distToBuy.toFixed(0)}pt) + BB 하단</span>
           ) : (
@@ -129,7 +129,7 @@ export default function PositionGuide({ symbol, signalState, lastSignalText, las
       </div>
       <p className="text-xs text-[var(--muted)] mb-2">BUY/SELL 신호 발생 시 가이드가 활성화됩니다.</p>
       {distToBuy > 0 && (
-        <div className="text-[10px] text-[var(--muted)]">
+        <div className="text-caption text-[var(--muted)]">
           BUY 조건: RSI {rsi.toFixed(0)} → <span className="text-green-400 font-bold">40 이하</span> ({distToBuy.toFixed(0)}pt)
         </div>
       )}
@@ -221,7 +221,7 @@ function BuyGuide({ symbol, signalLabel, signalDate, rsi, bbPctB, ema20, ema50 }
           )}
         </div>
       </div>
-      <div className="text-[10px] text-[var(--muted)] mb-3 ml-6">직전 신호: {signalLabel}</div>
+      <div className="text-caption text-[var(--muted)] mb-3 ml-6">직전 신호: {signalLabel}</div>
 
       <div className="space-y-2">
         {stepDefs.map((step, i) => {
@@ -261,13 +261,13 @@ function BuyGuide({ symbol, signalLabel, signalDate, rsi, bbPctB, ema20, ema50 }
                   }`}>
                     {step.ratio}
                   </span>
-                  {isCompleted && <span className="text-[9px] text-green-400">완료</span>}
-                  {isLocked && <span className="text-[9px] text-[var(--muted)]">1차 매수 완료 필요</span>}
+                  {isCompleted && <span className="text-micro text-green-400">완료</span>}
+                  {isLocked && <span className="text-micro text-[var(--muted)]">1차 매수 완료 필요</span>}
                 </div>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-[10px] text-[var(--muted)]">{step.condition}</span>
-                  <span className="text-[10px] text-[var(--muted)]">·</span>
-                  <span className={`text-[10px] font-mono ${
+                  <span className="text-caption text-[var(--muted)]">{step.condition}</span>
+                  <span className="text-caption text-[var(--muted)]">·</span>
+                  <span className={`text-caption font-mono ${
                     isCompleted ? 'text-green-400' : step.conditionMet && !isLocked ? 'text-white' : 'text-[var(--muted)]'
                   }`}>
                     {step.currentValue}
@@ -291,7 +291,7 @@ function BuyGuide({ symbol, signalLabel, signalDate, rsi, bbPctB, ema20, ema50 }
       </div>
 
       {!user && (
-        <p className="text-[9px] text-blue-400/70 mt-2">
+        <p className="text-micro text-blue-400/70 mt-2">
           💡 로그인하면 기기 간 포지션 상태가 동기화됩니다
         </p>
       )}
@@ -302,7 +302,7 @@ function BuyGuide({ symbol, signalLabel, signalDate, rsi, bbPctB, ema20, ema50 }
 
 function Disclaimer() {
   return (
-    <p className="text-[8px] text-[var(--muted)] mt-3 opacity-60">
+    <p className="text-micro text-[var(--muted)] mt-3 opacity-60">
       * 투자 참고 정보이며, 투자 판단은 본인 책임입니다
     </p>
   )
