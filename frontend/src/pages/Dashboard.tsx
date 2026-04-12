@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, ChevronRight, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { addSymbol, deleteSymbol, fetchBatchPrices, fetchFullScanLatest, fetchFullScanStatus, fetchScanStatus, fetchSignals, searchSymbols, triggerFullScan } from '../api/client'
+import { addSymbol, deleteSymbol, fetchBatchPrices, fetchFullScanLatest, fetchFullScanStatus, fetchScanStatus, fetchScanSymbols, fetchSignals, searchSymbols, triggerFullScan } from '../api/client'
 import SentimentPanel from '../components/SentimentPanel'
 import SignalCard from '../components/SignalCard'
 import { usePriceFlash } from '../hooks/usePriceFlash'
@@ -43,6 +43,7 @@ export default function Dashboard() {
   const [mobileScan, setMobileScan] = useState<{ buyItems: any[]; overheatItems: any[]; marketHealth: { dead_cross: number; alive: number } | null }>({
     buyItems: [], overheatItems: [], marketHealth: null,
   })
+  const [mobileScanTotal, setMobileScanTotal] = useState<number | null>(null)
 
   const deleteMut = useMutation({
     mutationFn: deleteSymbol,
@@ -81,6 +82,7 @@ export default function Dashboard() {
         setMobileScan({ buyItems: r.chart_buy?.items || [], overheatItems: r.overheat?.items || [], marketHealth: r.market_health || null })
       }
     }).catch(() => {})
+    fetchScanSymbols().then(r => { if (r?.total) setMobileScanTotal(r.total) }).catch(() => {})
   }, [])
 
   // 모바일 스냅 섹션 인덱스 추적
@@ -177,7 +179,7 @@ export default function Dashboard() {
                 className="flex-1 text-left">
                 <span className="text-white text-sm">{r.name}</span>
                 <span className="text-[var(--muted)] text-xs ml-2">{r.symbol}</span>
-                <span className="text-[10px] text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded ml-2">{r.market_type}</span>
+                <span className="text-caption text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded ml-2">{r.market_type}</span>
               </button>
               <button onClick={() => handleAddFromSearch(r)} disabled={adding === r.symbol}
                 className="shrink-0 ml-3 flex items-center gap-1 px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-md disabled:opacity-50 transition">
@@ -227,12 +229,12 @@ export default function Dashboard() {
                       {marketLabel[market]} <span className="opacity-60">({grouped[market].length})</span>
                     </h2>
                     {isMarketOpenLocal(market) ? (
-                      <span className="text-[10px] text-green-400 flex items-center gap-1">
+                      <span className="text-caption text-green-400 flex items-center gap-1">
                         <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
                         실시간
                       </span>
                     ) : (
-                      <span className="text-[10px] text-[var(--muted)]">장종료</span>
+                      <span className="text-caption text-[var(--muted)]">장종료</span>
                     )}
                   </div>
                   <div className="space-y-2">
@@ -257,17 +259,18 @@ export default function Dashboard() {
         {/* ── 섹션 3: 차트 BUY 신호 ── */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
           <SnapSectionHeader title="차트 BUY 신호" color="text-[var(--buy)]" currentSection={currentSection} />
-          <p className="text-[15px] text-[var(--muted)] px-3 py-1 shrink-0">일봉 10거래일 이내 · 데드크로스 제외 · 거래량 5일 평균 1.5배↑</p>
+          <p className="text-body text-[var(--muted)] px-3 py-1 shrink-0">일봉 10거래일 이내 · 데드크로스 제외 · 거래량 5일 평균 1.5배↑</p>
           <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
             {/* Dead Cross 비율 바 (모바일) */}
             {mobileScan.marketHealth && (mobileScan.marketHealth.dead_cross + mobileScan.marketHealth.alive) > 0 && (() => {
               const mh = mobileScan.marketHealth
               const total = mh.dead_cross + mh.alive
+              const labelTotal = mobileScanTotal ?? total
               const alivePct = Math.round(mh.alive / total * 100)
               const deadPct = 100 - alivePct
               return (
                 <div className="w-1/2 mb-1">
-                  <p className="text-[12px] text-[var(--muted)] mb-1.5">EMA 추세 · {total.toLocaleString()}종목</p>
+                  <p className="text-label text-[var(--muted)] mb-1.5">EMA 추세 · {labelTotal.toLocaleString()}종목</p>
                   <div className="relative">
                     <div className="absolute -top-2.5 z-10" style={{ left: `${alivePct}%`, transform: 'translateX(-50%)' }}>
                       <div className="w-0 h-0 border-l-[4px] border-r-[4px] border-t-[5px] border-l-transparent border-r-transparent border-t-[var(--muted)]" />
@@ -278,8 +281,8 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <div className="flex justify-between mt-1">
-                    <span className="text-[12px] text-blue-400">정상 {alivePct}%</span>
-                    <span className="text-[12px] text-red-400">데드크로스 {deadPct}%</span>
+                    <span className="text-label text-blue-400">정상 {alivePct}%</span>
+                    <span className="text-label text-red-400">데드크로스 {deadPct}%</span>
                   </div>
                 </div>
               )
@@ -302,29 +305,29 @@ export default function Dashboard() {
         {/* ── 섹션 3: 투자과열 ── */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
           <SnapSectionHeader title="투자과열 신호" color="text-[var(--sell)]" currentSection={currentSection} />
-          <p className="text-[15px] text-[var(--muted)] px-3 py-1 shrink-0">RSI 70+ 또는 RSI 65+ 거래량 2x · 국내 개별주</p>
+          <p className="text-body text-[var(--muted)] px-3 py-1 shrink-0">RSI 70+ 또는 RSI 65+ 거래량 2x · 국내 개별주</p>
           <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
             {mobileScan.overheatItems.length === 0 ? (
               <p className="text-[var(--muted)] text-sm py-8 text-center">투자과열 종목이 없습니다</p>
             ) : byVolume(mobileScan.overheatItems).slice(0, 5).map((item: any, i: number) => (
               <div key={item.symbol}
                 onClick={() => nav(`/${item.symbol}?market=${item.market_type || item.market}`)}
-                className="bg-[var(--card)] border border-red-500/30 rounded-lg p-4 cursor-pointer hover:border-red-500/60 transition active:scale-[0.98]">
+                className="bg-[var(--bg)] border border-red-500/30 rounded-lg p-4 cursor-pointer hover:border-red-500/60 transition active:scale-[0.98]">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="text-[11px] bg-[var(--sell)]/20 text-[var(--sell)] w-5 h-5 rounded flex items-center justify-center font-mono shrink-0">{i + 1}</span>
-                    <span className="text-[var(--text)] font-semibold text-base truncate">{item.name}</span>
-                    <span className="text-[var(--muted)] text-xs shrink-0">{item.symbol}</span>
+                    <span className="text-label bg-[var(--sell)]/20 text-[var(--sell)] w-5 h-5 rounded flex items-center justify-center font-mono shrink-0">{i + 1}</span>
+                    <span className="text-[var(--text)] font-semibold text-title truncate">{item.name}</span>
+                    <span className="text-[var(--muted)] text-body shrink-0">{item.symbol}</span>
                   </div>
-                  <span className="text-[15px] font-bold text-[var(--sell)] bg-[var(--sell)]/20 px-2 py-0.5 rounded shrink-0">과열</span>
+                  <span className="text-body font-bold text-[var(--sell)] bg-[var(--sell)]/20 px-2 py-0.5 rounded shrink-0">과열</span>
                 </div>
                 <div className="flex items-baseline gap-2 mb-1.5">
-                  <span className="text-xl font-mono font-bold text-[var(--text)]">{item.price?.toLocaleString()}</span>
-                  <span className={`text-sm font-mono font-semibold ${item.change_pct >= 0 ? 'text-[var(--buy)]' : 'text-[var(--sell)]'}`}>
+                  <span className="text-value font-mono font-bold text-[var(--text)]">{item.price?.toLocaleString()}</span>
+                  <span className={`text-label font-mono font-semibold ${item.change_pct >= 0 ? 'text-[var(--buy)]' : 'text-[var(--sell)]'}`}>
                     {item.change_pct >= 0 ? '+' : ''}{item.change_pct}%
                   </span>
                 </div>
-                <div className="flex items-center gap-3 text-[18px] mb-2">
+                <div className="flex items-center gap-3 text-body mb-2">
                   <span className="text-[var(--sell)] font-bold">RSI {item.rsi?.toFixed(0)}</span>
                   <span className="text-[var(--muted)]">거래량 <span className="text-white font-mono">{item.volume_ratio?.toFixed(1)}x</span></span>
                 </div>
@@ -335,7 +338,7 @@ export default function Dashboard() {
                     volume_ratio: item.volume_ratio,
                     macd_hist: item.macd_hist,
                   })].map(b => (
-                    <span key={b.label} className={`text-[18px] px-2 py-0.5 rounded ${b.cls}`}>{b.label}</span>
+                    <span key={b.label} className={`text-label px-2 py-0.5 rounded ${b.cls}`}>{b.label}</span>
                   ))}
                 </div>
               </div>
@@ -370,12 +373,12 @@ export default function Dashboard() {
                     {marketLabel[market]} <span className="opacity-60">({grouped[market].length})</span>
                   </h2>
                   {isMarketOpenLocal(market) ? (
-                    <span className="text-[10px] md:text-[9px] text-green-400 flex items-center gap-1">
+                    <span className="text-caption md:text-micro text-green-400 flex items-center gap-1">
                       <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
                       실시간 가격 반영중
                     </span>
                   ) : (
-                    <span className="text-[10px] md:text-[9px] text-[var(--muted)]">장종료</span>
+                    <span className="text-caption md:text-micro text-[var(--muted)]">장종료</span>
                   )}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
@@ -409,7 +412,7 @@ export default function Dashboard() {
 function SnapSectionHeader({ title, color, currentSection, total = 4 }: { title: string; color: string; currentSection: number; total?: number }) {
   return (
     <div className="flex items-center justify-between px-3 pt-3 pb-2 shrink-0 border-b border-[var(--border)]/50">
-      <h2 className={`text-[34px] font-bold ${color}`}>{title}</h2>
+      <h2 className={`text-display font-bold ${color}`}>{title}</h2>
       <div className="flex gap-1.5">
         {Array.from({ length: total }, (_, i) => (
           <div key={i} className={`h-1.5 rounded-full transition-all ${i === currentSection ? `w-4 ${color.replace('text-', 'bg-')}` : 'w-1.5 bg-white/20'}`} />
@@ -508,6 +511,7 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
   const [buyItems, setBuyItems] = useState<any[]>([])
   const [overheatItems, setOverheatItems] = useState<any[]>([])
   const [marketHealth, setMarketHealth] = useState<{ dead_cross: number; alive: number } | null>(null)
+  const [scanSymbolsTotal, setScanSymbolsTotal] = useState<number | null>(null)
 
   // 섹션 토글 (localStorage 유지)
   const [showOverheat, setShowOverheat] = useState(() => localStorage.getItem('dash_showOverheat') === 'true')
@@ -603,6 +607,11 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
     finally { clearInterval(elapsedTimer); setScanning(false); setScanElapsed(0) }
   }
 
+  // 마운트 시: 스캔 대상 종목 수 로드 (EMA 추세 라벨용 — 항상 최신 정의 기준)
+  useEffect(() => {
+    fetchScanSymbols().then(r => { if (r?.total) setScanSymbolsTotal(r.total) }).catch(() => {})
+  }, [])
+
   // 마운트 시: full_market_scanner 스냅샷 로드 (단일 소스)
   useEffect(() => {
     if (autoLoaded.current) return
@@ -694,18 +703,18 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
         <div className="flex items-center gap-2 flex-wrap">
           <h1 className="text-base md:text-xl font-bold text-white">전체 시장 스캔</h1>
           {allClosed && !scanning && (
-            <span className="text-[10px] font-semibold text-slate-300 bg-slate-600/40 border border-slate-500/40 px-2 py-0.5 rounded-full">
+            <span className="text-caption font-semibold text-slate-300 bg-slate-600/40 border border-slate-500/40 px-2 py-0.5 rounded-full">
               장 종료
             </span>
           )}
           {scanTime && !scanning && (
-            <span className="text-[10px] text-[var(--muted)]">
+            <span className="text-caption text-[var(--muted)]">
               마지막 스캔: {fmtScanTime(scanTime)}
             </span>
           )}
         </div>
         <div className="flex items-center gap-2">
-          {scanMsg && <span className="text-[10px] text-green-400 bg-green-400/10 px-2 py-1 rounded">{scanMsg}</span>}
+          {scanMsg && <span className="text-caption text-green-400 bg-green-400/10 px-2 py-1 rounded">{scanMsg}</span>}
           <button onClick={runScan} disabled={scanning}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-xs disabled:opacity-50 transition">
             <RefreshCw size={12} className={scanning ? 'animate-spin' : ''} />
@@ -738,10 +747,10 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
           <div className="mb-2">
             <div className="flex items-center gap-2 mb-3 flex-wrap">
               <h2 className="text-sm font-bold text-[var(--buy)]">차트 BUY 신호</h2>
-              <span className="text-[9px] text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">일봉 10거래일 이내 + 데드크로스 제외 + 거래량 5일 평균 1.5배↑</span>
-              <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-[var(--bg)] text-[var(--muted)]">{label}</span>
+              <span className="text-micro text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">일봉 10거래일 이내 + 데드크로스 제외 + 거래량 5일 평균 1.5배↑</span>
+              <span className="text-micro px-1.5 py-0.5 rounded font-medium bg-[var(--bg)] text-[var(--muted)]">{label}</span>
               {Object.keys(livePrices).length > 0 && (
-                <span className="text-[9px] text-green-400 flex items-center gap-1">
+                <span className="text-micro text-green-400 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
                   실시간 가격 반영중
                 </span>
@@ -750,11 +759,12 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
             {/* Dead Cross 비율 바 */}
             {marketHealth && (marketHealth.dead_cross + marketHealth.alive) > 0 && (() => {
               const total = marketHealth.dead_cross + marketHealth.alive
+              const labelTotal = scanSymbolsTotal ?? total
               const alivePct = Math.round(marketHealth.alive / total * 100)
               const deadPct = 100 - alivePct
               return (
                 <div className="w-1/2 mb-3">
-                  <p className="text-[10px] text-[var(--muted)] mb-1.5">EMA 추세 · {total.toLocaleString()}종목</p>
+                  <p className="text-caption text-[var(--muted)] mb-1.5">EMA 추세 · {labelTotal.toLocaleString()}종목</p>
                   <div className="relative">
                     <div className="absolute -top-2.5 z-10" style={{ left: `${alivePct}%`, transform: 'translateX(-50%)' }}>
                       <div className="w-0 h-0 border-l-[4px] border-r-[4px] border-t-[5px] border-l-transparent border-r-transparent border-t-[var(--muted)]" />
@@ -765,8 +775,8 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
                     </div>
                   </div>
                   <div className="flex justify-between mt-1">
-                    <span className="text-[10px] text-blue-400">정상 {alivePct}%</span>
-                    <span className="text-[10px] text-red-400">데드크로스 {deadPct}%</span>
+                    <span className="text-caption text-blue-400">정상 {alivePct}%</span>
+                    <span className="text-caption text-red-400">데드크로스 {deadPct}%</span>
                   </div>
                 </div>
               )
@@ -792,9 +802,9 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
           <button onClick={toggleOverheat} className="flex items-center gap-2 mb-3 w-full text-left">
             {showOverheat ? <ChevronDown size={14} className="text-[var(--sell)]" /> : <ChevronRight size={14} className="text-[var(--sell)]" />}
             <h2 className="text-sm font-bold text-[var(--sell)]">투자과열 신호</h2>
-            <span className="text-[9px] text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">RSI 70+ 또는 RSI 65+거래량 2x · 국내 개별주</span>
-            <span className="text-[9px] text-[var(--sell)] font-bold">{overheatItems.length}종목</span>
-            {!showOverheat && <span className="text-[9px] text-[var(--muted)]">접힘</span>}
+            <span className="text-micro text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">RSI 70+ 또는 RSI 65+거래량 2x · 국내 개별주</span>
+            <span className="text-micro text-[var(--sell)] font-bold">{overheatItems.length}종목</span>
+            {!showOverheat && <span className="text-micro text-[var(--muted)]">접힘</span>}
           </button>
           {showOverheat && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
@@ -805,21 +815,21 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
                   {/* 헤더: 순위 + 이름 + 코드 | 과열 배지 */}
                   <div className="flex items-center justify-between mb-2 md:mb-1">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="text-[11px] bg-[var(--sell)]/20 text-[var(--sell)] w-5 h-5 rounded flex items-center justify-center font-mono shrink-0">{i + 1}</span>
-                      <span className="text-[var(--text)] font-semibold text-base md:text-sm truncate">{item.name}</span>
-                      <span className="text-[var(--muted)] text-xs md:text-[10px] shrink-0">{item.symbol}</span>
+                      <span className="text-caption bg-[var(--sell)]/20 text-[var(--sell)] w-5 h-5 rounded flex items-center justify-center font-mono shrink-0">{i + 1}</span>
+                      <span className="text-[var(--text)] font-semibold text-title md:text-sm truncate">{item.name}</span>
+                      <span className="text-[var(--muted)] text-body md:text-caption shrink-0">{item.symbol}</span>
                     </div>
-                    <span className="text-[10px] md:text-[9px] font-bold text-[var(--sell)] bg-[var(--sell)]/20 px-2 py-0.5 rounded shrink-0">과열</span>
+                    <span className="text-body md:text-micro font-bold text-[var(--sell)] bg-[var(--sell)]/20 px-2 py-0.5 rounded shrink-0">과열</span>
                   </div>
                   {/* 가격 행 */}
                   <div className="md:flex md:items-center md:justify-between">
                     <div className="flex items-baseline gap-2 md:gap-1.5">
-                      <span className="text-xl md:text-sm font-mono font-bold text-white">{item.price?.toLocaleString()}</span>
-                      <span className={`text-sm md:text-[10px] font-mono font-semibold ${item.change_pct >= 0 ? 'text-[var(--buy)]' : 'text-[var(--sell)]'}`}>
+                      <span className="text-value md:text-sm font-mono font-bold text-white">{item.price?.toLocaleString()}</span>
+                      <span className={`text-label md:text-caption font-mono font-semibold ${item.change_pct >= 0 ? 'text-[var(--buy)]' : 'text-[var(--sell)]'}`}>
                         {item.change_pct >= 0 ? '+' : ''}{item.change_pct}%
                       </span>
                     </div>
-                    <div className="flex items-center gap-3 md:gap-2 text-xs md:text-[10px] mt-1.5 md:mt-0">
+                    <div className="flex items-center gap-3 md:gap-2 text-label md:text-caption mt-1.5 md:mt-0">
                       <span className="text-[var(--sell)] font-bold">RSI {item.rsi?.toFixed(0)}</span>
                       <span className="text-[var(--muted)]">거래량 <span className="text-white font-mono">{item.volume_ratio?.toFixed(1)}x</span></span>
                     </div>
@@ -838,7 +848,7 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
                     return (
                       <div className="flex flex-wrap gap-1.5 md:gap-1 mt-2 md:mt-1.5">
                         {overheatBadges.map(b => (
-                          <span key={b.label} className={`text-xs md:text-[8px] px-2 md:px-1.5 py-0.5 rounded ${b.cls}`}>{b.label}</span>
+                          <span key={b.label} className={`text-label md:text-micro px-2 md:px-1.5 py-0.5 rounded ${b.cls}`}>{b.label}</span>
                         ))}
                       </div>
                     )
@@ -883,36 +893,36 @@ function BuyCard({ item, index, livePrice, nav }: { item: any; index: number; li
       className="bg-[var(--bg)] border border-[var(--border)] rounded-lg p-3.5 md:p-2.5 cursor-pointer hover:border-green-500/50 transition active:scale-[0.98]">
       <div className="flex items-center justify-between mb-1.5 md:mb-1">
         <div className="flex items-center gap-1.5 min-w-0">
-          <span className="text-[11px] md:text-[10px] bg-[var(--border)] text-white w-5 h-5 md:w-4 md:h-4 rounded flex items-center justify-center font-mono">{index + 1}</span>
-          <span className="text-white font-semibold text-[24px] md:text-sm truncate">{item.display_name || item.name}</span>
-          <span className="text-[var(--muted)] text-[17px] md:text-[10px] shrink-0">{item.symbol}</span>
+          <span className="text-label md:text-caption bg-[var(--border)] text-white w-5 h-5 md:w-4 md:h-4 rounded flex items-center justify-center font-mono">{index + 1}</span>
+          <span className="text-white font-semibold text-title md:text-sm truncate">{item.display_name || item.name}</span>
+          <span className="text-[var(--muted)] text-body md:text-caption shrink-0">{item.symbol}</span>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {item.trend === 'BULL' && (
-            <span className="text-[15px] md:text-[9px] font-bold text-[var(--buy)] bg-[var(--buy)]/10 px-1.5 md:px-1 py-0.5 rounded">상승추세</span>
+            <span className="text-body md:text-micro font-bold text-[var(--buy)] bg-[var(--buy)]/10 px-1.5 md:px-1 py-0.5 rounded">상승추세</span>
           )}
-          <span className={`text-[15px] md:text-[9px] font-bold px-1.5 md:px-1 py-0.5 rounded ${
+          <span className={`text-body md:text-micro font-bold px-1.5 md:px-1 py-0.5 rounded ${
             item.last_signal === 'SQZ BUY' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-[var(--buy)]/20 text-[var(--buy)]'
           }`}>{item.last_signal}</span>
         </div>
       </div>
       <div className="md:flex md:items-center md:justify-between mt-1 md:mt-0">
         <div className="flex items-baseline gap-1.5">
-          <span className={`text-xl md:text-sm font-mono font-semibold transition-colors duration-300 ${flashClass}`}>
+          <span className={`text-value md:text-sm font-mono font-semibold transition-colors duration-300 ${flashClass}`}>
             {fmtPrice(price, item.market)}
           </span>
-          <span className={`text-sm md:text-[10px] font-mono ${pct >= 0 ? 'text-[var(--buy)]' : 'text-[var(--sell)]'}`}>
+          <span className={`text-label md:text-caption font-mono ${pct >= 0 ? 'text-[var(--buy)]' : 'text-[var(--sell)]'}`}>
             {pct >= 0 ? '+' : ''}{pct}%
           </span>
         </div>
-        <div className="flex items-center gap-3 md:gap-2 text-[18px] md:text-[9px] mt-1 md:mt-0">
+        <div className="flex items-center gap-3 md:gap-2 text-body md:text-micro mt-1 md:mt-0">
           <span className="text-[var(--muted)]">{item.last_signal_date}</span>
           {item.rsi != null && <span className="text-[var(--muted)]">RSI <span className="text-white font-mono font-semibold">{item.rsi?.toFixed(0)}</span></span>}
         </div>
       </div>
       <div className="flex flex-wrap gap-1.5 md:gap-1 mt-2 md:mt-1">
         {reasons.map(r => (
-          <span key={r.label} className={`text-[18px] md:text-[8px] px-2 md:px-1.5 py-0.5 rounded ${r.cls}`}>
+          <span key={r.label} className={`text-label md:text-micro px-2 md:px-1.5 py-0.5 rounded ${r.cls}`}>
             {r.label}
           </span>
         ))}

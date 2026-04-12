@@ -120,7 +120,7 @@ function FearGreedGauge({ score, label }: { score: number; label: string }) {
           {labelKo[label] || label}
         </text>
       </svg>
-      <p className="text-[15px] text-[var(--muted)] -mt-1">Fear & Greed Index</p>
+      <p className="text-body text-[var(--muted)] -mt-1">Fear & Greed Index</p>
     </div>
   )
 }
@@ -352,12 +352,12 @@ function MiniCard({ index, onClick, active }: { index: MarketIndex; onClick?: ()
 
   return (
     <div onClick={onClick}
-      className={`bg-[var(--card)] border rounded-xl px-3 py-2 min-w-0 transition ${
+      className={`bg-[var(--bg)] border rounded-xl px-3 py-2 min-w-0 transition ${
         onClick ? 'cursor-pointer active:scale-[0.98]' : ''
       } ${active ? 'border-blue-500/60' : 'border-[var(--border)] hover:border-blue-500/50'}`}>
-      <div className="text-[18px] text-[var(--muted)] truncate">{index.name}</div>
-      <div className="text-base font-mono font-bold text-[var(--text)] mt-0.5">{fmtVal(index.name, index.value)}</div>
-      <div className={`flex items-center gap-0.5 text-xs font-mono font-semibold ${dirColor}`}>
+      <div className="text-label text-[var(--muted)] truncate">{index.name}</div>
+      <div className="text-value font-mono font-bold text-[var(--text)] mt-0.5">{fmtVal(index.name, index.value)}</div>
+      <div className={`flex items-center gap-0.5 text-label font-mono font-semibold ${dirColor}`}>
         <DirIcon size={11} />
         <span>{index.change_pct >= 0 ? '+' : ''}{index.change_pct.toFixed(2)}%</span>
       </div>
@@ -408,11 +408,11 @@ export default function SentimentPanel() {
     staleTime: 60000,
   })
 
-  if (isLoading) return <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 mb-4"><Skeleton /></div>
+  if (isLoading) return <div className="bg-[var(--bg)] border border-[var(--border)] rounded-xl p-4 mb-4"><Skeleton /></div>
 
   if (isError || !data) {
     return (
-      <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 mb-4 text-center text-sm text-[var(--muted)]">
+      <div className="bg-[var(--bg)] border border-[var(--border)] rounded-xl p-4 mb-4 text-center text-sm text-[var(--muted)]">
         시장 심리 데이터를 불러올 수 없습니다
       </div>
     )
@@ -430,13 +430,13 @@ export default function SentimentPanel() {
   }
 
   return (
-    <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 mb-4">
+    <div className="bg-[var(--bg)] border border-[var(--border)] rounded-xl p-4 mb-4">
       {/* Fear & Greed 게이지 */}
       <FearGreedGauge score={data.fear_greed} label={data.fear_greed_label} />
 
       {/* 시장 분위기 요약 */}
       <div className="flex justify-center mb-3">
-        <span className={`text-[18px] font-semibold px-3 py-1 rounded-full ${summaryColors[data.sentiment_summary] || 'text-gray-400 bg-gray-500/10'}`}>
+        <span className={`text-body font-semibold px-3 py-1 rounded-full ${summaryColors[data.sentiment_summary] || 'text-gray-400 bg-gray-500/10'}`}>
           {data.sentiment_summary}
         </span>
       </div>
@@ -447,7 +447,7 @@ export default function SentimentPanel() {
           <button
             key={tab.days}
             onClick={() => setSelectedDays(tab.days)}
-            className={`text-[18px] pb-1 transition ${
+            className={`text-body pb-1 transition ${
               selectedDays === tab.days
                 ? 'text-[var(--buy)] border-b border-[var(--buy)] font-semibold'
                 : 'text-[var(--muted)] hover:text-white'
@@ -478,7 +478,7 @@ export default function SentimentPanel() {
         <div className="mt-2">
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-semibold text-blue-400">VIX 히스토리</span>
-            <span className="text-[10px] text-[var(--muted)]">— 20: 공포 기준선 · 30: 패닉 기준선</span>
+            <span className="text-caption text-[var(--muted)]">— 20: 공포 기준선 · 30: 패닉 기준선</span>
           </div>
           <VIXExpandChart days={selectedDays} />
         </div>

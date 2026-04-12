@@ -10,7 +10,7 @@ function SnapHdr({ title, color, currentSection, total }: {
 }) {
   return (
     <div className="flex items-center justify-between px-3 pt-3 pb-2 shrink-0 border-b border-[var(--border)]/50">
-      <h2 className={`text-[34px] font-bold ${color}`}>{title}</h2>
+      <h2 className={`text-display font-bold ${color}`}>{title}</h2>
       <div className="flex gap-1.5">
         {Array.from({ length: total }, (_, i) => (
           <div key={i} className={`h-1.5 rounded-full transition-all ${
@@ -89,33 +89,33 @@ export default function Scan() {
               <div
                 key={item.symbol}
                 onClick={() => nav(`/${item.symbol}?market=${item.market_type || item.market || 'KR'}`, { state: { buySignal: item } })}
-                className="bg-[var(--card)] border border-[var(--buy)]/20 rounded-xl p-4 cursor-pointer hover:border-[var(--buy)]/50 transition active:scale-[0.98]"
+                className="bg-[var(--bg)] border border-[var(--buy)]/20 rounded-xl p-4 cursor-pointer hover:border-[var(--buy)]/50 transition active:scale-[0.98]"
               >
                 {/* 헤더: 순위 + 이름 + BUY 뱃지 */}
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-[11px] bg-[var(--border)] text-[var(--text)] w-5 h-5 rounded flex items-center justify-center font-mono shrink-0">{i + 1}</span>
-                    <span className="text-[var(--text)] font-semibold text-[22px] truncate">{item.display_name || item.name || item.symbol}</span>
-                    <span className="text-[var(--muted)] text-[17px] shrink-0">{item.symbol}</span>
+                    <span className="text-label bg-[var(--border)] text-[var(--text)] w-5 h-5 rounded flex items-center justify-center font-mono shrink-0">{i + 1}</span>
+                    <span className="text-[var(--text)] font-semibold text-title truncate">{item.display_name || item.name || item.symbol}</span>
+                    <span className="text-[var(--muted)] text-body shrink-0">{item.symbol}</span>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {item.trend === 'BULL' && <span className="text-[15px] font-bold text-[var(--buy)] bg-[var(--buy)]/10 px-1.5 py-0.5 rounded">상승추세</span>}
-                    <span className="text-[17px] text-[var(--buy)] bg-[var(--buy)]/10 px-2 py-0.5 rounded font-bold">BUY</span>
+                    {item.trend === 'BULL' && <span className="text-body font-bold text-[var(--buy)] bg-[var(--buy)]/10 px-1.5 py-0.5 rounded">상승추세</span>}
+                    <span className="text-body text-[var(--buy)] bg-[var(--buy)]/10 px-2 py-0.5 rounded font-bold">BUY</span>
                   </div>
                 </div>
                 {/* 가격 행 */}
                 {(item.price > 0 || item.change_pct != null) && (
                   <div className="flex items-baseline gap-2 mb-2">
-                    {item.price > 0 && <span className="text-[18px] font-mono font-bold text-[var(--text)]">{item.price?.toLocaleString()}</span>}
+                    {item.price > 0 && <span className="text-value font-mono font-bold text-[var(--text)]">{item.price?.toLocaleString()}</span>}
                     {item.change_pct != null && (
-                      <span className={`text-[13px] font-mono font-semibold ${item.change_pct >= 0 ? 'text-[var(--buy)]' : 'text-[var(--sell)]'}`}>
+                      <span className={`text-label font-mono font-semibold ${item.change_pct >= 0 ? 'text-[var(--buy)]' : 'text-[var(--sell)]'}`}>
                         {item.change_pct >= 0 ? '+' : ''}{item.change_pct}%
                       </span>
                     )}
                   </div>
                 )}
                 {/* 지표 행 */}
-                <div className="flex items-center gap-3 text-[18px]">
+                <div className="flex items-center gap-3 text-body">
                   {item.rsi != null && <span className="text-[var(--muted)]">RSI <span className="text-[var(--text)] font-mono font-semibold">{Number(item.rsi).toFixed(0)}</span></span>}
                   {item.volume_ratio != null && <span className="text-[var(--muted)]">거래량 <span className="text-[var(--text)] font-mono font-semibold">{Number(item.volume_ratio).toFixed(1)}x</span></span>}
                   {item.signal_date && <span className="text-[var(--muted)] ml-auto">신호일: {item.signal_date}</span>}
@@ -137,22 +137,22 @@ export default function Scan() {
               <div
                 key={item.symbol}
                 onClick={() => nav(`/${item.symbol}?market=${item.market_type || item.market || 'KR'}`)}
-                className="bg-[var(--card)] border border-orange-500/20 rounded-lg p-3 cursor-pointer hover:border-orange-500/50 transition active:scale-[0.98]"
+                className="bg-[var(--bg)] border border-orange-500/20 rounded-lg p-3 cursor-pointer hover:border-orange-500/50 transition active:scale-[0.98]"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-[10px] bg-[var(--border)] text-white w-5 h-5 rounded flex items-center justify-center font-mono shrink-0">{i + 1}</span>
-                    <span className="text-white font-bold text-[21px] truncate">{item.display_name || item.name || item.symbol}</span>
-                    <span className="text-[var(--muted)] text-[15px] shrink-0">{item.symbol}</span>
+                    <span className="text-label bg-[var(--border)] text-white w-5 h-5 rounded flex items-center justify-center font-mono shrink-0">{i + 1}</span>
+                    <span className="text-white font-bold text-title truncate">{item.display_name || item.name || item.symbol}</span>
+                    <span className="text-[var(--muted)] text-body shrink-0">{item.symbol}</span>
                   </div>
                   {item.rsi != null && (
-                    <span className="text-[15px] text-orange-400 bg-orange-400/10 px-2 py-0.5 rounded font-mono shrink-0">
+                    <span className="text-body text-orange-400 bg-orange-400/10 px-2 py-0.5 rounded font-mono shrink-0">
                       RSI {item.rsi.toFixed(0)}
                     </span>
                   )}
                 </div>
                 {item.volume_ratio != null && (
-                  <div className="text-[15px] text-[var(--muted)] mt-1.5">거래량 {item.volume_ratio.toFixed(1)}x</div>
+                  <div className="text-body text-[var(--muted)] mt-1.5">거래량 {item.volume_ratio.toFixed(1)}x</div>
                 )}
               </div>
             ))}

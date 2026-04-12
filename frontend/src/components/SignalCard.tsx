@@ -30,27 +30,27 @@ export default function SignalCard({ signal: s, index }: { signal: Signal; index
   return (
     <div
       onClick={() => nav(`/${s.symbol.replace(/\//g, '_')}?market=${s.market}`)}
-      className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 md:p-3 cursor-pointer hover:border-[var(--buy)]/50 transition active:scale-[0.98]"
+      className="bg-[var(--bg)] border border-[var(--border)] rounded-xl p-4 md:p-3 cursor-pointer hover:border-[var(--buy)]/50 transition active:scale-[0.98]"
     >
       {/* Row 1: 종목명 + 추세 + 스퀴즈 */}
       <div className="flex items-center justify-between mb-2 md:mb-1">
         <div className="flex items-center gap-2 md:gap-1.5 min-w-0">
           {index != null && (
-            <span className="text-xs md:text-[10px] bg-[var(--border)] text-white w-5 h-5 md:w-4 md:h-4 rounded flex items-center justify-center font-mono shrink-0">{index}</span>
+            <span className="text-label md:text-caption bg-[var(--border)] text-white w-5 h-5 md:w-4 md:h-4 rounded flex items-center justify-center font-mono shrink-0">{index}</span>
           )}
-          <span className="text-[var(--text)] font-semibold text-[15px] md:text-sm truncate">{s.display_name || s.symbol}</span>
-          <span className="text-[var(--muted)] text-xs md:text-[10px] shrink-0">{s.symbol}</span>
+          <span className="text-[var(--text)] font-semibold text-title md:text-sm truncate">{s.display_name || s.symbol}</span>
+          <span className="text-[var(--muted)] text-body md:text-caption shrink-0">{s.symbol}</span>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {trend === 'BULL' && (
-            <span className="text-[11px] md:text-[9px] font-bold text-[var(--buy)] bg-[var(--buy)]/10 px-1.5 md:px-1 py-0.5 rounded">상승추세</span>
+            <span className="text-body md:text-micro font-bold text-[var(--buy)] bg-[var(--buy)]/10 px-1.5 md:px-1 py-0.5 rounded">상승추세</span>
           )}
           {trend === 'BEAR' && (
-            <span className="text-[11px] md:text-[9px] font-bold text-[var(--sell)] bg-[var(--sell)]/10 px-1.5 md:px-1 py-0.5 rounded">하락추세</span>
+            <span className="text-body md:text-micro font-bold text-[var(--sell)] bg-[var(--sell)]/10 px-1.5 md:px-1 py-0.5 rounded">하락추세</span>
           )}
           <div className="flex items-center gap-0.5">
             <div className="w-2.5 h-2.5 md:w-2 md:h-2 rounded-full" style={{ background: sqColors[sqLvl] }} />
-            <span className="text-[11px] md:text-[9px] font-bold" style={{ color: sqColors[sqLvl] }}>{sqLabels[sqLvl]}</span>
+            <span className="text-body md:text-micro font-bold" style={{ color: sqColors[sqLvl] }}>{sqLabels[sqLvl]}</span>
           </div>
         </div>
       </div>
@@ -58,14 +58,14 @@ export default function SignalCard({ signal: s, index }: { signal: Signal; index
       {/* Row 2: 가격 + 등락 | 모바일: 행 분리, PC: 한 줄 */}
       <div className="md:flex md:items-center md:justify-between mt-1.5 md:mt-0">
         <div className="flex items-baseline gap-2 md:gap-1.5">
-          <span className={`text-[18px] md:text-sm font-mono font-bold transition-colors duration-300 ${flashClass}`}>
+          <span className={`text-value md:text-sm font-mono font-bold transition-colors duration-300 ${flashClass}`}>
             {fmtPrice(s.price, s.market)}
           </span>
-          <span className={`text-[13px] md:text-[10px] font-mono font-semibold ${s.change_pct >= 0 ? 'text-[var(--buy)]' : 'text-[var(--sell)]'}`}>
+          <span className={`text-label md:text-caption font-mono font-semibold ${s.change_pct >= 0 ? 'text-[var(--buy)]' : 'text-[var(--sell)]'}`}>
             {s.change_pct >= 0 ? '+' : ''}{s.change_pct?.toFixed(2)}%
           </span>
         </div>
-        <div className="flex items-center gap-4 md:gap-2 text-xs md:text-[9px] mt-1.5 md:mt-0">
+        <div className="flex items-center gap-4 md:gap-2 text-label md:text-micro mt-1.5 md:mt-0">
           <span className="text-[var(--muted)]">RSI <span className={`font-mono font-semibold ${s.rsi < 30 ? 'text-[var(--buy)]' : s.rsi > 70 ? 'text-[var(--sell)]' : 'text-[var(--text)]'}`}>{s.rsi?.toFixed(0)}</span></span>
           <span className="text-[var(--muted)]">%B <span className="font-mono font-semibold text-[var(--text)]">{s.bb_pct_b != null ? (s.bb_pct_b * 100).toFixed(0) : '—'}%</span></span>
           <span className="text-[var(--muted)]">Vol <span className="font-mono font-semibold text-[var(--text)]">{s.volume_ratio?.toFixed(1)}x</span></span>
@@ -90,7 +90,7 @@ export default function SignalCard({ signal: s, index }: { signal: Signal; index
         return (
           <div className="flex flex-wrap gap-1.5 md:gap-1 mt-2 md:mt-1">
             {allBadges.map(b => (
-              <span key={b.label} className={`text-xs md:text-[8px] px-2 md:px-1.5 py-0.5 rounded ${b.cls}`}>{b.label}</span>
+              <span key={b.label} className={`text-label md:text-micro px-2 md:px-1.5 py-0.5 rounded ${b.cls}`}>{b.label}</span>
             ))}
           </div>
         )
