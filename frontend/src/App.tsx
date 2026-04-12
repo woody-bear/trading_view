@@ -15,6 +15,7 @@ import AlertHistory from './pages/AlertHistory'
 import BuyList from './pages/BuyList'
 import Scrap from './pages/Scrap'
 import AuthCallback from './pages/AuthCallback'
+import Forex from './pages/Forex'
 import Toast from './components/ui/Toast'
 
 const queryClient = new QueryClient({
@@ -54,6 +55,7 @@ function AppInner() {
           <Route path="/buy-list" element={<BuyList />} />
           <Route path="/scrap" element={<Scrap />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/forex" element={<Forex />} />
           <Route path="/:symbol" element={<SignalDetail />} />
         </Routes>
       </main>
