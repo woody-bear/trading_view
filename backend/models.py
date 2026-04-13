@@ -281,7 +281,7 @@ class PatternCase(Base):
     pattern_type: Mapped[str] = mapped_column(String(30), nullable=False, default="custom")
     signal_date: Mapped[str] = mapped_column(String(10), nullable=False)
     entry_price: Mapped[float | None] = mapped_column(Float, nullable=True)
-    exit_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    profit_krw: Mapped[float | None] = mapped_column(Float, nullable=True)
     result_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
     hold_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
     rsi: Mapped[float | None] = mapped_column(Float, nullable=True)

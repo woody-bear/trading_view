@@ -46,7 +46,7 @@ class PatternCaseCreate(BaseModel):
     pattern_type: str = "custom"
     signal_date: str
     entry_price: Optional[float] = None
-    exit_price: Optional[float] = None
+    profit_krw: Optional[float] = None
     result_pct: Optional[float] = None
     hold_days: Optional[int] = None
     rsi: Optional[float] = None
@@ -64,7 +64,7 @@ class PatternCaseCreate(BaseModel):
 
 class PatternCaseUpdate(BaseModel):
     title: Optional[str] = None
-    exit_price: Optional[float] = None
+    profit_krw: Optional[float] = None
     result_pct: Optional[float] = None
     hold_days: Optional[int] = None
     tags: Optional[list[str]] = None
@@ -89,7 +89,7 @@ def _to_dict(case: PatternCase) -> dict:
         "pattern_type": case.pattern_type,
         "signal_date": case.signal_date,
         "entry_price": case.entry_price,
-        "exit_price": case.exit_price,
+        "profit_krw": case.profit_krw,
         "result_pct": case.result_pct,
         "hold_days": case.hold_days,
         "rsi": case.rsi,
@@ -179,7 +179,7 @@ async def create_case(
             pattern_type=body.pattern_type,
             signal_date=body.signal_date,
             entry_price=body.entry_price,
-            exit_price=body.exit_price,
+            profit_krw=body.profit_krw,
             result_pct=body.result_pct,
             hold_days=body.hold_days,
             rsi=body.rsi,
@@ -219,8 +219,8 @@ async def update_case(
 
         if body.title is not None:
             case.title = body.title
-        if body.exit_price is not None:
-            case.exit_price = body.exit_price
+        if body.profit_krw is not None:
+            case.profit_krw = body.profit_krw
         if body.result_pct is not None:
             case.result_pct = body.result_pct
         if body.hold_days is not None:
