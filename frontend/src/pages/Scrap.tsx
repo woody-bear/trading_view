@@ -1,7 +1,7 @@
-import { BookMarked, ChevronDown, ChevronUp, Edit3, Plus, Trash2, X, TrendingUp, TrendingDown, Minus, BarChart2 } from 'lucide-react'
+import { BookMarked, ChevronDown, ChevronUp, Edit3, Trash2, X, TrendingUp, TrendingDown, Minus, BarChart2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchPatternCases, createPatternCase, updatePatternCase, deletePatternCase } from '../api/client'
+import { fetchPatternCases, updatePatternCase, deletePatternCase } from '../api/client'
 import { useAuthStore } from '../store/authStore'
 
 // ── 타입 ────────────────────────────────────────────────────────
@@ -16,7 +16,7 @@ interface PatternCase {
   pattern_type: string
   signal_date: string
   entry_price: number | null
-  exit_price: number | null
+  profit_krw: number | null
   result_pct: number | null
   hold_days: number | null
   rsi: number | null
@@ -50,17 +50,6 @@ const PATTERN_COLOR: Record<string, string> = {
   squeeze_breakout: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
   oversold_bounce:  'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
   custom:           'bg-purple-500/20 text-purple-400 border-purple-500/30',
-}
-
-// ── 빈 폼 ────────────────────────────────────────────────────────
-
-const EMPTY_FORM = {
-  title: '', symbol: '', stock_name: '', market: 'KR', market_type: '',
-  pattern_type: 'custom', signal_date: new Date().toISOString().slice(0, 10),
-  entry_price: '', exit_price: '', result_pct: '', hold_days: '',
-  rsi: '', bb_pct_b: '', bb_width: '', macd_hist: '', volume_ratio: '',
-  ema_alignment: 'BULL', squeeze_level: '0', conditions_met: '',
-  tags: '', notes: '',
 }
 
 // ── 툴팁 ─────────────────────────────────────────────────────────
@@ -343,8 +332,8 @@ function CaseAccordion({ c, onEdit, onDelete }: {
       {/* 바디 (아코디언 펼침) */}
       {open && (
         <div className="border-t border-[var(--border)] bg-[var(--bg)]/60">
-          {/* 진입가 정보 */}
-          {(c.entry_price != null || c.exit_price != null) && (
+          {/* 진입가 / 매도수익금 */}
+          {(c.entry_price != null || c.profit_krw != null) && (
             <div className="flex gap-4 px-4 py-3 border-b border-[var(--border)]/50">
               {c.entry_price != null && (
                 <div>
@@ -354,11 +343,11 @@ function CaseAccordion({ c, onEdit, onDelete }: {
                   </div>
                 </div>
               )}
-              {c.exit_price != null && (
+              {c.profit_krw != null && (
                 <div>
-                  <div className="text-caption text-[var(--muted)]">청산가</div>
-                  <div className="text-sm font-mono font-bold text-white">
-                    {c.market === 'US' ? `$${c.exit_price.toLocaleString()}` : `${c.exit_price.toLocaleString()}원`}
+                  <div className="text-caption text-[var(--muted)]">매도수익금</div>
+                  <div className={`text-sm font-mono font-bold ${c.profit_krw > 0 ? 'text-green-400' : c.profit_krw < 0 ? 'text-red-400' : 'text-white'}`}>
+                    {c.profit_krw > 0 ? '+' : ''}{c.profit_krw.toLocaleString()}원
                   </div>
                 </div>
               )}
@@ -413,73 +402,30 @@ function CaseAccordion({ c, onEdit, onDelete }: {
   )
 }
 
-// ── 추가/수정 폼 모달 ─────────────────────────────────────────────
+// ── 매도 정보 입력 모달 ───────────────────────────────────────────
 
-function CaseFormModal({
+function SellInfoModal({
   initial, onSave, onClose,
 }: {
-  initial: PatternCase | null
+  initial: PatternCase
   onSave: (data: any) => Promise<void>
   onClose: () => void
 }) {
-  const [form, setForm] = useState(() => {
-    if (!initial) return EMPTY_FORM
-    return {
-      title: initial.title,
-      symbol: initial.symbol,
-      stock_name: initial.stock_name,
-      market: initial.market,
-      market_type: initial.market_type ?? '',
-      pattern_type: initial.pattern_type,
-      signal_date: initial.signal_date,
-      entry_price: initial.entry_price?.toString() ?? '',
-      exit_price: initial.exit_price?.toString() ?? '',
-      result_pct: initial.result_pct?.toString() ?? '',
-      hold_days: initial.hold_days?.toString() ?? '',
-      rsi: initial.rsi?.toString() ?? '',
-      bb_pct_b: initial.bb_pct_b?.toString() ?? '',
-      bb_width: initial.bb_width?.toString() ?? '',
-      macd_hist: initial.macd_hist?.toString() ?? '',
-      volume_ratio: initial.volume_ratio?.toString() ?? '',
-      ema_alignment: initial.ema_alignment ?? 'BULL',
-      squeeze_level: initial.squeeze_level?.toString() ?? '0',
-      conditions_met: initial.conditions_met?.toString() ?? '',
-      tags: initial.tags.join(', '),
-      notes: initial.notes ?? '',
-    }
-  })
+  const [profitKrw, setProfitKrw] = useState(initial.profit_krw?.toString() ?? '')
+  const [resultPct, setResultPct] = useState(initial.result_pct?.toString() ?? '')
+  const [holdDays, setHoldDays] = useState(initial.hold_days?.toString() ?? '')
   const [saving, setSaving] = useState(false)
 
-  const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
   const num = (v: string) => v === '' ? null : parseFloat(v)
   const int = (v: string) => v === '' ? null : parseInt(v)
 
   const handleSubmit = async () => {
-    if (!form.title || !form.symbol || !form.stock_name) return
     setSaving(true)
     try {
       await onSave({
-        title: form.title,
-        symbol: form.symbol,
-        stock_name: form.stock_name,
-        market: form.market,
-        market_type: form.market_type || null,
-        pattern_type: form.pattern_type,
-        signal_date: form.signal_date,
-        entry_price: num(form.entry_price),
-        exit_price: num(form.exit_price),
-        result_pct: num(form.result_pct),
-        hold_days: int(form.hold_days),
-        rsi: num(form.rsi),
-        bb_pct_b: num(form.bb_pct_b),
-        bb_width: num(form.bb_width),
-        macd_hist: num(form.macd_hist),
-        volume_ratio: num(form.volume_ratio),
-        ema_alignment: form.ema_alignment || null,
-        squeeze_level: int(form.squeeze_level),
-        conditions_met: int(form.conditions_met),
-        tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
-        notes: form.notes || null,
+        profit_krw: num(profitKrw),
+        result_pct: num(resultPct),
+        hold_days: int(holdDays),
       })
       onClose()
     } finally {
@@ -489,6 +435,11 @@ function CaseFormModal({
 
   const inp = "w-full bg-[var(--bg)] border border-[var(--border)] rounded px-2 py-1.5 text-label text-white focus:outline-none focus:border-[var(--gold)]"
   const lbl = "text-caption text-[var(--muted)] mb-0.5 block"
+  const ro = "text-sm text-white font-mono"
+  const roLbl = "text-caption text-[var(--muted)]"
+
+  const priceFmt = (v: number | null) =>
+    v == null ? '-' : initial.market === 'US' ? `$${v.toLocaleString()}` : `${v.toLocaleString()}원`
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
@@ -498,128 +449,130 @@ function CaseFormModal({
       >
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--border)]">
-          <h2 className="text-sm font-bold text-[var(--gold)]">
-            {initial ? '사례 수정' : '새 BUY 사례 스크랩'}
-          </h2>
+          <h2 className="text-sm font-bold text-[var(--gold)]">매도 정보 입력</h2>
           <button onClick={onClose} className="text-[var(--muted)] hover:text-white"><X size={16} /></button>
         </div>
 
         {/* 바디 */}
         <div className="overflow-y-auto flex-1 p-5 space-y-4">
-          {/* 기본 정보 */}
-          <div>
-            <label className={lbl}>제목 *</label>
-            <input className={inp} value={form.title} onChange={e => set('title', e.target.value)} placeholder="예: 펄어비스 급락 반등 BUY" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={lbl}>종목코드 *</label>
-              <input className={inp} value={form.symbol} onChange={e => set('symbol', e.target.value)} placeholder="263750 / AAPL" />
-            </div>
-            <div>
-              <label className={lbl}>종목명 *</label>
-              <input className={inp} value={form.stock_name} onChange={e => set('stock_name', e.target.value)} placeholder="펄어비스" />
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className={lbl}>시장</label>
-              <select className={inp} value={form.market} onChange={e => set('market', e.target.value)}>
-                <option value="KR">KR 국내</option>
-                <option value="US">US 미국</option>
-              </select>
-            </div>
-            <div>
-              <label className={lbl}>구분</label>
-              <input className={inp} value={form.market_type} onChange={e => set('market_type', e.target.value)} placeholder="KOSDAQ / NASDAQ100" />
-            </div>
-            <div>
-              <label className={lbl}>패턴 유형</label>
-              <select className={inp} value={form.pattern_type} onChange={e => set('pattern_type', e.target.value)}>
-                <option value="squeeze_breakout">스퀴즈 이탈</option>
-                <option value="oversold_bounce">과매도 반등</option>
-                <option value="custom">직접 입력</option>
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={lbl}>시그널 날짜</label>
-              <input type="date" className={inp} value={form.signal_date} onChange={e => set('signal_date', e.target.value)} />
-            </div>
-            <div>
-              <label className={lbl}>충족 조건수 (1~4)</label>
-              <input type="number" className={inp} value={form.conditions_met} onChange={e => set('conditions_met', e.target.value)} min={1} max={4} placeholder="3" />
-            </div>
-          </div>
+          {/* 스크랩 정보 (읽기 전용) */}
+          <div className="p-3 bg-[var(--bg)] rounded-lg border border-[var(--border)]/50 space-y-3">
+            <div className="text-caption text-[var(--gold)] font-semibold">스크랩 정보</div>
 
-          {/* 진입/청산 */}
-          <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className={lbl}>진입가</label>
-              <input type="number" className={inp} value={form.entry_price} onChange={e => set('entry_price', e.target.value)} placeholder="50200" />
+              <div className={roLbl}>제목</div>
+              <div className={ro}>{initial.title}</div>
             </div>
-            <div>
-              <label className={lbl}>청산가</label>
-              <input type="number" className={inp} value={form.exit_price} onChange={e => set('exit_price', e.target.value)} placeholder="67600" />
-            </div>
-            <div>
-              <label className={lbl}>수익률 (%)</label>
-              <input type="number" className={inp} value={form.result_pct} onChange={e => set('result_pct', e.target.value)} placeholder="34.5" step="0.1" />
-            </div>
-          </div>
 
-          {/* 지표값 */}
-          <div className="p-3 bg-[var(--bg)] rounded-lg border border-[var(--border)]/50">
-            <div className="text-caption text-[var(--gold)] font-semibold mb-2">시그널 발생 시점 지표값</div>
             <div className="grid grid-cols-3 gap-3">
-              {[
-                { k: 'rsi',          label: 'RSI',          ph: '46.5' },
-                { k: 'bb_pct_b',     label: 'BB %B (%)',    ph: '33.7' },
-                { k: 'bb_width',     label: 'BBW (%)',       ph: '63.2' },
-                { k: 'macd_hist',    label: 'MACD hist',    ph: '-2414' },
-                { k: 'volume_ratio', label: '거래량 배율',   ph: '3.91' },
-                { k: 'hold_days',    label: '보유일수',      ph: '5' },
-              ].map(f => (
-                <div key={f.k}>
-                  <label className={lbl}>{f.label}</label>
-                  <input type="number" className={inp} value={(form as any)[f.k]} onChange={e => set(f.k, e.target.value)} placeholder={f.ph} step="any" />
+              <div>
+                <div className={roLbl}>종목</div>
+                <div className={ro}>{initial.stock_name} ({initial.symbol})</div>
+              </div>
+              <div>
+                <div className={roLbl}>시장</div>
+                <div className={ro}>{initial.market}{initial.market_type ? ` · ${initial.market_type}` : ''}</div>
+              </div>
+              <div>
+                <div className={roLbl}>패턴</div>
+                <div className={ro}>{PATTERN_LABEL[initial.pattern_type] ?? initial.pattern_type}</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <div className={roLbl}>시그널 날짜</div>
+                <div className={ro}>{initial.signal_date}</div>
+              </div>
+              <div>
+                <div className={roLbl}>진입가</div>
+                <div className={ro}>{priceFmt(initial.entry_price)}</div>
+              </div>
+              <div>
+                <div className={roLbl}>충족 조건</div>
+                <div className={ro}>{initial.conditions_met != null ? `${initial.conditions_met}/4` : '-'}</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <div className={roLbl}>RSI</div>
+                <div className={ro}>{initial.rsi?.toFixed(1) ?? '-'}</div>
+              </div>
+              <div>
+                <div className={roLbl}>BB %B</div>
+                <div className={ro}>{initial.bb_pct_b != null ? `${initial.bb_pct_b.toFixed(1)}%` : '-'}</div>
+              </div>
+              <div>
+                <div className={roLbl}>BBW</div>
+                <div className={ro}>{initial.bb_width != null ? `${initial.bb_width.toFixed(1)}%` : '-'}</div>
+              </div>
+              <div>
+                <div className={roLbl}>MACD hist</div>
+                <div className={ro}>{initial.macd_hist?.toFixed(0) ?? '-'}</div>
+              </div>
+              <div>
+                <div className={roLbl}>거래량 배율</div>
+                <div className={ro}>{initial.volume_ratio != null ? `${initial.volume_ratio.toFixed(2)}x` : '-'}</div>
+              </div>
+              <div>
+                <div className={roLbl}>EMA 배열</div>
+                <div className={ro}>{initial.ema_alignment ?? '-'}</div>
+              </div>
+              <div>
+                <div className={roLbl}>스퀴즈</div>
+                <div className={ro}>{initial.squeeze_level != null ? `Lv${initial.squeeze_level}` : '-'}</div>
+              </div>
+            </div>
+
+            {initial.tags.length > 0 && (
+              <div>
+                <div className={roLbl}>태그</div>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {initial.tags.map(t => (
+                    <span key={t} className="text-caption px-1.5 py-0.5 bg-[var(--border)]/60 rounded text-[var(--muted)]">#{t}</span>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <div className="grid grid-cols-2 gap-3 mt-3">
-              <div>
-                <label className={lbl}>EMA 배열</label>
-                <select className={inp} value={form.ema_alignment} onChange={e => set('ema_alignment', e.target.value)}>
-                  <option value="BULL">BULL (정배열)</option>
-                  <option value="NEUTRAL">NEUTRAL (횡보)</option>
-                  <option value="BEAR">BEAR (역배열)</option>
-                </select>
               </div>
+            )}
+
+            {initial.notes && (
               <div>
-                <label className={lbl}>스퀴즈 레벨</label>
-                <select className={inp} value={form.squeeze_level} onChange={e => set('squeeze_level', e.target.value)}>
-                  <option value="0">0 (없음)</option>
-                  <option value="1">1 (약)</option>
-                  <option value="2">2 (중)</option>
-                  <option value="3">3 (강)</option>
-                </select>
+                <div className={roLbl}>분석 메모</div>
+                <div className="text-label text-white/85 whitespace-pre-wrap leading-relaxed">{initial.notes}</div>
               </div>
-            </div>
+            )}
           </div>
 
-          {/* 태그 & 메모 */}
-          <div>
-            <label className={lbl}>태그 (쉼표 구분)</label>
-            <input className={inp} value={form.tags} onChange={e => set('tags', e.target.value)} placeholder="과매도반등, 정배열, KOSDAQ" />
-          </div>
-          <div>
-            <label className={lbl}>분석 메모</label>
-            <textarea
-              className={`${inp} resize-none`} rows={4}
-              value={form.notes} onChange={e => set('notes', e.target.value)}
-              placeholder="시그널 발생 배경, 진입 이유, 결과 분석..."
-            />
+          {/* 매도 입력 3필드 */}
+          <div className="p-3 bg-[var(--bg)] rounded-lg border border-[var(--gold)]/30">
+            <div className="text-caption text-[var(--gold)] font-semibold mb-2">매도 정보</div>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className={lbl}>매도수익금 (원)</label>
+                <input
+                  type="number" className={inp} value={profitKrw}
+                  onChange={e => setProfitKrw(e.target.value)}
+                  placeholder="150000" step="any"
+                />
+              </div>
+              <div>
+                <label className={lbl}>매도수익률 (%)</label>
+                <input
+                  type="number" className={inp} value={resultPct}
+                  onChange={e => setResultPct(e.target.value)}
+                  placeholder="34.5" step="0.1"
+                />
+              </div>
+              <div>
+                <label className={lbl}>보유기간 (일)</label>
+                <input
+                  type="number" className={inp} value={holdDays}
+                  onChange={e => setHoldDays(e.target.value)}
+                  placeholder="5"
+                />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -628,7 +581,7 @@ function CaseFormModal({
           <button onClick={onClose} className="px-4 py-1.5 text-sm text-[var(--muted)] hover:text-white transition-colors">취소</button>
           <button
             onClick={handleSubmit}
-            disabled={saving || !form.title || !form.symbol || !form.stock_name}
+            disabled={saving}
             className="px-5 py-1.5 text-sm bg-[var(--gold)] text-black font-semibold rounded hover:opacity-90 disabled:opacity-40 transition-opacity"
           >
             {saving ? '저장 중...' : '저장'}
@@ -648,7 +601,23 @@ export default function Scrap() {
   const [cases, setCases] = useState<PatternCase[]>([])
   const [loading, setLoading] = useState(true)
   const [activeType, setActiveType] = useState('all')
-  const [showForm, setShowForm] = useState(false)
+  const [soldOnly, setSoldOnly] = useState(false)
+
+  // 타입 탭 선택 시 매도 필터 해제 (상호 배타)
+  const selectType = (key: string) => {
+    setActiveType(key)
+    setSoldOnly(false)
+  }
+  // 매도 사례 카드 클릭 — 타입 탭도 전체로 리셋
+  const selectSoldOnly = () => {
+    setSoldOnly(true)
+    setActiveType('all')
+  }
+  // 총 사례 카드 클릭 — 전부 해제
+  const selectAll = () => {
+    setSoldOnly(false)
+    setActiveType('all')
+  }
   const [editTarget, setEditTarget] = useState<PatternCase | null>(null)
   const touchStartX = useRef(0)
   const touchStartY = useRef(0)
@@ -673,10 +642,12 @@ export default function Scrap() {
     else setLoading(false)
   }, [user])
 
-  const filtered = useMemo(() =>
-    activeType === 'all' ? cases : cases.filter(c => c.pattern_type === activeType),
-    [cases, activeType]
-  )
+  const filtered = useMemo(() => {
+    let list = cases
+    if (soldOnly) list = list.filter(c => c.profit_krw != null)
+    if (activeType !== 'all') list = list.filter(c => c.pattern_type === activeType)
+    return list
+  }, [cases, activeType, soldOnly])
 
   const handleSwipe = (e: React.TouchEvent) => {
     const dx = e.changedTouches[0].clientX - touchStartX.current
@@ -685,8 +656,8 @@ export default function Scrap() {
     if (Math.abs(dx) > Math.abs(dy)) {
       if (Math.abs(dx) < 60) return
       const idx = PATTERN_TYPES.findIndex(t => t.key === activeType)
-      if (dx < 0 && idx < PATTERN_TYPES.length - 1) setActiveType(PATTERN_TYPES[idx + 1].key)
-      else if (dx > 0 && idx > 0) setActiveType(PATTERN_TYPES[idx - 1].key)
+      if (dx < 0 && idx < PATTERN_TYPES.length - 1) selectType(PATTERN_TYPES[idx + 1].key)
+      else if (dx > 0 && idx > 0) selectType(PATTERN_TYPES[idx - 1].key)
     } else {
       // 수직 스와이프: 페이지 이동 (touchstart 시점 경계 기준)
       if (Math.abs(dy) < 90) return
@@ -704,24 +675,35 @@ export default function Scrap() {
     const winRate = cases.filter(c => c.result_pct != null).length > 0
       ? Math.round(wins.length / cases.filter(c => c.result_pct != null).length * 100)
       : null
-    return { total: cases.length, wins: wins.length, avgReturn, winRate }
+    // 매도 완료 사례 = profit_krw 입력된 사례
+    const soldCases = cases.filter(c => c.profit_krw != null)
+    const sumProfit = soldCases.reduce((sum, c) => sum + (c.profit_krw ?? 0), 0)
+    const holdDaysCases = soldCases.filter(c => c.hold_days != null)
+    const avgHoldDays = holdDaysCases.length > 0
+      ? holdDaysCases.reduce((sum, c) => sum + (c.hold_days ?? 0), 0) / holdDaysCases.length
+      : null
+    return {
+      total: cases.length, wins: wins.length, avgReturn, winRate,
+      sumProfit, avgHoldDays, sold: soldCases.length,
+    }
   }, [cases])
 
+  const fmtProfit = (v: number) => {
+    const sign = v > 0 ? '+' : ''
+    return `${sign}${Math.round(v).toLocaleString()}원`
+  }
+  const profitColor = stats.sumProfit > 0 ? 'text-green-400'
+    : stats.sumProfit < 0 ? 'text-red-400' : 'text-white'
+
   const handleSave = async (data: any) => {
-    if (editTarget) {
-      const updated = await updatePatternCase(editTarget.id, data)
-      setCases(prev => prev.map(c => c.id === editTarget.id ? updated : c))
-    } else {
-      const created = await createPatternCase(data)
-      setCases(prev => [created, ...prev])
-    }
+    if (!editTarget) return
+    const updated = await updatePatternCase(editTarget.id, data)
+    setCases(prev => prev.map(c => c.id === editTarget.id ? updated : c))
     setEditTarget(null)
-    setShowForm(false)
   }
 
   const handleEdit = (c: PatternCase) => {
     setEditTarget(c)
-    setShowForm(true)
   }
 
   const handleDelete = async (id: number) => {
@@ -729,19 +711,42 @@ export default function Scrap() {
     setCases(prev => prev.filter(c => c.id !== id))
   }
 
-  const statsBanner = (
-    <div className="grid grid-cols-4 gap-2">
-      {[
-        { label: '총 사례', value: stats.total.toString(), color: 'text-white' },
-        { label: '수익 사례', value: stats.wins.toString(), color: 'text-green-400' },
-        { label: '승률', value: stats.winRate != null ? `${stats.winRate}%` : '-', color: 'text-cyan-400' },
-        { label: '평균 수익', value: stats.avgReturn > 0 ? `+${stats.avgReturn.toFixed(1)}%` : '-', color: 'text-[var(--gold)]' },
-      ].map(s => (
-        <div key={s.label} className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3 text-center">
-          <div className={`text-xl font-bold font-mono ${s.color}`}>{s.value}</div>
-          <div className="text-xs text-[var(--muted)] mt-0.5">{s.label}</div>
+  const totalActive = !soldOnly && activeType === 'all'
+  const soldActive = soldOnly
+
+  const statCards: Array<{
+    label: string; value: string; color: string; nowrap?: boolean;
+    onClick?: () => void; active?: boolean;
+  }> = [
+    { label: '총 사례', value: stats.total.toString(), color: 'text-white', onClick: selectAll, active: totalActive },
+    { label: '승률', value: stats.winRate != null ? `${stats.winRate}%` : '-', color: 'text-cyan-400' },
+    { label: '평균 수익률', value: stats.avgReturn > 0 ? `+${stats.avgReturn.toFixed(1)}%` : '-', color: 'text-[var(--gold)]' },
+    { label: '매도 수익합', value: stats.sold > 0 ? fmtProfit(stats.sumProfit) : '-', color: profitColor, nowrap: true },
+    { label: '매도 사례', value: stats.sold.toString(), color: 'text-green-400', onClick: selectSoldOnly, active: soldActive },
+    { label: '평균 보유일', value: stats.avgHoldDays != null ? `${stats.avgHoldDays.toFixed(1)}일` : '-', color: 'text-white' },
+  ]
+
+  const renderStatCard = (s: typeof statCards[number]) => {
+    const clickable = !!s.onClick
+    const activeCls = s.active ? 'border-[var(--gold)] bg-[var(--gold)]/10' : 'border-[var(--border)]'
+    const hoverCls = clickable ? 'cursor-pointer hover:border-[var(--gold)]/60 transition-colors' : ''
+    return (
+      <div
+        key={s.label}
+        onClick={s.onClick}
+        className={`bg-[var(--card)] border rounded-lg p-2.5 text-center ${activeCls} ${hoverCls}`}
+      >
+        <div className={`text-base font-bold font-mono ${s.color} ${s.nowrap ? 'whitespace-nowrap' : ''}`}>
+          {s.value}
         </div>
-      ))}
+        <div className="text-xs text-[var(--muted)] mt-0.5">{s.label}</div>
+      </div>
+    )
+  }
+
+  const statsBanner = (
+    <div className="grid grid-cols-3 gap-2">
+      {statCards.map(renderStatCard)}
     </div>
   )
 
@@ -752,7 +757,7 @@ export default function Scrap() {
         return (
           <button
             key={pt.key}
-            onClick={() => setActiveType(pt.key)}
+            onClick={() => selectType(pt.key)}
             className={`px-3 py-2 text-sm font-semibold border-b-2 transition-colors -mb-px whitespace-nowrap ${
               activeType === pt.key
                 ? `border-[var(--gold)] ${pt.color}`
@@ -785,12 +790,7 @@ export default function Scrap() {
           <p className="text-sm text-[var(--muted)]">
             {activeType === 'all' ? '아직 스크랩된 사례가 없습니다.' : '이 유형의 사례가 없습니다.'}
           </p>
-          <button
-            onClick={() => { setEditTarget(null); setShowForm(true) }}
-            className="mt-3 text-xs text-[var(--gold)] hover:underline"
-          >
-            첫 사례 추가하기
-          </button>
+          <p className="mt-2 text-xs text-[var(--muted)]/70">차트 화면에서 BUY 시그널을 스크랩하면 여기에 표시됩니다.</p>
         </div>
       ) : (
         <div>
@@ -808,17 +808,9 @@ export default function Scrap() {
       <div className="md:hidden fixed inset-x-0 top-0 flex flex-col bg-[var(--bg)]"
         style={{ bottom: '64px' }}>
         {/* 고정 헤더 */}
-        <div className="shrink-0 flex items-center justify-between px-3 pt-3 pb-2 border-b border-[var(--border)]/50">
-          <div className="flex items-center gap-2">
-            <BookMarked size={16} className="text-[var(--gold)]" />
-            <h2 className="text-display font-bold text-[var(--text)]">BUY 사례 스크랩</h2>
-          </div>
-          <button
-            onClick={() => { setEditTarget(null); setShowForm(true) }}
-            className="flex items-center gap-1 px-3 py-1.5 bg-[var(--gold)] text-black text-xs font-bold rounded-lg hover:opacity-90"
-          >
-            <Plus size={12} /> 추가
-          </button>
+        <div className="shrink-0 flex items-center gap-2 px-3 pt-3 pb-2 border-b border-[var(--border)]/50">
+          <BookMarked size={16} className="text-[var(--gold)]" />
+          <h2 className="text-display font-bold text-[var(--text)]">BUY 사례 스크랩</h2>
         </div>
         {/* 고정 통계 */}
         <div className="shrink-0 px-3 pt-2">
@@ -851,37 +843,19 @@ export default function Scrap() {
       {/* ── PC layout ── */}
       <div className="hidden md:block p-3 md:p-6 max-w-4xl mx-auto">
         {/* 제목 */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <BookMarked size={20} className="text-[var(--gold)]" />
-            <h1 className="text-lg font-bold text-white">BUY 사례 스크랩</h1>
-            <span className="text-xs text-[var(--muted)]">승률 높은 조건 기록</span>
-          </div>
-          <button
-            onClick={() => { setEditTarget(null); setShowForm(true) }}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--gold)] text-black text-xs font-bold rounded-lg hover:opacity-90 transition-opacity"
-          >
-            <Plus size={13} /> 새 사례 추가
-          </button>
+        <div className="flex items-center gap-2 mb-4">
+          <BookMarked size={20} className="text-[var(--gold)]" />
+          <h1 className="text-lg font-bold text-white">BUY 사례 스크랩</h1>
+          <span className="text-xs text-[var(--muted)]">승률 높은 조건 기록</span>
         </div>
-        <div className="grid grid-cols-4 gap-2 mb-4">
-          {[
-            { label: '총 사례', value: stats.total.toString(), color: 'text-white' },
-            { label: '수익 사례', value: stats.wins.toString(), color: 'text-green-400' },
-            { label: '승률', value: stats.winRate != null ? `${stats.winRate}%` : '-', color: 'text-cyan-400' },
-            { label: '평균 수익률', value: stats.avgReturn > 0 ? `+${stats.avgReturn.toFixed(1)}%` : '-', color: 'text-[var(--gold)]' },
-          ].map(s => (
-            <div key={s.label} className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-2.5 text-center">
-              <div className={`text-base font-bold font-mono ${s.color}`}>{s.value}</div>
-              <div className="text-caption text-[var(--muted)]">{s.label}</div>
-            </div>
-          ))}
+        <div className="grid grid-cols-6 gap-2 mb-4">
+          {statCards.map(renderStatCard)}
         </div>
         <div className="flex gap-1 mb-4 border-b border-[var(--border)] pb-0">
           {PATTERN_TYPES.map(pt => {
             const cnt = pt.key === 'all' ? cases.length : cases.filter(c => c.pattern_type === pt.key).length
             return (
-              <button key={pt.key} onClick={() => setActiveType(pt.key)}
+              <button key={pt.key} onClick={() => selectType(pt.key)}
                 className={`px-3 py-2 text-label font-semibold border-b-2 transition-colors -mb-px ${
                   activeType === pt.key ? `border-[var(--gold)] ${pt.color}` : 'border-transparent text-[var(--muted)] hover:text-white'
                 }`}>
@@ -893,12 +867,12 @@ export default function Scrap() {
         {caseList}
       </div>
 
-      {/* 폼 모달 */}
-      {showForm && (
-        <CaseFormModal
+      {/* 매도 정보 입력 모달 */}
+      {editTarget && (
+        <SellInfoModal
           initial={editTarget}
           onSave={handleSave}
-          onClose={() => { setShowForm(false); setEditTarget(null) }}
+          onClose={() => setEditTarget(null)}
         />
       )}
     </>
