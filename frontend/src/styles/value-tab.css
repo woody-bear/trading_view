@@ -1,0 +1,16 @@
+/* 가치 분석 탭 — 모바일 한정 스냅 스크롤 (FR-012) */
+
+@media (max-width: 768px) {
+  .value-tab-scroll {
+    scroll-snap-type: y proximity; /* 11개 카드는 mandatory보다 proximity가 자연스러움 */
+    -webkit-overflow-scrolling: touch;
+    overflow-y: auto;
+    /* 상단 탭 스트립(~48px) + safe-area 제외 */
+    height: calc(100vh - 48px - env(safe-area-inset-top));
+  }
+
+  /* grid 2열 기준 각 행(=카드 2개)의 첫 칸 기준으로 스냅 — 카드 개별 스냅은 과함 */
+  .value-tab-section:nth-child(odd) {
+    scroll-snap-align: start;
+  }
+}

@@ -11,7 +11,6 @@ import ChartErrorBoundary from '../components/charts/ChartErrorBoundary'
 import ChartSkeleton from '../components/charts/ChartSkeleton'
 import FinancialChart from '../components/charts/FinancialChart'
 import CompanyInfoPanel from '../components/CompanyInfoPanel'
-import InvestmentMetricsPanel from '../components/InvestmentMetricsPanel'
 import RevenueSegmentChart from '../components/RevenueSegmentChart'
 import PositionGuide from '../components/PositionGuide'
 import RiskWarningBanner from '../components/RiskWarningBanner'
@@ -25,6 +24,11 @@ import { useSignalStore } from '../stores/signalStore'
 import { useBuyPoint } from '../hooks/useBuyPoint'
 import { useToastStore } from '../stores/toastStore'
 import { useAuthStore } from '../store/authStore'
+import DetailTabs from '../components/DetailTabs'
+import { useDetailViewStore, buildDetailKey } from '../stores/detailViewStore'
+import ValueAnalysisTab from '../components/ValueAnalysisTab'
+import { fetchCompanyInfo } from '../api/client'
+import { useDetailTab } from '../hooks/useDetailTab'
 
 const stateLabel: Record<string, string> = { BUY: '매수', SELL: '매도', NEUTRAL: '대기' }
 
@@ -227,9 +231,43 @@ export default function SignalDetail() {
     } finally { setAdding(false) }
   }
 
-  const [sens, setSens] = useState('strict')
+  // 탭 상태 — URL ?tab=chart|value 동기화 (FR-005, US3)
+  const [activeTab, setActiveTab] = useDetailTab()
+
+  // 자산군 판정 — 가치 탭 활성화 여부 (FR-006). market 코드 정규화 후 prefetch
+  const normalizedMarket =
+    s.market === 'CRYPTO' ? 'CRYPTO'
+    : (s.market === 'KR' || s.market === 'KOSPI' || s.market === 'KOSDAQ') ? 'KR'
+    : s.market === 'US' ? 'US'
+    : (lookupSymbol.match(/^\d{6}$/) ? 'KR' : 'US')
+  const { data: companyForClass } = useQuery({
+    queryKey: ['company', normalizedMarket, lookupSymbol],
+    queryFn: () => fetchCompanyInfo(lookupSymbol, normalizedMarket),
+    staleTime: 60 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    enabled: !!lookupSymbol,
+    refetchOnWindowFocus: false,
+  })
+  const assetClass = companyForClass?.asset_class
+  const valueEnabled = assetClass === 'STOCK_KR' || assetClass === 'STOCK_US'
+
+  // 세션 단위 차트 UI 상태 보존 (FR-010) — symbol 단위 키로 복원
+  const detailKey = buildDetailKey(s.market || guessMarket, lookupSymbol)
+  const storedUi = useDetailViewStore((st) => st.byKey[detailKey])
+  const setStoredUi = useDetailViewStore((st) => st.set)
+
+  const [sens, setSens] = useState(storedUi?.sensitivity ?? 'strict')
   const [sensLoading, setSensLoading] = useState(false)
-  useEffect(() => { getSensitivity().then(d => setSens(d.current)).catch(() => {}) }, [])
+  useEffect(() => {
+    if (storedUi?.sensitivity) {
+      setSens(storedUi.sensitivity)
+      return
+    }
+    getSensitivity().then((d) => {
+      setSens(d.current)
+      setStoredUi(detailKey, { sensitivity: d.current })
+    }).catch(() => {})
+  }, [detailKey])
 
   const stateColor = s.signal_state === 'BUY' ? 'text-[var(--buy)]' : s.signal_state === 'SELL' ? 'text-[var(--sell)]' : 'text-[var(--neutral)]'
 
@@ -251,6 +289,7 @@ export default function SignalDetail() {
     try {
       await setSensitivity(level)
       setSens(level)
+      setStoredUi(detailKey, { sensitivity: level })
       qc.invalidateQueries({ queryKey: ['signals'] })
       addToast('success', '민감도가 변경되었습니다')
     } catch {
@@ -364,7 +403,16 @@ export default function SignalDetail() {
   }
 
   return (
-    <div className="p-3 md:p-6">
+    <div>
+      <DetailTabs activeTab={activeTab} onChange={setActiveTab} valueEnabled={valueEnabled} />
+      {activeTab === 'value' && (
+        <ValueAnalysisTab
+          symbol={lookupSymbol}
+          market={normalizedMarket}
+          assetClassHint={assetClass}
+        />
+      )}
+      <div className="p-3 md:p-6" style={{ display: activeTab === 'chart' ? 'block' : 'none' }}>
       {/* 모바일 상단 헤더 */}
       <div className="flex items-center gap-3 mb-3 md:mb-4">
         <button onClick={() => nav('/')} className="text-[var(--muted)] hover:text-white p-1">
@@ -493,9 +541,6 @@ export default function SignalDetail() {
       {/* 회사 정보 */}
       <CompanyInfoPanel symbol={lookupSymbol} market={guessMarket || 'US'} />
 
-      {/* 확장 투자 지표 */}
-      <InvestmentMetricsPanel symbol={lookupSymbol} market={guessMarket || 'US'} />
-
       {/* 매출 구성 */}
       <RevenueSegmentChart symbol={lookupSymbol} market={guessMarket || 'US'} />
 
@@ -563,6 +608,7 @@ export default function SignalDetail() {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-3">
         {gauges.map((g) => <MiniGauge key={g.label} g={g} />)}
+      </div>
       </div>
     </div>
   )

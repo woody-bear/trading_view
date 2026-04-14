@@ -131,10 +131,13 @@ export interface RevenueSegment {
   percentage: number
   period: string
 }
+export type AssetClass = 'STOCK_KR' | 'STOCK_US' | 'ETF' | 'CRYPTO' | 'INDEX' | 'FX'
 export interface CompanyInfoResponse {
   company: CompanyInfo | null
   metrics: InvestmentMetrics | null
   revenue_segments: RevenueSegment[] | null
+  asset_class: AssetClass
+  reporting_period: string | null
   cached_at: string | null
 }
 export const fetchCompanyInfo = (symbol: string, market: string): Promise<CompanyInfoResponse> =>
