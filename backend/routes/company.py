@@ -7,6 +7,8 @@ from datetime import datetime
 from fastapi import APIRouter
 from loguru import logger
 
+from services.asset_class import AssetClass, classify, supports_valuation
+
 router = APIRouter(tags=["company"])
 
 # 메모리 캐시 (1시간 TTL)
@@ -72,13 +74,52 @@ def _translate_to_korean(text: str) -> str:
     return text
 
 
+def _extract_reporting_period(info: dict) -> str | None:
+    """yfinance info에서 보고 기준일 추출.
+
+    우선순위: mostRecentQuarter(분기) → lastFiscalYearEnd(연간).
+    값은 주로 epoch 초 또는 'YYYY-MM-DD' 문자열로 오며, 분기는 "YYYY-Q#"로, 연간은
+    "YYYY-MM-DD" 그대로 반환. 결측/파싱 실패 시 None.
+    """
+    from datetime import datetime as _dt
+
+    def _to_date(val) -> _dt | None:
+        if val is None:
+            return None
+        try:
+            if isinstance(val, (int, float)):
+                return _dt.utcfromtimestamp(float(val))
+            if isinstance(val, str):
+                return _dt.strptime(val[:10], "%Y-%m-%d")
+        except (TypeError, ValueError, OSError):
+            return None
+        return None
+
+    q_date = _to_date(info.get("mostRecentQuarter"))
+    if q_date is not None:
+        quarter = (q_date.month - 1) // 3 + 1
+        return f"{q_date.year}-Q{quarter}"
+
+    y_date = _to_date(info.get("lastFiscalYearEnd"))
+    if y_date is not None:
+        return y_date.strftime("%Y-%m-%d")
+
+    return None
+
+
 def _fetch_company(symbol: str, market: str) -> dict:
     """yfinance에서 회사 정보 + 투자 지표 + 매출 세그먼트 조회."""
     import yfinance as yf
 
     ticker_sym = _fmt_ticker(symbol, market)
     if ticker_sym is None:
-        return {"company": None, "metrics": None, "revenue_segments": None, "cached_at": None}
+        return {
+            "company": None,
+            "metrics": None,
+            "revenue_segments": None,
+            "reporting_period": None,
+            "cached_at": None,
+        }
 
     try:
         t = yf.Ticker(ticker_sym)
@@ -125,16 +166,17 @@ def _fetch_company(symbol: str, market: str) -> dict:
         debt_to_equity = _safe_float(info.get("debtToEquity"))
         market_cap = _safe_int(info.get("marketCap"))
 
-        # 배당수익률: yfinance KR 종목은 이미 % 값(예: 1.13 = 1.13%)으로 반환
-        # US 종목은 소수(예: 0.02 = 2%)로 반환 → 1.0 기준으로 구분
+        # 배당수익률: 현재 yfinance는 KR/US 공통으로 이미 % 단위로 반환
+        # (예: SK하이닉스 0.27 = 0.27%, AAPL 0.4 = 0.4%).
+        # 과거 버전은 US=decimal / KR=percent로 달라 1.0 기준 휴리스틱을 썼으나,
+        # 현재는 불필요해 제거 — 그대로 % 값으로 사용.
         div_raw = info.get("dividendYield")
         dividend_yield = None
         if div_raw is not None:
             try:
                 dv = float(div_raw)
                 if dv > 0:
-                    # > 1.0 이면 이미 % 형식 (KR yfinance 특이사항)
-                    dividend_yield = round(dv, 2) if dv > 1.0 else round(dv * 100, 2)
+                    dividend_yield = round(dv, 2)
             except (TypeError, ValueError):
                 pass
 
@@ -183,30 +225,56 @@ def _fetch_company(symbol: str, market: str) -> dict:
             logger.debug(f"revenue_by_product 조회 실패 [{symbol}]: {e}")
 
         cached_at = datetime.utcnow().isoformat()
+        reporting_period = _extract_reporting_period(info)
         return {
             "company": company,
             "metrics": metrics,
             "revenue_segments": revenue_segments,
+            "reporting_period": reporting_period,
             "cached_at": cached_at,
         }
 
     except Exception as e:
         logger.debug(f"회사 정보 조회 실패 [{market}/{symbol}]: {e}")
-        return {"company": None, "metrics": None, "revenue_segments": None, "cached_at": None}
+        return {
+            "company": None,
+            "metrics": None,
+            "revenue_segments": None,
+            "reporting_period": None,
+            "cached_at": None,
+        }
 
 
 @router.get("/company/{symbol}")
 async def get_company_info(symbol: str, market: str = "KR"):
-    """종목 회사 정보 + 확장 투자 지표 + 매출 세그먼트 (yfinance, 1시간 캐시)."""
-    if market == "CRYPTO":
-        return {"company": None, "metrics": None, "revenue_segments": None, "cached_at": None}
+    """종목 회사 정보 + 확장 투자 지표 + 매출 세그먼트 + 자산군 (yfinance, 1시간 캐시).
+
+    응답 필드 `asset_class`(6종)로 프론트가 가치 분석 탭 활성화 여부를 결정한다.
+    미지원 자산군(ETF/CRYPTO/INDEX/FX)은 200 응답 + `metrics: null`.
+    """
+    asset_class = classify(symbol, market)
+
+    # 가치 분석 미지원 자산군 — yfinance 조회 생략하고 단축 응답
+    if not supports_valuation(asset_class):
+        return {
+            "company": None,
+            "metrics": None,
+            "revenue_segments": None,
+            "asset_class": asset_class.value,
+            "reporting_period": None,
+            "cached_at": datetime.utcnow().isoformat(),
+        }
 
     cache_key = f"{market}:{symbol}"
     if cache_key in _cache:
         entry = _cache[cache_key]
         if time.time() - entry["_ts"] < _CACHE_TTL:
-            return entry["data"]
+            cached = dict(entry["data"])
+            cached["asset_class"] = asset_class.value
+            return cached
 
     data = await asyncio.to_thread(_fetch_company, symbol, market)
     _cache[cache_key] = {"data": data, "_ts": time.time()}
-    return data
+    out = dict(data)
+    out["asset_class"] = asset_class.value
+    return out
