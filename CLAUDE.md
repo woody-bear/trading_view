@@ -290,5 +290,12 @@ main
 
 ---
 
-*Last updated: 2026-04-12*
+*Last updated: 2026-04-14*
 *Version: 2.0 — Strategy A (trigger table)*
+
+## Active Technologies
+- Python 3.11 (backend), TypeScript 5 / React 18 (frontend) + FastAPI, SQLAlchemy, pydantic-settings, yfinance, pykrx (backend) · React Router, React Query, Zustand, lightweight-charts, Tailwind (frontend) (022-stock-detail-layered-analysis)
+- 기존 SQLite/PostgreSQL — 본 기능은 **신규 테이블 없음**. `/company/{symbol}` 응답은 백엔드 in-memory 1h TTL 캐시 재사용. 프론트는 React Query 캐시(staleTime 1h) 사용. (022-stock-detail-layered-analysis)
+
+## Recent Changes
+- 022-stock-detail-layered-analysis: Added Python 3.11 (backend), TypeScript 5 / React 18 (frontend) + FastAPI, SQLAlchemy, pydantic-settings, yfinance, pykrx (backend) · React Router, React Query, Zustand, lightweight-charts, Tailwind (frontend)
