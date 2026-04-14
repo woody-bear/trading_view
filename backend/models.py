@@ -168,6 +168,8 @@ class ScanSnapshot(Base):
     buy_count: Mapped[int] = mapped_column(Integer, default=0)
     dead_cross_count: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
     alive_count: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
+    # 10거래일 이내 1봉이라도 '당일 거래량 > 직전 5거래일 평균 × 1.5'를 만족한 종목 수 (CRYPTO 제외)
+    volume_spike_count: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

@@ -40,7 +40,7 @@ export default function Dashboard() {
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const snapRef = useRef<HTMLDivElement>(null)
   const [currentSection, setCurrentSection] = useState(0)
-  const [mobileScan, setMobileScan] = useState<{ buyItems: any[]; overheatItems: any[]; marketHealth: { dead_cross: number; alive: number } | null }>({
+  const [mobileScan, setMobileScan] = useState<{ buyItems: any[]; overheatItems: any[]; marketHealth: { dead_cross: number; alive: number; volume_spike?: number; volume_total?: number } | null }>({
     buyItems: [], overheatItems: [], marketHealth: null,
   })
   const [mobileScanTotal, setMobileScanTotal] = useState<number | null>(null)
@@ -287,6 +287,32 @@ export default function Dashboard() {
                 </div>
               )
             })()}
+            {/* 거래량 급증 비율 바 (모바일) */}
+            {mobileScan.marketHealth && mobileScan.marketHealth.volume_total && mobileScan.marketHealth.volume_total > 0 && mobileScan.marketHealth.volume_spike != null && (() => {
+              const mh = mobileScan.marketHealth!
+              const total = mh.volume_total!
+              const spike = mh.volume_spike ?? 0
+              const spikePct = Math.round(spike / total * 100)
+              const restPct = 100 - spikePct
+              return (
+                <div className="w-1/2 mb-1">
+                  <p className="text-label text-[var(--muted)] mb-1.5">거래량 급증 · 10일 내 1봉 이상 · {total.toLocaleString()}종목</p>
+                  <div className="relative">
+                    <div className="absolute -top-2.5 z-10" style={{ left: `${spikePct}%`, transform: 'translateX(-50%)' }}>
+                      <div className="w-0 h-0 border-l-[4px] border-r-[4px] border-t-[5px] border-l-transparent border-r-transparent border-t-[var(--muted)]" />
+                    </div>
+                    <div className="flex h-[5px] rounded-full overflow-hidden">
+                      <div className="bg-green-500 rounded-l-full" style={{ width: `${spikePct}%` }} />
+                      <div className="bg-slate-600 rounded-r-full" style={{ width: `${restPct}%` }} />
+                    </div>
+                  </div>
+                  <div className="flex justify-between mt-1">
+                    <span className="text-label text-green-400">활발 {spikePct}%</span>
+                    <span className="text-label text-[var(--muted)]">정체 {restPct}%</span>
+                  </div>
+                </div>
+              )
+            })()}
             {mobileScan.buyItems.length === 0 ? (
               <p className="text-[var(--muted)] text-sm py-8 text-center">BUY 신호 종목이 없습니다</p>
             ) : (() => {
@@ -510,7 +536,7 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
   const [maxSq] = useState<any>(null)  // 하위 호환용 (제거 예정)
   const [buyItems, setBuyItems] = useState<any[]>([])
   const [overheatItems, setOverheatItems] = useState<any[]>([])
-  const [marketHealth, setMarketHealth] = useState<{ dead_cross: number; alive: number } | null>(null)
+  const [marketHealth, setMarketHealth] = useState<{ dead_cross: number; alive: number; volume_spike?: number; volume_total?: number } | null>(null)
   const [scanSymbolsTotal, setScanSymbolsTotal] = useState<number | null>(null)
 
   // 섹션 토글 (localStorage 유지)
@@ -777,6 +803,31 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
                   <div className="flex justify-between mt-1">
                     <span className="text-caption text-blue-400">정상 {alivePct}%</span>
                     <span className="text-caption text-red-400">데드크로스 {deadPct}%</span>
+                  </div>
+                </div>
+              )
+            })()}
+            {/* 거래량 급증 비율 바 — 10거래일 이내 1봉이라도 (당일 거래량 > 5일 평균 × 1.5) */}
+            {marketHealth && marketHealth.volume_total && marketHealth.volume_total > 0 && marketHealth.volume_spike != null && (() => {
+              const total = marketHealth.volume_total!
+              const spike = marketHealth.volume_spike ?? 0
+              const spikePct = Math.round(spike / total * 100)
+              const restPct = 100 - spikePct
+              return (
+                <div className="w-1/2 mb-3">
+                  <p className="text-caption text-[var(--muted)] mb-1.5">거래량 급증 · 10일 내 1봉 이상 · {total.toLocaleString()}종목</p>
+                  <div className="relative">
+                    <div className="absolute -top-2.5 z-10" style={{ left: `${spikePct}%`, transform: 'translateX(-50%)' }}>
+                      <div className="w-0 h-0 border-l-[4px] border-r-[4px] border-t-[5px] border-l-transparent border-r-transparent border-t-[var(--muted)]" />
+                    </div>
+                    <div className="flex h-[5px] rounded-full overflow-hidden">
+                      <div className="bg-green-500 rounded-l-full" style={{ width: `${spikePct}%` }} />
+                      <div className="bg-slate-600 rounded-r-full" style={{ width: `${restPct}%` }} />
+                    </div>
+                  </div>
+                  <div className="flex justify-between mt-1">
+                    <span className="text-caption text-green-400">활발 {spikePct}%</span>
+                    <span className="text-caption text-[var(--muted)]">정체 {restPct}%</span>
                   </div>
                 </div>
               )

@@ -190,6 +190,30 @@ def _is_dead_cross(ema: dict) -> bool:
         return False
 
 
+def _has_volume_spike_recent(df: pd.DataFrame, lookback: int = 10) -> bool:
+    """최근 lookback 거래일(기본 10) 중 한 봉이라도
+    '당일 거래량 > 직전 5거래일 평균 × 1.5'를 만족하면 True.
+
+    데이터 부족(봉 수 < 6) 시 False. CRYPTO 제외는 호출부에서 처리.
+    """
+    n = len(df)
+    if n < 6:
+        return False
+    start = max(1, n - lookback)  # 첫 봉은 prior가 없어 제외
+    vols = df["volume"]
+    for i in range(start, n):
+        prior = vols.iloc[max(0, i - 5):i]
+        prior_nonzero = prior[prior > 0]
+        if len(prior_nonzero) < 1:
+            continue
+        day_vol = float(vols.iloc[i])
+        if day_vol <= 0:
+            continue
+        if day_vol > float(prior_nonzero.mean()) * 1.5:
+            return True
+    return False
+
+
 def _passes_volume_filter(df: pd.DataFrame, buy_date: str) -> bool:
     """BUY 신호 발생일 거래량이 직전 5거래일 평균보다 높은지 확인.
 
@@ -395,6 +419,7 @@ async def run_full_scan(markets: list[str] | None = None) -> dict:
         scanned = 0
         dead_cross_count = 0
         alive_count = 0
+        volume_spike_count = 0
 
         for ci, chunk in enumerate(chunks):
             tickers = [s["ticker"] for s in chunk]
@@ -428,6 +453,10 @@ async def run_full_scan(markets: list[str] | None = None) -> dict:
                     pass
 
                 result = _analyze_ticker(df, info)
+                # 거래량 급증 집계 — dead cross와 독립적으로 KR/US 전 종목 대상
+                if info["market"] != "CRYPTO":
+                    if _has_volume_spike_recent(df, lookback=10):
+                        volume_spike_count += 1
                 if result == "dead_cross":
                     if info["market"] != "CRYPTO":
                         dead_cross_count += 1
@@ -523,6 +552,7 @@ async def run_full_scan(markets: list[str] | None = None) -> dict:
             snap.buy_count = buy_count
             snap.dead_cross_count = dead_cross_count
             snap.alive_count = alive_count
+            snap.volume_spike_count = volume_spike_count
             snap.completed_at = datetime.utcnow()
             await session.commit()
 
@@ -662,6 +692,43 @@ async def get_latest_snapshot() -> dict | None:
         # 스캔 진행 중이면 live chart_buy 우선, 아니면 완료 스냅샷 데이터 사용 (KR 5 + US 5)
         final_chart_buy = _cap_chart_buy(live_chart_buy_items if live_chart_buy_items else chart_buy_items)
 
+        # market_health는 alive/dead_cross 집계가 있는 최신 스냅샷에서 가져옴
+        # (전체 스캔의 일부 경로는 집계 컬럼이 NULL로 저장될 수 있어, 가장 가까운
+        #  집계-가능 스냅샷으로 폴백하여 UI의 EMA 추세 바 회귀를 방지)
+        mh_dead = snapshot.dead_cross_count
+        mh_alive = snapshot.alive_count
+        mh_spike = snapshot.volume_spike_count
+        if mh_dead is None or mh_alive is None:
+            mh_result = await session.execute(
+                select(ScanSnapshot)
+                .where(
+                    ScanSnapshot.status == "completed",
+                    ScanSnapshot.alive_count.isnot(None),
+                    ScanSnapshot.dead_cross_count.isnot(None),
+                )
+                .order_by(ScanSnapshot.completed_at.desc())
+                .limit(1)
+            )
+            mh_snap = mh_result.scalar_one_or_none()
+            if mh_snap:
+                mh_dead = mh_snap.dead_cross_count
+                mh_alive = mh_snap.alive_count
+                if mh_spike is None:
+                    mh_spike = mh_snap.volume_spike_count
+        if mh_spike is None:
+            spike_result = await session.execute(
+                select(ScanSnapshot)
+                .where(
+                    ScanSnapshot.status == "completed",
+                    ScanSnapshot.volume_spike_count.isnot(None),
+                )
+                .order_by(ScanSnapshot.completed_at.desc())
+                .limit(1)
+            )
+            spike_snap = spike_result.scalar_one_or_none()
+            if spike_snap:
+                mh_spike = spike_snap.volume_spike_count
+
         return {
             "snapshot_id": snapshot.id,
             "status": "running" if _progress.get("running") else snapshot.status,
@@ -675,8 +742,12 @@ async def get_latest_snapshot() -> dict | None:
             "chart_buy": {"items": final_chart_buy},
             "overheat": {"items": overheat_items},
             "market_health": {
-                "dead_cross": snapshot.dead_cross_count or 0,
-                "alive": snapshot.alive_count or 0,
+                "dead_cross": mh_dead or 0,
+                "alive": mh_alive or 0,
+                # volume_spike는 아직 집계되지 않은 경우(None) 프론트에서 바를 숨길 수 있도록 None 유지
+                "volume_spike": mh_spike,
+                # 거래량 급증 비율 분모 = alive + dead_cross (CRYPTO 제외 총 분석 종목)
+                "volume_total": (mh_alive or 0) + (mh_dead or 0),
             },
         }
 
