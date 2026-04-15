@@ -92,6 +92,8 @@ def _calc(df, timestamps):
         add(m.get("macd_line"), "macd_line"); add(m.get("signal_line"), "macd_signal"); add(m.get("histogram"), "macd_hist")
     e = calculate_ema(df)
     add(e.get("ema_20"), "ema_20"); add(e.get("ema_50"), "ema_50"); add(e.get("ema_200"), "ema_200")
+    # 하단 EMA 보조 차트용 (5/60/120)
+    add(e.get("ema_5"), "ema_5"); add(e.get("ema_60"), "ema_60"); add(e.get("ema_120"), "ema_120")
     return ind
 
 

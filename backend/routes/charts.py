@@ -189,6 +189,10 @@ def _calc_all(df: pd.DataFrame, timestamps: list[int]) -> tuple[dict, list, dict
     to_points(ema_data.get("ema_20"), "ema_20")
     to_points(ema_data.get("ema_50"), "ema_50")
     to_points(ema_data.get("ema_200"), "ema_200")
+    # 하단 EMA 보조 차트용 (5/60/120)
+    to_points(ema_data.get("ema_5"), "ema_5")
+    to_points(ema_data.get("ema_60"), "ema_60")
+    to_points(ema_data.get("ema_120"), "ema_120")
 
     # Volume
     vol_ratio = calculate_volume_ratio(df)
