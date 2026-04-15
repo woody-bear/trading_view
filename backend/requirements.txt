@@ -22,6 +22,9 @@ finance-datareader>=0.9.66
 # 한국투자증권
 python-kis>=2.1
 
+# 휴장일 (US/NYSE)
+holidays>=0.50
+
 # 지표 계산
 pandas>=2.2
 numpy>=1.26

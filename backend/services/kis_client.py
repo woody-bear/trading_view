@@ -157,6 +157,53 @@ class KISService:
             logger.debug(f"종목 상세 조회 실패 [{symbol}]: {e}")
             return None
 
+    def get_domestic_holidays(self, bass_dt: str) -> list[dict] | None:
+        """국내 휴장일 조회 (KIS /chk-holiday, TR CTCA0903R).
+
+        Args:
+            bass_dt: 기준일자 YYYYMMDD (이 날짜부터 미래 방향 조회)
+        Returns:
+            [{"date": "20260416", "opnd_yn": "Y", "bzdy_yn": "Y", "tr_day_yn": "Y"}, ...]
+            실패 시 None.
+        """
+        try:
+            rows: list[dict] = []
+            ctx_fk = ""
+            ctx_nk = ""
+            # 최대 3 페이지 (약 3개월)
+            for _ in range(3):
+                resp = self.kis.fetch(
+                    "/uapi/domestic-stock/v1/quotations/chk-holiday",
+                    method="GET",
+                    params={
+                        "BASS_DT": bass_dt,
+                        "CTX_AREA_NK": ctx_nk,
+                        "CTX_AREA_FK": ctx_fk,
+                    },
+                    headers={"tr_id": "CTCA0903R"},
+                    appkey_location="header",
+                )
+                raw = getattr(resp, "raw", None) or {}
+                output = raw.get("output", []) or []
+                for row in output:
+                    rows.append({
+                        "date": row.get("bass_dt", ""),
+                        "opnd_yn": row.get("opnd_yn", "N"),
+                        "bzdy_yn": row.get("bzdy_yn", "N"),
+                        "tr_day_yn": row.get("tr_day_yn", "N"),
+                    })
+                # 페이지네이션 종료 판단
+                tr_cont = (raw.get("tr_cont") or getattr(resp, "tr_cont", "")) if isinstance(raw, dict) else ""
+                ctx_fk = raw.get("ctx_area_fk", "") or ""
+                ctx_nk = raw.get("ctx_area_nk", "") or ""
+                if tr_cont not in ("F", "M") and not ctx_nk.strip():
+                    break
+            logger.info(f"KIS 휴장일 조회 완료: {bass_dt} 기준 {len(rows)}건")
+            return rows
+        except Exception as e:
+            logger.warning(f"KIS 휴장일 조회 실패 [{bass_dt}]: {e}")
+            return None
+
     def get_orderbook(self, symbol: str) -> dict | None:
         """매도/매수 호가 조회."""
         try:

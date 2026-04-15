@@ -1,15 +1,24 @@
-"""시장별 장 마감 시간 및 영업일 판단 유틸리티."""
+"""시장별 장 시작·마감 시간 및 영업일/시장상태 판단 유틸리티."""
 
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
-# 시장별 시간대 및 장 마감 시간
+# 시장별 시간대 및 장 개장/마감 시간
 _MARKET_CONFIG = {
-    "KR": {"tz": ZoneInfo("Asia/Seoul"), "close": time(15, 30)},
-    "KOSPI": {"tz": ZoneInfo("Asia/Seoul"), "close": time(15, 30)},
-    "KOSDAQ": {"tz": ZoneInfo("Asia/Seoul"), "close": time(15, 30)},
-    "US": {"tz": ZoneInfo("America/New_York"), "close": time(16, 0)},
-    "CRYPTO": {"tz": ZoneInfo("UTC"), "close": time(0, 0)},
+    "KR":     {"tz": ZoneInfo("Asia/Seoul"),       "open": time(9, 0),  "close": time(15, 30)},
+    "KOSPI":  {"tz": ZoneInfo("Asia/Seoul"),       "open": time(9, 0),  "close": time(15, 30)},
+    "KOSDAQ": {"tz": ZoneInfo("Asia/Seoul"),       "open": time(9, 0),  "close": time(15, 30)},
+    "US":     {"tz": ZoneInfo("America/New_York"), "open": time(9, 30), "close": time(16, 0)},
+    "CRYPTO": {"tz": ZoneInfo("UTC"),              "open": time(0, 0),  "close": time(0, 0)},
+}
+
+# 상태 → (라벨, 색상) 매핑
+_STATUS_META = {
+    "holiday":    ("휴장",       "red"),
+    "pre_open":   ("개장전",     "gray"),
+    "open":       ("장중",       "green"),
+    "closed":     ("장종료",     "blue"),
+    "crypto_24h": ("24h 거래중", "purple"),
 }
 
 
@@ -17,20 +26,60 @@ def _get_config(market: str) -> dict:
     return _MARKET_CONFIG.get(market, _MARKET_CONFIG["US"])
 
 
-def is_market_open(market: str) -> bool:
-    """현재 시각에 해당 시장이 장중(또는 장 마감 전)인지 판단."""
+def _is_holiday(market: str, d: date) -> bool:
+    """공휴일 여부. KR은 KIS 캐시, US는 holidays 라이브러리."""
+    # 주말은 공통
+    if d.weekday() >= 5:
+        return True
+    try:
+        if market in ("KR", "KOSPI", "KOSDAQ"):
+            from services.holiday_cache import is_kr_holiday
+            result = is_kr_holiday(d)
+            if result is not None:
+                return result
+            # KIS 캐시 없음 → 주말 체크만 (이미 위에서 False)
+            return False
+        if market == "US":
+            from services.holiday_cache import is_us_holiday
+            return is_us_holiday(d)
+    except Exception:
+        return False
+    return False
+
+
+def get_market_status(market: str) -> dict:
+    """현재 시장 상태 4분류 + 라벨/색상 반환.
+
+    Returns:
+      {"status": str, "label": str, "color": str, "tz_now": ISO8601}
+    """
     cfg = _get_config(market)
     now = datetime.now(cfg["tz"])
+    tz_now = now.isoformat()
 
     if market == "CRYPTO":
-        return True  # 24시간 거래, 항상 "장중"으로 간주하여 당일 캔들 미완성 처리
+        label, color = _STATUS_META["crypto_24h"]
+        return {"status": "crypto_24h", "label": label, "color": color, "tz_now": tz_now}
 
-    # 주말 체크
-    if now.weekday() >= 5:
-        return False
+    # 휴장 (주말 + 공휴일)
+    if _is_holiday(market, now.date()):
+        label, color = _STATUS_META["holiday"]
+        return {"status": "holiday", "label": label, "color": color, "tz_now": tz_now}
 
-    close_time = cfg["close"]
-    return now.time() < close_time
+    t = now.time()
+    if t < cfg["open"]:
+        status = "pre_open"
+    elif t < cfg["close"]:
+        status = "open"
+    else:
+        status = "closed"
+    label, color = _STATUS_META[status]
+    return {"status": status, "label": label, "color": color, "tz_now": tz_now}
+
+
+def is_market_open(market: str) -> bool:
+    """현재 시각에 해당 시장이 장중인지 판단 (하한/공휴일 반영)."""
+    return get_market_status(market)["status"] in ("open", "crypto_24h")
 
 
 def get_last_complete_date(market: str) -> date:
@@ -40,17 +89,14 @@ def get_last_complete_date(market: str) -> date:
     today = now.date()
 
     if market == "CRYPTO":
-        # 암호화폐: UTC 00:00 기준, 현재 UTC 날짜의 전일이 마지막 완성 캔들
         utc_now = datetime.now(ZoneInfo("UTC"))
         return utc_now.date() - timedelta(days=1)
 
     close_time = cfg["close"]
 
     if now.time() >= close_time and now.weekday() < 5:
-        # 장 마감 후 → 당일 캔들 완성
         return today
     else:
-        # 장중 또는 장 시작 전 → 전 영업일
         return _prev_business_day(today, market)
 
 
@@ -63,6 +109,6 @@ def is_candle_complete(candle_date: date, market: str) -> bool:
 def _prev_business_day(d: date, market: str) -> date:
     """주말을 건너뛴 전 영업일. 공휴일은 미처리 (간단 구현)."""
     prev = d - timedelta(days=1)
-    while prev.weekday() >= 5:  # 토(5), 일(6)
+    while prev.weekday() >= 5:
         prev -= timedelta(days=1)
     return prev
