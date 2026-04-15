@@ -185,7 +185,21 @@ def setup_scheduler():
         replace_existing=True,
     )
 
-    logger.info("스케줄러 등록 완료: 10분 스캔 + KR BUY (10:30/15:00) + US BUY (20:00/04:00) + KR SELL (30분) + US SELL (20:00/04:00) + 국내스캔(9:30~15:30) + 미국스캔(19:50/03:50)")
+    # KR 휴장일 캐시 갱신 — 매일 00:10 KST (다음 1~2개월치 선반영)
+    scheduler.add_job(
+        _scheduled_refresh_kr_holidays,
+        trigger="cron",
+        hour=0, minute=10,
+        timezone=KST,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
+        id="refresh_kr_holidays",
+        name="KR 휴장일 캐시 갱신",
+        replace_existing=True,
+    )
+
+    logger.info("스케줄러 등록 완료: 10분 스캔 + KR BUY (10:30/15:00) + US BUY (20:00/04:00) + KR SELL (30분) + US SELL (20:00/04:00) + 국내스캔(9:30~15:30) + 미국스캔(19:50/03:50) + KR 휴장일(00:10)")
 
 
 async def _scheduled_scan():
@@ -234,6 +248,17 @@ async def _scheduled_full_market_scan_us():
     logger.info("미국 시장 스캔 시작 (US+CRYPTO)")
     result = await run_full_scan(markets=["US", "CRYPTO"])
     logger.info(f"미국 시장 스캔 완료: {result.get('status')} — {result.get('scanned', 0)}개 분석")
+
+
+async def _scheduled_refresh_kr_holidays():
+    """KR 휴장일 캐시 갱신 — KIS /chk-holiday 호출."""
+    import asyncio as _asyncio
+    from services.holiday_cache import refresh_kr_holidays
+    try:
+        count = await _asyncio.to_thread(refresh_kr_holidays)
+        logger.info(f"KR 휴장일 캐시 갱신 완료: {count}건")
+    except Exception as e:
+        logger.warning(f"KR 휴장일 캐시 갱신 실패: {e}")
 
 
 def is_market_open(market: str) -> bool:

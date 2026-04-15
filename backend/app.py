@@ -50,6 +50,14 @@ async def lifespan(app: FastAPI):
     from services.chart_cache import validate_all_caches
     await validate_all_caches()
 
+    # KR 휴장일 캐시 초기 로드 (KIS /chk-holiday)
+    try:
+        import asyncio as _asyncio
+        from services.holiday_cache import refresh_kr_holidays
+        await _asyncio.to_thread(refresh_kr_holidays)
+    except Exception as e:
+        logger.warning(f"KR 휴장일 초기 로드 실패: {e}")
+
     setup_scheduler()
     scheduler.start()
     logger.info("스케줄러 시작됨")

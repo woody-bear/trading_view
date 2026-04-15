@@ -52,11 +52,14 @@ async def _append_today_candle_if_missing(df: pd.DataFrame, symbol: str, market:
     yfinance.history()는 종종 rate-limit/None 응답으로 불안정 → `.info`의
     regularMarketOpen/DayHigh/DayLow/Price/Volume 필드로 직접 조합 (더 안정적).
     """
-    from utils.market_hours import is_market_open, _get_config
+    from utils.market_hours import get_market_status, _get_config
     from datetime import datetime as _dt
     if df is None or df.empty:
         return df
-    if not is_market_open(market):
+    # 장중(open)일 때만 보충. pre_open/closed/holiday/crypto_24h 는 스킵.
+    # - 개장 전 KR은 yfinance .info가 0/None 섞여 돌아와 OHLC 합성 시 L=0으로 차트가 바닥까지 꽂힘
+    # - 휴장일/주말도 보충 불필요
+    if get_market_status(market)["status"] != "open":
         return df
     try:
         cfg = _get_config(market)
@@ -86,6 +89,20 @@ async def _append_today_candle_if_missing(df: pd.DataFrame, symbol: str, market:
         if h is None: h = max(o or c, c)
         if l is None: l = min(o or c, c)
         v = info.get("regularMarketVolume") or 0
+
+        # yfinance 쓰레기 값 방어 — 0/음수가 섞인 경우 합성 포기
+        # (KR은 장중이어도 회선 지연으로 0이 끼어 들어오는 순간이 있음)
+        try:
+            o_f, h_f, l_f, c_f = float(o), float(h), float(l), float(c)
+        except (TypeError, ValueError):
+            return df
+        if min(o_f, h_f, l_f, c_f) <= 0:
+            logger.debug(f"오늘 캔들 보충 스킵(0 포함) [{market}/{symbol}]: O={o_f} H={h_f} L={l_f} C={c_f}")
+            return df
+        if h_f < max(o_f, c_f) or l_f > min(o_f, c_f):
+            logger.debug(f"오늘 캔들 보충 스킵(OHLC 관계 깨짐) [{market}/{symbol}]: O={o_f} H={h_f} L={l_f} C={c_f}")
+            return df
+        o, h, l, c = o_f, h_f, l_f, c_f
 
         # 시장 시간대의 오늘 자정을 인덱스 tz에 맞춰 변환
         try:
