@@ -502,9 +502,18 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
     const marketOpen = (data as any).market_open
     const price = realtimePrice.price
 
-    // market_open=true이고 아직 당일 캔들을 생성하지 않았으면 새 캔들 추가
+    // market_open=true이고 아직 당일 캔들을 생성하지 않았으면 새 캔들 추가.
+    // today_ts는 백엔드(시장 시간대 기준)에서 받음 — US는 ET midnight UTC, KR은 KST midnight UTC.
+    // 누락 시 UTC midnight로 폴백 (KR은 정확, US는 약 4시간 차이 허용).
     if (marketOpen && !todayCandleCreatedRef.current) {
-      const todayTs = Math.floor(Date.now() / 1000 / 86400) * 86400  // UTC 자정 기준 timestamp
+      const lastCandleTs = lastCandleRef.current?.time as number | undefined
+      const fallbackTs = Math.floor(Date.now() / 1000 / 86400) * 86400
+      let todayTs = ((data as any).today_ts as number | undefined) ?? fallbackTs
+      // 기존 마지막 캔들과 시각이 같으면 새로 만들지 말고 그 캔들을 업데이트 모드로
+      if (lastCandleTs && todayTs <= lastCandleTs) {
+        todayCandleCreatedRef.current = true
+        return
+      }
       const newCandle = { time: todayTs as any, open: price, high: price, low: price, close: price }
       candleSeriesRef.current.update(newCandle)
       lastCandleRef.current = { ...newCandle, volume: realtimePrice.volume || 0 }

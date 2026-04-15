@@ -33,6 +33,83 @@ def _resolve_name(symbol: str, market: str, ticker: str) -> str:
     return symbol
 
 
+def _market_today_ts(market: str) -> int | None:
+    """시장 시간대 기준 '오늘 자정'의 Unix timestamp (초)."""
+    from datetime import datetime, time as _time
+    from utils.market_hours import _get_config
+    try:
+        cfg = _get_config(market)
+        now = datetime.now(cfg["tz"])
+        midnight = datetime.combine(now.date(), _time.min, tzinfo=cfg["tz"])
+        return int(midnight.timestamp())
+    except Exception:
+        return None
+
+
+async def _append_today_candle_if_missing(df: pd.DataFrame, symbol: str, market: str) -> pd.DataFrame:
+    """df의 마지막 캔들이 오늘이 아니고 장중이면 yfinance info에서 오늘 일봉 보충.
+
+    yfinance.history()는 종종 rate-limit/None 응답으로 불안정 → `.info`의
+    regularMarketOpen/DayHigh/DayLow/Price/Volume 필드로 직접 조합 (더 안정적).
+    """
+    from utils.market_hours import is_market_open, _get_config
+    from datetime import datetime as _dt
+    if df is None or df.empty:
+        return df
+    if not is_market_open(market):
+        return df
+    try:
+        cfg = _get_config(market)
+        today = _dt.now(cfg["tz"]).date()
+        last_idx = df.index[-1]
+        last_date = last_idx.date() if hasattr(last_idx, "date") else None
+        if last_date == today:
+            return df  # 이미 오늘 캔들 있음
+
+        # yfinance ticker 문자열 결정
+        ticker_str = symbol
+        if market in ("KR", "KOSPI"):
+            ticker_str = f"{symbol}.KS"
+        elif market == "KOSDAQ":
+            ticker_str = f"{symbol}.KQ"
+
+        import yfinance as yf
+        info = await asyncio.to_thread(lambda: yf.Ticker(ticker_str).info or {})
+        o = info.get("regularMarketOpen")
+        h = info.get("regularMarketDayHigh")
+        l = info.get("regularMarketDayLow")
+        c = info.get("regularMarketPrice") or info.get("preMarketPrice") or info.get("postMarketPrice")
+        if c is None or o is None:
+            return df  # 충분한 데이터 없음
+
+        # OHLC 누락 시 가격으로 보강
+        if h is None: h = max(o or c, c)
+        if l is None: l = min(o or c, c)
+        v = info.get("regularMarketVolume") or 0
+
+        # 시장 시간대의 오늘 자정을 인덱스 tz에 맞춰 변환
+        try:
+            idx_tz = df.index.tz if hasattr(df.index, "tz") else None
+        except Exception:
+            idx_tz = None
+        today_midnight = _dt.combine(today, _dt.min.time(), tzinfo=cfg["tz"])
+        if idx_tz is not None:
+            today_midnight = today_midnight.astimezone(idx_tz)
+        else:
+            today_midnight = today_midnight.replace(tzinfo=None)
+
+        new_row = pd.DataFrame(
+            {"open": [float(o)], "high": [float(h)], "low": [float(l)],
+             "close": [float(c)], "volume": [float(v)]},
+            index=[pd.Timestamp(today_midnight)],
+        )
+        df = pd.concat([df, new_row])
+        logger.debug(f"오늘 캔들 보충 [{market}/{symbol}]: {today} O={o} H={h} L={l} C={c}")
+    except Exception as e:
+        logger.debug(f"오늘 캔들 보충 실패 [{market}/{symbol}]: {e}")
+    return df
+
+
 @router.get("/chart/quick")
 async def quick_chart(symbol: str, market: str, timeframe: str = "1d", limit: int = 200):
     """차트 데이터 — SQLite 캐시 우선, yfinance fallback."""
@@ -51,6 +128,10 @@ async def quick_chart(symbol: str, market: str, timeframe: str = "1d", limit: in
     if df is None or df.empty:
         return empty
 
+    # 장중인데 오늘 캔들 빠져있으면 yfinance에서 보충 (개장 직후 공백 방어)
+    if timeframe == "1d":
+        df = await _append_today_candle_if_missing(df, symbol, market)
+
     timestamps = [int(idx.timestamp()) for idx in df.index]
     candles = [{"time": ts, "open": float(r["open"]), "high": float(r["high"]),
                 "low": float(r["low"]), "close": float(r["close"]), "volume": float(r["volume"])}
@@ -67,6 +148,8 @@ async def quick_chart(symbol: str, market: str, timeframe: str = "1d", limit: in
         "candles": candles, "indicators": indicators,
         "squeeze_dots": squeeze_dots, "markers": markers, "current": current,
         "market_open": is_market_open(market),
+        # 시장 시간대 기준 오늘 00:00 UTC timestamp — 프론트의 todayTs 정렬용
+        "today_ts": _market_today_ts(market),
     }
 
 
