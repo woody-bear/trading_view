@@ -14,7 +14,7 @@ from typing import TypedDict
 from loguru import logger
 
 
-_CACHE_TTL = 15.0  # 초
+_CACHE_TTL = 5.0  # 초 (정규장 실시간감 확보)
 _cache: dict[str, tuple[float, "ExtendedQuote"]] = {}  # symbol → (ts, payload)
 
 
@@ -80,7 +80,24 @@ def _fetch(symbol: str) -> ExtendedQuote | None:
             "market_state": state,
         }
 
-    # REGULAR/CLOSED 등은 본 모듈 대상 아님 — 호출자가 KIS 사용
+    if state == "REGULAR":
+        price = info.get("regularMarketPrice")
+        if price is None:
+            return None
+        change = info.get("regularMarketChangePercent")
+        if change is None and prev:
+            change = (price - prev) / prev * 100
+        return {
+            "price": float(price),
+            "open": float(info.get("regularMarketOpen") or price),
+            "high": float(info.get("regularMarketDayHigh") or price),
+            "low": float(info.get("regularMarketDayLow") or price),
+            "volume": float(info.get("regularMarketVolume") or 0),
+            "change_pct": round(float(change or 0), 2),
+            "market_state": state,
+        }
+
+    # CLOSED 등은 본 모듈 대상 아님 — 호출자가 KIS 사용
     return None
 
 
