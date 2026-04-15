@@ -18,6 +18,7 @@ import OrderbookPanel from '../components/OrderbookPanel'
 import IndicatorChart from '../components/charts/IndicatorChart'
 import EmaOnlyChart from '../components/charts/EmaOnlyChart'
 import ConnectionIndicator from '../components/ui/ConnectionIndicator'
+import MarketStatusBadge from '../components/MarketStatusBadge'
 import { usePriceFlash } from '../hooks/usePriceFlash'
 import { useRealtimePrice } from '../hooks/useRealtimePrice'
 import { useSignalStore } from '../stores/signalStore'
@@ -448,6 +449,12 @@ export default function SignalDetail() {
         <span className={`text-sm font-mono ${currentChangePct >= 0 ? 'text-[var(--buy)]' : 'text-[var(--sell)]'}`}>
           {currentChangePct >= 0 ? '+' : ''}{currentChangePct?.toFixed(2)}%
         </span>
+        <MarketStatusBadge market={
+          s.market === 'CRYPTO' ? 'CRYPTO'
+          : (s.market === 'KR' || s.market === 'KOSPI' || s.market === 'KOSDAQ') ? 'KR'
+          : s.market === 'US' ? 'US'
+          : (lookupSymbol.match(/^\d{6}$/) ? 'KR' : 'US')
+        } />
         {livePrice?.is_expected && <span className="text-xs text-yellow-400 border border-yellow-400/30 rounded px-1.5 py-0.5">예상가</span>}
         {livePrice?.is_pre_market && <span className="text-xs text-cyan-400 border border-cyan-400/30 rounded px-1.5 py-0.5">프리마켓</span>}
         {livePrice?.is_post_market && <span className="text-xs text-purple-400 border border-purple-400/30 rounded px-1.5 py-0.5">애프터마켓</span>}

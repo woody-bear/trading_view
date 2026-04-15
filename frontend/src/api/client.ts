@@ -70,6 +70,16 @@ export const testTelegram = () => api.post('/settings/telegram/test').then(r => 
 export const fetchBatchPrices = (symbols: { symbol: string; market: string }[]) =>
   api.post('/prices/batch', { symbols }).then(r => r.data.prices)
 
+// 시장 상태 (개장전/장중/장종료/휴장)
+export type MarketStatusDTO = {
+  status: 'holiday' | 'pre_open' | 'open' | 'closed' | 'crypto_24h'
+  label: string
+  color: 'red' | 'gray' | 'green' | 'blue' | 'purple'
+  tz_now: string
+}
+export const fetchMarketStatus = (market: string) =>
+  api.get<MarketStatusDTO>('/market/status', { params: { market } }).then(r => r.data)
+
 // 종목 상세 (KIS)
 export const fetchStockDetail = (symbol: string, market: string = 'KR') =>
   api.get(`/stocks/${symbol}/detail`, { params: { market } }).then(r => r.data)
