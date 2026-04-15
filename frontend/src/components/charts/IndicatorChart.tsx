@@ -68,6 +68,7 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
   scrapedDatesRef.current = scrapedDates
   const [markerWarning, setMarkerWarning] = useState(false)
   const overlayRef = useRef<HTMLDivElement>(null)
+  const alignmentRef = useRef<HTMLDivElement>(null)
   const overlayStateRef = useRef<OverlayState>({ visible: false, x: 0, y: 0, markerTime: 0, date: '', isScraped: false })
   const overlayHoveredRef = useRef(false)
 
@@ -138,9 +139,89 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
     addLine('bb_upper', 'rgba(0, 188, 212, 0.6)', 1)
     addLine('bb_middle', 'rgba(156, 163, 175, 0.4)', 1, 2)
     addLine('bb_lower', 'rgba(0, 188, 212, 0.6)', 1)
-    addLine('ema_20', '#f59e0b', 1)
-    addLine('ema_50', '#8b5cf6', 1)
-    addLine('ema_200', '#ef4444', 1, 2)
+    addLine('ema_5',   '#06b6d4', 1)        // 단기 (시안)
+    addLine('ema_20',  '#3b82f6', 1)        // 중단기 (파랑)
+    addLine('ema_50',  '#f59e0b', 1)        // 기존 주황 (내부 판정선)
+    addLine('ema_60',  '#a855f7', 1)        // 중기 (보라)
+    addLine('ema_120', '#ec4899', 2)        // 장기 (핑크, 2px 강조)
+
+    // ── EMA 정배열/역배열 말풍선 ───────────────────────────────────────────
+    // 호버된 날짜에 ema_5 > ema_20 > ema_50 > ema_60 > ema_120 (또는 전부 <) 일 때만 표시
+    {
+      const emaKeys = ['ema_5', 'ema_20', 'ema_50', 'ema_60', 'ema_120'] as const
+      const emaByTime: Record<string, Map<number, number>> = {}
+      for (const k of emaKeys) {
+        const m = new Map<number, number>()
+        for (const p of ((data.indicators as any)[k] || [])) m.set(p.time, p.value)
+        emaByTime[k] = m
+      }
+      const candleHighByTime = new Map<number, number>()
+      for (const c of data.candles) candleHighByTime.set(c.time as number, c.high)
+
+      const classify = (time: number): 'up' | 'down' | null => {
+        const e5 = emaByTime.ema_5.get(time)
+        const e20 = emaByTime.ema_20.get(time)
+        const e50 = emaByTime.ema_50.get(time)
+        const e60 = emaByTime.ema_60.get(time)
+        const e120 = emaByTime.ema_120.get(time)
+        if (e5 == null || e20 == null || e50 == null || e60 == null || e120 == null) return null
+        if (e5 > e20 && e20 > e50 && e50 > e60 && e60 > e120) return 'up'
+        if (e5 < e20 && e20 < e50 && e50 < e60 && e60 < e120) return 'down'
+        return null
+      }
+
+      let lastTimeShown: number | null = null
+      mainChart.subscribeCrosshairMove((param: any) => {
+        const bubble = alignmentRef.current
+        if (!bubble) return
+        if (!param.time || !param.point) {
+          bubble.style.display = 'none'
+          lastTimeShown = null
+          return
+        }
+        const kind = classify(param.time)
+        if (!kind) {
+          bubble.style.display = 'none'
+          lastTimeShown = null
+          return
+        }
+        const high = candleHighByTime.get(param.time)
+        if (high == null) { bubble.style.display = 'none'; return }
+
+        // 내용 갱신 (같은 날짜면 스킵)
+        if (lastTimeShown !== param.time) {
+          const e5 = emaByTime.ema_5.get(param.time)!
+          const e20 = emaByTime.ema_20.get(param.time)!
+          const e50 = emaByTime.ema_50.get(param.time)!
+          const e60 = emaByTime.ema_60.get(param.time)!
+          const e120 = emaByTime.ema_120.get(param.time)!
+          const label = kind === 'up' ? '📈 정배열' : '📉 역배열'
+          const headClass = kind === 'up' ? 'color:#4ade80' : 'color:#f87171'
+          bubble.innerHTML =
+            `<div style="font-weight:600;${headClass};font-size:11px">${label}</div>` +
+            `<div style="font-family:monospace;color:#fff;font-size:10px;margin-top:2px;line-height:1.35">` +
+            `5:${e5.toFixed(1)} · 20:${e20.toFixed(1)}<br/>` +
+            `50:${e50.toFixed(1)} · 60:${e60.toFixed(1)}<br/>` +
+            `120:${e120.toFixed(1)}` +
+            `</div>`
+          lastTimeShown = param.time
+        }
+
+        // 위치: 캔들 high 바로 위, 수평은 커서 기준
+        bubble.style.display = 'block'
+        const bw = bubble.offsetWidth || 130
+        const bh = bubble.offsetHeight || 64
+        const x = param.point.x as number
+        const yHigh = (candleSeries as any).priceToCoordinate(high) ?? 0
+        let left = x - bw / 2
+        let top = yHigh - bh - 10
+        if (top < 0) top = yHigh + 10  // 위로 삐져나가면 아래로 flip
+        // 차트 가로 경계 클램프
+        left = Math.max(4, Math.min(el.clientWidth - bw - 4, left))
+        bubble.style.left = `${left}px`
+        bubble.style.top = `${top}px`
+      })
+    }
 
     // BUY/SELL 마커
     if (data.markers?.length) {
@@ -466,6 +547,31 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
       {(data as any).current && <UBBPanel data={data} />}
       <div className="relative">
         <div ref={mainRef} className="w-full rounded-t-lg overflow-hidden border border-[var(--border)]" />
+        {/* EMA 정배열/역배열 말풍선 — 호버 시에만 나타남 */}
+        <div
+          ref={alignmentRef}
+          className="absolute z-30 px-2 py-1.5 rounded bg-black/85 backdrop-blur-sm border border-[var(--border)] pointer-events-none shadow-lg"
+          style={{ display: 'none', minWidth: 120 }}
+        />
+        {/* EMA 범례 — 메인 차트 좌상단 오버레이 */}
+        <div
+          className="absolute top-2 left-2 z-40 bg-black/60 backdrop-blur-sm border border-[var(--border)] rounded px-2 py-1.5 text-xs pointer-events-none"
+          style={{ lineHeight: 1.3 }}
+        >
+          <div className="text-[10px] text-[var(--muted)] mb-1">EMA</div>
+          {[
+            { label: '5',   color: '#06b6d4', width: 1 },
+            { label: '20',  color: '#3b82f6', width: 1 },
+            { label: '50',  color: '#f59e0b', width: 1 },
+            { label: '60',  color: '#a855f7', width: 1 },
+            { label: '120', color: '#ec4899', width: 2 },
+          ].map((e) => (
+            <div key={e.label} className="flex items-center gap-1.5">
+              <div style={{ width: 18, height: e.width, background: e.color }} />
+              <span className="font-mono text-white text-[11px]">{e.label}</span>
+            </div>
+          ))}
+        </div>
         {/* 스크랩 오버레이 — DOM ref로 직접 제어 (React re-render 우회) */}
         <div
           ref={overlayRef}
