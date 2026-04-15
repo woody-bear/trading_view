@@ -10,13 +10,13 @@ import ChartEmptyState from '../components/charts/ChartEmptyState'
 import ChartErrorBoundary from '../components/charts/ChartErrorBoundary'
 import ChartSkeleton from '../components/charts/ChartSkeleton'
 import FinancialChart from '../components/charts/FinancialChart'
-import CompanyInfoPanel from '../components/CompanyInfoPanel'
 import RevenueSegmentChart from '../components/RevenueSegmentChart'
 import PositionGuide from '../components/PositionGuide'
 import RiskWarningBanner from '../components/RiskWarningBanner'
 import StockFundamentals from '../components/StockFundamentals'
 import OrderbookPanel from '../components/OrderbookPanel'
 import IndicatorChart from '../components/charts/IndicatorChart'
+import EmaOnlyChart from '../components/charts/EmaOnlyChart'
 import ConnectionIndicator from '../components/ui/ConnectionIndicator'
 import { usePriceFlash } from '../hooks/usePriceFlash'
 import { useRealtimePrice } from '../hooks/useRealtimePrice'
@@ -449,6 +449,8 @@ export default function SignalDetail() {
           {currentChangePct >= 0 ? '+' : ''}{currentChangePct?.toFixed(2)}%
         </span>
         {livePrice?.is_expected && <span className="text-xs text-yellow-400 border border-yellow-400/30 rounded px-1.5 py-0.5">예상가</span>}
+        {livePrice?.is_pre_market && <span className="text-xs text-cyan-400 border border-cyan-400/30 rounded px-1.5 py-0.5">프리마켓</span>}
+        {livePrice?.is_post_market && <span className="text-xs text-purple-400 border border-purple-400/30 rounded px-1.5 py-0.5">애프터마켓</span>}
         {s.confidence > 0 && <span className="text-xs text-[var(--muted)]">강도 {s.confidence.toFixed(0)}점</span>}
         <ConnectionIndicator status={connectionStatus || (realtimeConnected ? 'connected' : 'disconnected')} onReconnect={reconnect || (() => {})} />
       </div>
@@ -526,6 +528,8 @@ export default function SignalDetail() {
             scrapedDates={scrapedDates}
             onScrapSave={user ? handleScrapSave : undefined}
           />
+          {/* EMA 전용 보조 차트 — 5/20/60/120만 일봉 기준 */}
+          <EmaOnlyChart data={chartData} />
         </ChartErrorBoundary>
       )}
 
@@ -537,9 +541,6 @@ export default function SignalDetail() {
 
       {/* 실적 차트 */}
       <FinancialChart symbol={lookupSymbol} market={s.market} />
-
-      {/* 회사 정보 */}
-      <CompanyInfoPanel symbol={lookupSymbol} market={guessMarket || 'US'} />
 
       {/* 매출 구성 */}
       <RevenueSegmentChart symbol={lookupSymbol} market={guessMarket || 'US'} />

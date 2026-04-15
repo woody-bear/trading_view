@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { fetchCompanyInfo, type AssetClass } from '../api/client'
 import MetricCard, { type MetricHighlight } from './value/MetricCard'
 import UnsupportedNotice from './value/UnsupportedNotice'
+import CompanyInfoPanel from './CompanyInfoPanel'
 import '../styles/value-tab.css'
 
 interface Props {
@@ -37,7 +38,6 @@ const fmtMoney = (v: number | null, currency: 'KRW' | 'USD'): string | null => {
 interface CardDef {
   label: string
   value: string | null
-  helpText?: string
   sublabel?: string
   highlight?: MetricHighlight
 }
@@ -108,77 +108,69 @@ export default function ValueAnalysisTab({ symbol, market, assetClassHint }: Pro
     {
       label: '시가총액',
       value: fmtMarketCap(m?.market_cap ?? null, currency),
-      helpText: '발행주식 × 주가. 기업 규모 지표.',
     },
     {
       label: 'PER (TTM)',
       value: fmtMultiple(m?.per ?? null),
       sublabel: '주가/순이익',
       highlight: perHL,
-      helpText: '주가 ÷ 주당순이익. < 10 저평가 · > 30 고평가 경향.',
     },
     {
       label: 'PBR',
       value: fmtMultiple(m?.pbr ?? null),
       sublabel: '주가/순자산',
       highlight: pbrHL,
-      helpText: '주가 ÷ 주당순자산. 1 미만이면 장부가 이하.',
     },
     {
-      label: 'ROE',
+      label: 'ROE (TTM)',
       value: fmtPct(m?.roe ?? null),
       sublabel: '자기자본이익률',
       highlight: roeHL,
-      helpText: '순이익 ÷ 자기자본. > 15% 우수.',
     },
     {
-      label: 'ROA',
+      label: 'ROA (TTM)',
       value: fmtPct(m?.roa ?? null),
       sublabel: '총자산이익률',
-      helpText: '순이익 ÷ 총자산. 자산 효율성 지표.',
     },
     {
       label: '영업이익률',
       value: fmtPct(m?.operating_margin ?? null),
       sublabel: '영업이익/매출',
       highlight: opmHL,
-      helpText: '영업이익 ÷ 매출. > 20% 우수.',
     },
     {
       label: 'EPS (TTM)',
       value: fmtMoney(m?.eps ?? null, currency),
       sublabel: '주당순이익',
-      helpText: '순이익 ÷ 발행주식수.',
     },
     {
       label: 'BPS',
       value: fmtMoney(m?.bps ?? null, currency),
       sublabel: '주당순자산',
-      helpText: '자기자본 ÷ 발행주식수.',
     },
     {
       label: '배당수익률',
       value: fmtPct(m?.dividend_yield ?? null),
       sublabel: m?.dividend_yield == null ? '무배당/미제공' : '연간 배당금/주가',
       highlight: divHL,
-      helpText: '연간 배당금 ÷ 주가. > 3% 고배당.',
     },
     {
       label: '부채비율',
       value:
         m?.debt_to_equity != null ? `${m.debt_to_equity.toFixed(0)}%` : null,
       sublabel: '부채/자기자본',
-      helpText: '재무 건전성 지표. 낮을수록 안정적.',
     },
     {
       label: '섹터 (업종)',
       value: sector,
-      helpText: '종목이 속한 산업 분류.',
     },
   ]
 
   return (
     <div className="value-tab-scroll p-3 md:p-6">
+      {/* 회사 정보 — 가치 분석 탭 최상단 (023) */}
+      <CompanyInfoPanel symbol={symbol} market={market} />
+
       {/* 헤더: 보고 기준일 + 통화 */}
       <div className="mb-3 flex items-center justify-between flex-wrap gap-2">
         <div className="text-xs text-[var(--muted)]">
@@ -202,7 +194,6 @@ export default function ValueAnalysisTab({ symbol, market, assetClassHint }: Pro
             key={c.label}
             label={c.label}
             value={c.value}
-            helpText={c.helpText}
             sublabel={c.sublabel}
             highlight={c.highlight}
           />

@@ -4,7 +4,6 @@ interface Props {
   label: string
   value: string | null
   unit?: string
-  helpText?: string
   sublabel?: string
   highlight?: MetricHighlight
 }
@@ -30,7 +29,7 @@ const HINT: Record<MetricHighlight, string> = {
   income: '고배당',
 }
 
-export default function MetricCard({ label, value, unit, helpText, sublabel, highlight }: Props) {
+export default function MetricCard({ label, value, unit, sublabel, highlight }: Props) {
   const display = value == null ? '—' : unit ? `${value}${unit}` : value
   const isEmpty = value == null
   const color = highlight && !isEmpty ? COLOR[highlight] : 'text-white'
@@ -38,18 +37,8 @@ export default function MetricCard({ label, value, unit, helpText, sublabel, hig
   const hint = highlight && !isEmpty ? HINT[highlight] : null
 
   return (
-    <div
-      className={`value-tab-section ${bg} border border-[var(--border)] rounded-lg p-3 flex flex-col`}
-      title={helpText}
-    >
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-xs text-[var(--muted)]">{label}</span>
-        {helpText && (
-          <span className="text-[var(--muted)] text-xs cursor-help" aria-label={helpText}>
-            ⓘ
-          </span>
-        )}
-      </div>
+    <div className={`value-tab-section ${bg} border border-[var(--border)] rounded-lg p-3 flex flex-col`}>
+      <div className="text-xs text-[var(--muted)] mb-1">{label}</div>
       <div className={`text-base md:text-lg font-mono font-bold ${isEmpty ? 'text-[var(--muted)]' : color}`}>
         {display}
       </div>
