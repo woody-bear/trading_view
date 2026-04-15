@@ -100,27 +100,43 @@ async def price_stream(symbol: str, market: str = "KR", request: Request = None)
 
     async def event_generator():
         settings = get_settings()
-        if not settings.kis_configured:
-            yield f"data: {json.dumps({'error': 'KIS not configured'})}\n\n"
+        kis = get_kis_service() if settings.kis_configured else None
+
+        # US는 KIS 없어도 yfinance로 동작 가능. KR은 KIS 필수.
+        if market != "US" and not kis:
+            reason = "KIS not configured" if not settings.kis_configured else "KIS init failed"
+            yield f"data: {json.dumps({'error': reason})}\n\n"
             return
 
-        kis = get_kis_service()
-        if not kis:
-            yield f"data: {json.dumps({'error': 'KIS init failed'})}\n\n"
-            return
+        # 폴링 주기: yfinance는 15초 캐시라 더 자주 쏴도 의미 없고, 보수적으로 2초
+        interval = 2.0 if market == "US" else 1.0
 
         last_price = None
+        last_yf_attempt = 0.0
         while True:
             if request and await request.is_disconnected():
                 break
             try:
-                data = await asyncio.to_thread(kis.get_quote, symbol)
+                data = None
+                # US: 프리/애프터마켓이면 yfinance 우선. 정규장/휴장이면 None 반환 → KIS 폴백.
+                if market == "US":
+                    from services.yfinance_extended import get_us_extended_quote
+                    import time as _t
+                    # 연속 실패·None 응답 시 매번 yfinance 때리지 않도록 최소 3초 간격 강제
+                    if _t.time() - last_yf_attempt >= 3.0:
+                        data = await asyncio.to_thread(get_us_extended_quote, symbol)
+                        last_yf_attempt = _t.time()
+
+                # yfinance None(정규장/휴장·에러) + KIS 있으면 KIS
+                if data is None and kis is not None:
+                    data = await asyncio.to_thread(kis.get_quote, symbol)
+
                 if data and data.get("price") != last_price:
                     last_price = data["price"]
                     yield f"data: {json.dumps(data)}\n\n"
             except Exception as e:
                 logger.debug(f"SSE 가격 조회 실패 [{market}/{symbol}]: {e}")
-            await asyncio.sleep(1)
+            await asyncio.sleep(interval)
 
     return StreamingResponse(
         event_generator(),
