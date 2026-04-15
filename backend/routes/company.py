@@ -8,6 +8,7 @@ from fastapi import APIRouter
 from loguru import logger
 
 from services.asset_class import AssetClass, classify, supports_valuation
+from services import naver_fundamentals
 
 router = APIRouter(tags=["company"])
 
@@ -47,6 +48,28 @@ def _fmt_ticker(symbol: str, market: str) -> str | None:
     if market in ("KR", "KOSPI"):
         return f"{symbol}.KS"
     return symbol  # US, 기타
+
+
+# yfinance sector 영문 → 한글 매핑 (11개 고정)
+_SECTOR_KO: dict[str, str] = {
+    "Technology": "기술",
+    "Healthcare": "헬스케어",
+    "Financial Services": "금융",
+    "Consumer Cyclical": "경기소비재",
+    "Consumer Defensive": "필수소비재",
+    "Communication Services": "커뮤니케이션",
+    "Industrials": "산업재",
+    "Energy": "에너지",
+    "Basic Materials": "소재",
+    "Real Estate": "부동산",
+    "Utilities": "유틸리티",
+}
+
+
+def _translate_sector(sector: str | None) -> str | None:
+    if not sector:
+        return sector
+    return _SECTOR_KO.get(sector, sector)
 
 
 def _translate_to_korean(text: str) -> str:
@@ -137,7 +160,7 @@ def _fetch_company(symbol: str, market: str) -> dict:
         else:
             description = description_raw
         industry = info.get("industry") or None
-        sector = info.get("sector") or None
+        sector = _translate_sector(info.get("sector") or None)
         country = info.get("country") or None
         exchange = info.get("exchange") or None
         employees = _safe_int(info.get("fullTimeEmployees"))
@@ -266,15 +289,27 @@ async def get_company_info(symbol: str, market: str = "KR"):
         }
 
     cache_key = f"{market}:{symbol}"
-    if cache_key in _cache:
-        entry = _cache[cache_key]
-        if time.time() - entry["_ts"] < _CACHE_TTL:
-            cached = dict(entry["data"])
-            cached["asset_class"] = asset_class.value
-            return cached
+    if cache_key in _cache and time.time() - _cache[cache_key]["_ts"] < _CACHE_TTL:
+        data = _cache[cache_key]["data"]
+    else:
+        data = await asyncio.to_thread(_fetch_company, symbol, market)
+        _cache[cache_key] = {"data": data, "_ts": time.time()}
 
-    data = await asyncio.to_thread(_fetch_company, symbol, market)
-    _cache[cache_key] = {"data": data, "_ts": time.time()}
     out = dict(data)
     out["asset_class"] = asset_class.value
+
+    # 023: KR 개별주 한정 네이버 파이낸스 보강 (PER/PBR/EPS/BPS + 기준일).
+    # 캐시 hit/miss 양쪽 경로 모두 적용 — company 캐시는 yfinance 원본만 보관,
+    # naver_fundamentals 측 24h 캐시가 중복 네트워크 호출을 방지한다.
+    if naver_fundamentals._is_target(symbol, asset_class.value, market):
+        naver = await naver_fundamentals.fetch(symbol)
+        if naver:
+            metrics = dict(out.get("metrics") or {})
+            for key in ("per", "pbr", "eps", "bps"):
+                nv = naver.get(key)
+                if nv is not None:
+                    metrics[key] = nv
+            out["metrics"] = metrics
+            if naver.get("reporting_period"):
+                out["reporting_period"] = naver["reporting_period"]
     return out
