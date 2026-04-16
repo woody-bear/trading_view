@@ -17,6 +17,9 @@ import StockFundamentals from '../components/StockFundamentals'
 import OrderbookPanel from '../components/OrderbookPanel'
 import IndicatorChart from '../components/charts/IndicatorChart'
 import EmaOnlyChart from '../components/charts/EmaOnlyChart'
+import TrendAnalysisCard from '../components/charts/TrendAnalysisCard'
+import { useTrendOverlayStore } from '../stores/trendOverlayStore'
+import { useTrendAnalysis } from '../hooks/useTrendAnalysis'
 import ConnectionIndicator from '../components/ui/ConnectionIndicator'
 import MarketStatusBadge from '../components/MarketStatusBadge'
 import { usePriceFlash } from '../hooks/usePriceFlash'
@@ -201,6 +204,10 @@ export default function SignalDetail() {
   }, [patternCases, lookupSymbol])
   const currentPrice = livePrice?.price ?? s.price
   const currentChangePct = livePrice?.change_pct ?? s.change_pct
+  // 전일 종가 대비 변동 금액 — livePrice.change 우선, chartData.current.change 폴백
+  const currentChange = (livePrice as any)?.change
+    ?? ((chartData as any)?.current?.change)
+    ?? null
   const { flashClass } = usePriceFlash(currentPrice)
 
   // 관심종목 추가
@@ -251,6 +258,10 @@ export default function SignalDetail() {
   })
   const assetClass = companyForClass?.asset_class
   const valueEnabled = assetClass === 'STOCK_KR' || assetClass === 'STOCK_US'
+
+  // 추세 분석 (024) — 오버레이 토글과 연결
+  const showTrendLines = useTrendOverlayStore((s) => s.showLines)
+  const { data: trendData } = useTrendAnalysis(lookupSymbol, normalizedMarket)
 
   // 세션 단위 차트 UI 상태 보존 (FR-010) — symbol 단위 키로 복원
   const detailKey = buildDetailKey(s.market || guessMarket, lookupSymbol)
@@ -448,6 +459,11 @@ export default function SignalDetail() {
         </span>
         <span className={`text-sm font-mono ${currentChangePct >= 0 ? 'text-[var(--buy)]' : 'text-[var(--sell)]'}`}>
           {currentChangePct >= 0 ? '+' : ''}{currentChangePct?.toFixed(2)}%
+          {currentChange != null && (
+            <span className="ml-1 text-xs opacity-80">
+              ({currentChange >= 0 ? '+' : ''}{s.market === 'US' ? `$${currentChange.toFixed(2)}` : `${Math.round(currentChange).toLocaleString()}원`})
+            </span>
+          )}
         </span>
         <MarketStatusBadge market={
           s.market === 'CRYPTO' ? 'CRYPTO'
@@ -534,11 +550,15 @@ export default function SignalDetail() {
             }}
             scrapedDates={scrapedDates}
             onScrapSave={user ? handleScrapSave : undefined}
+            trendLines={showTrendLines ? trendData?.lines : undefined}
           />
           {/* EMA 전용 보조 차트 — 5/20/60/120만 일봉 기준 */}
           <EmaOnlyChart data={chartData} />
         </ChartErrorBoundary>
       )}
+
+      {/* 추세 분석 카드 (024) — EmaOnlyChart 직하단, 미니 차트 포함 */}
+      <TrendAnalysisCard symbol={lookupSymbol} market={normalizedMarket} chartData={chartData || undefined} />
 
       {/* 투자지표 + 52주 범위 + 가격제한 */}
       <StockFundamentals symbol={lookupSymbol} market={guessMarket} />

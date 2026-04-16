@@ -153,6 +153,43 @@ export interface CompanyInfoResponse {
 export const fetchCompanyInfo = (symbol: string, market: string): Promise<CompanyInfoResponse> =>
   api.get(`/company/${symbol}`, { params: { market } }).then(r => r.data)
 
+// 추세 분석 (024-trend-trading-signals)
+export type TrendType = 'uptrend' | 'downtrend' | 'sideways' | 'triangle' | 'unknown' | 'insufficient_data'
+export interface TrendLine {
+  kind: string
+  start: { time: number; price: number }
+  end: { time: number; price: number }
+  style: { color: string; dashed: boolean }
+}
+export interface TradingSignal {
+  kind: 'buy_candidate' | 'watch' | 'sell_candidate_1' | 'sell_candidate_2'
+  price: number | null
+  condition: string
+  distance_pct: number | null
+  is_near: boolean
+}
+export interface TrendAnalysisResponse {
+  symbol: string
+  market: string
+  classification: {
+    type: TrendType
+    confidence: number | null
+    window_size: number
+    slope_high: number | null
+    slope_low: number | null
+    last_close: number | null
+    evaluated_at: string
+  }
+  lines: TrendLine[]
+  buy_signals: TradingSignal[]
+  sell_signals: TradingSignal[]
+  disclaimer: string
+  current_price: number | null
+  evaluated_at: string
+}
+export const fetchTrendAnalysis = (symbol: string, market: string): Promise<TrendAnalysisResponse> =>
+  api.get(`/trend-analysis/${symbol}`, { params: { market } }).then(r => r.data)
+
 // BUY 사인조회 — 전체 스캔 대상 종목 목록 (인증 불필요, 인터셉터 우회)
 export const fetchScanSymbols = () => fetch('/api/scan/symbols').then(r => r.json())
 

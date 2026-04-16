@@ -48,10 +48,12 @@ interface Props {
   onBuyMarkerClick?: (point: { price: number; markerTime: number }) => void
   scrapedDates?: Set<string>
   onScrapSave?: (markerTime: number, date: string) => void
+  trendLines?: import('../../api/client').TrendLine[]
 }
 
-export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPoint, onBuyMarkerClick, scrapedDates, onScrapSave }: Props) {
+export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPoint, onBuyMarkerClick, scrapedDates, onScrapSave, trendLines }: Props) {
   const mainRef = useRef<HTMLDivElement>(null)
+  const mainChartRef = useRef<any>(null)
   const rsiRef = useRef<HTMLDivElement>(null)
   const macdRef = useRef<HTMLDivElement>(null)
   // 실시간 업데이트를 위한 series ref
@@ -107,6 +109,7 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
 
     // === MAIN CHART ===
     const mainChart = createChart(el, { ...chartOpts, height: 450 })
+    mainChartRef.current = mainChart
 
     // 캔들스틱
     const candleSeries = mainChart.addSeries(CandlestickSeries, {
@@ -548,6 +551,38 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
       })
     }
   }, [realtimePrice])
+
+  // 추세선 오버레이 (024) — trendLines prop이 비어있으면 아무것도 안 그림
+  useEffect(() => {
+    const chart = mainChartRef.current
+    if (!chart) return
+    // 이전 추세선 시리즈 제거
+    const prev = (chart as any).__trendLineSeries as any[] | undefined
+    if (prev) {
+      for (const s of prev) { try { chart.removeSeries(s) } catch {} }
+    }
+    const series: any[] = []
+    if (trendLines && trendLines.length > 0) {
+      for (const line of trendLines) {
+        try {
+          const s = chart.addSeries(LineSeries, {
+            color: line.style.color,
+            lineWidth: 1 as any,
+            lineStyle: line.style.dashed ? 2 : 0,
+            lastValueVisible: false,
+            priceLineVisible: false,
+            crosshairMarkerVisible: false,
+          })
+          s.setData([
+            { time: line.start.time as any, value: line.start.price },
+            { time: line.end.time as any, value: line.end.price },
+          ])
+          series.push(s)
+        } catch {}
+      }
+    }
+    ;(chart as any).__trendLineSeries = series
+  }, [trendLines])
 
   return (
     <div>
