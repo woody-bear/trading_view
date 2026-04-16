@@ -230,8 +230,10 @@ def _current(df):
     ema = calculate_ema(df)
 
     price = float(df["close"].iloc[-1])
-    open_price = float(df["open"].iloc[-1])
-    change_pct = ((price - open_price) / open_price * 100) if open_price else 0
+    # 전일 종가 기준 변동 — 네이버·토스 등 업계 표준
+    prev_close = float(df["close"].iloc[-2]) if len(df) >= 2 else float(df["open"].iloc[-1])
+    change = price - prev_close
+    change_pct = (change / prev_close * 100) if prev_close else 0
 
     def safe(series, idx=-1):
         if series is None: return None
@@ -245,6 +247,8 @@ def _current(df):
 
     return {
         "price": round(price, 2),
+        "change": round(change, 2),
+        "prev_close": round(prev_close, 2),
         "change_pct": round(change_pct, 2),
         "pct_b": round(safe(bb.get("pct_b")) * 100, 1) if safe(bb.get("pct_b")) is not None else None,
         "bandwidth": round(safe(bb.get("width")) * 100, 2) if safe(bb.get("width")) is not None else None,

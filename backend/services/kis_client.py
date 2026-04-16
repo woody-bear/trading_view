@@ -66,6 +66,7 @@ class KISService:
                 if expected:
                     return expected
 
+            change = float(quote.price) - float(prev) if prev else 0
             change_pct = ((quote.price - prev) / prev * 100) if prev else 0
             return {
                 "price": price,
@@ -73,6 +74,8 @@ class KISService:
                 "high": float(quote.high or quote.price),
                 "low": float(quote.low or quote.price),
                 "volume": float(quote.volume or 0),
+                "change": round(change, 2),
+                "prev_close": round(float(prev), 2) if prev else None,
                 "change_pct": round(float(change_pct), 2),
             }
         except Exception as e:

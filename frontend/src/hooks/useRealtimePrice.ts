@@ -8,10 +8,12 @@ export interface RealtimePrice {
   low: number
   volume: number
   change_pct: number
-  is_expected?: boolean       // KR 장전/장후 예상 체결가
-  is_pre_market?: boolean     // US 프리마켓 실제 체결가 (yfinance)
-  is_post_market?: boolean    // US 애프터마켓 실제 체결가 (yfinance)
-  market_state?: string       // PRE | POST | REGULAR | CLOSED
+  change?: number              // 전일 종가 대비 변동 금액
+  prev_close?: number          // 전일 종가
+  is_expected?: boolean
+  is_pre_market?: boolean
+  is_post_market?: boolean
+  market_state?: string
 }
 
 const MAX_ERRORS = 3
