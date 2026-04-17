@@ -6,7 +6,10 @@ from datetime import datetime
 
 from fastapi import APIRouter
 from loguru import logger
+from sqlalchemy import select
 
+from database import async_session
+from models import StockMaster
 from services.asset_class import AssetClass, classify, supports_valuation
 from services import naver_fundamentals
 
@@ -36,6 +39,43 @@ def _safe_int(val):
     try:
         return int(val)
     except (TypeError, ValueError):
+        return None
+
+
+def _is_polluted_name(name: str | None, symbol: str) -> bool:
+    """yfinance shortName 오염 감지.
+
+    Why: yfinance가 일부 KR 종목(예: 263750.KS 펄어비스)에 대해 내부 검색 결과를
+    shortName에 쏟아내어 '263750.KS,0P0001BL7Y,135285' 같은 심볼 나열을 반환하는
+    경우가 있어 종목명 자리에 그대로 노출되는 사고가 발생함.
+    """
+    if not name:
+        return True
+    n = name.strip()
+    if not n:
+        return True
+    if "," in n:
+        return True
+    upper = n.upper()
+    sym_upper = symbol.upper()
+    if upper in (sym_upper, f"{sym_upper}.KS", f"{sym_upper}.KQ"):
+        return True
+    # yfinance 펀드 식별자 패턴 (0P000...)이 이름으로 오는 경우
+    if upper.startswith("0P000"):
+        return True
+    return False
+
+
+async def _resolve_name_from_master(symbol: str) -> str | None:
+    """StockMaster에서 종목명을 조회 — yfinance 이름이 오염됐을 때 폴백용."""
+    try:
+        async with async_session() as s:
+            r = await s.execute(
+                select(StockMaster.name).where(StockMaster.symbol == symbol)
+            )
+            return r.scalar_one_or_none()
+    except Exception as e:
+        logger.debug(f"StockMaster name 폴백 실패 [{symbol}]: {e}")
         return None
 
 
@@ -298,18 +338,42 @@ async def get_company_info(symbol: str, market: str = "KR"):
     out = dict(data)
     out["asset_class"] = asset_class.value
 
-    # 023: KR 개별주 한정 네이버 파이낸스 보강 (PER/PBR/EPS/BPS + 기준일).
+    # A. 종목명 오염 방어 — yfinance shortName이 콤마 심볼 나열 등으로 올 때 StockMaster 폴백.
+    company = out.get("company")
+    if company and _is_polluted_name(company.get("name"), symbol):
+        master_name = await _resolve_name_from_master(symbol)
+        if master_name:
+            company = dict(company)
+            company["name"] = master_name
+            out["company"] = company
+
+    # 023: KR 개별주 한정 네이버 파이낸스 보강.
+    # 초기 범위: PER/PBR/EPS/BPS. 2026-04 확장: 시가총액, 배당수익률, 섹터,
+    # ROE, 영업이익률, 부채비율 — yfinance가 KR 종목에 대해 None만 돌려주는 공백 보완.
     # 캐시 hit/miss 양쪽 경로 모두 적용 — company 캐시는 yfinance 원본만 보관,
     # naver_fundamentals 측 24h 캐시가 중복 네트워크 호출을 방지한다.
     if naver_fundamentals._is_target(symbol, asset_class.value, market):
         naver = await naver_fundamentals.fetch(symbol)
         if naver:
             metrics = dict(out.get("metrics") or {})
-            for key in ("per", "pbr", "eps", "bps"):
+            for key in (
+                "per", "pbr", "eps", "bps",
+                "market_cap", "dividend_yield",
+                "roe", "operating_margin", "debt_to_equity",
+            ):
                 nv = naver.get(key)
                 if nv is not None:
                     metrics[key] = nv
             out["metrics"] = metrics
+
+            # 섹터는 company 객체에 반영 (yfinance sector 번역 실패/None일 때만 덮음)
+            sector_nv = naver.get("sector")
+            if sector_nv:
+                company = dict(out.get("company") or {})
+                if not company.get("sector"):
+                    company["sector"] = sector_nv
+                    out["company"] = company
+
             if naver.get("reporting_period"):
                 out["reporting_period"] = naver["reporting_period"]
     return out

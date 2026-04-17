@@ -112,7 +112,10 @@ export default function ValueAnalysisTab({ symbol, market, assetClassHint }: Pro
     {
       label: 'PER (TTM)',
       value: fmtMultiple(m?.per ?? null),
-      sublabel: '주가/순이익',
+      sublabel:
+        m?.per == null && m?.eps != null && m.eps <= 0
+          ? '적자로 산출 불가'
+          : '주가/순이익',
       highlight: perHL,
     },
     {
@@ -130,7 +133,10 @@ export default function ValueAnalysisTab({ symbol, market, assetClassHint }: Pro
     {
       label: 'ROA (TTM)',
       value: fmtPct(m?.roa ?? null),
-      sublabel: '총자산이익률',
+      sublabel:
+        m?.roa == null && assetClass === 'STOCK_KR'
+          ? '국내 종목 데이터 미제공'
+          : '총자산이익률',
     },
     {
       label: '영업이익률',
