@@ -213,7 +213,49 @@ def setup_scheduler():
         replace_existing=True,
     )
 
-    logger.info("스케줄러 등록 완료: 10분 스캔 + KR BUY (10:30/15:00) + US BUY (20:00/04:00) + KR SELL (30분) + US SELL (20:00/04:00) + 국내스캔(9:30~15:30) + 미국스캔(19:50/03:50) + KR 휴장일(00:10)")
+    # 시장분위기 스냅샷 — KR: 장마감 후 16:00 KST
+    scheduler.add_job(
+        _scheduled_market_sentiment_kr,
+        trigger="cron",
+        hour=16, minute=0,
+        timezone=KST,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
+        id="market_sentiment_kr",
+        name="시장분위기 KR 스냅샷",
+        replace_existing=True,
+    )
+
+    # 시장분위기 스냅샷 — US: 미장 마감 후 06:00 KST (익일)
+    scheduler.add_job(
+        _scheduled_market_sentiment_us,
+        trigger="cron",
+        hour=6, minute=30,
+        timezone=KST,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
+        id="market_sentiment_us",
+        name="시장분위기 US 스냅샷",
+        replace_existing=True,
+    )
+
+    # 시장분위기 스냅샷 — CRYPTO: 매일 07:00 KST
+    scheduler.add_job(
+        _scheduled_market_sentiment_crypto,
+        trigger="cron",
+        hour=7, minute=0,
+        timezone=KST,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
+        id="market_sentiment_crypto",
+        name="시장분위기 CRYPTO 스냅샷",
+        replace_existing=True,
+    )
+
+    logger.info("스케줄러 등록 완료: 10분 스캔 + KR BUY (10:30/15:00) + US BUY (20:00/04:00) + KR SELL (30분) + US SELL (20:00/04:00) + 국내스캔(9:30~15:30) + 미국스캔(19:50/03:50) + KR 휴장일(00:10) + 시장분위기 스냅샷(KR 16:00 / US 06:30 / CRYPTO 07:00)")
 
 
 async def _scheduled_scan():
@@ -283,6 +325,36 @@ async def _scheduled_refresh_market_caps():
         logger.info(f"시총 배치 갱신 완료: {result}")
     except Exception as e:
         logger.warning(f"시총 배치 갱신 실패: {e}")
+
+
+async def _scheduled_market_sentiment_kr():
+    """KR 시장분위기 스냅샷 저장 — 장마감 후 16:00 KST."""
+    from services.market_sentiment_service import compute_and_save_snapshot
+    try:
+        result = await compute_and_save_snapshot("KR")
+        logger.info(f"시장분위기 KR 스냅샷 완료: {result}")
+    except Exception as e:
+        logger.warning(f"시장분위기 KR 스냅샷 실패: {e}")
+
+
+async def _scheduled_market_sentiment_us():
+    """US 시장분위기 스냅샷 저장 — 미장 마감 후 06:30 KST."""
+    from services.market_sentiment_service import compute_and_save_snapshot
+    try:
+        result = await compute_and_save_snapshot("US")
+        logger.info(f"시장분위기 US 스냅샷 완료: {result}")
+    except Exception as e:
+        logger.warning(f"시장분위기 US 스냅샷 실패: {e}")
+
+
+async def _scheduled_market_sentiment_crypto():
+    """CRYPTO 시장분위기 스냅샷 저장 — 매일 07:00 KST."""
+    from services.market_sentiment_service import compute_and_save_snapshot
+    try:
+        result = await compute_and_save_snapshot("CRYPTO")
+        logger.info(f"시장분위기 CRYPTO 스냅샷 완료: {result}")
+    except Exception as e:
+        logger.warning(f"시장분위기 CRYPTO 스냅샷 실패: {e}")
 
 
 def is_market_open(market: str) -> bool:

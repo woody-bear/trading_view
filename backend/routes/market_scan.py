@@ -105,6 +105,28 @@ async def get_market_cap_distribution():
     return await compute_distribution()
 
 
+@router.get("/scan/market-sentiment")
+async def get_market_sentiment():
+    """최신 시장분위기 스냅샷 반환 (DB에서 즉시 조회)."""
+    from services.market_sentiment_service import get_latest_snapshot
+    result = await get_latest_snapshot()
+    if result is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail="집계 준비 중입니다. 잠시 후 다시 시도하세요.")
+    return result
+
+
+@router.post("/scan/market-sentiment/refresh")
+async def trigger_market_sentiment_refresh(market: str | None = None):
+    """시장분위기 스냅샷 수동 갱신 트리거 (백그라운드 실행).
+
+    market: 'KR' | 'US' | 'CRYPTO' | None (전체)
+    """
+    from services.market_sentiment_service import compute_and_save_snapshot
+    asyncio.ensure_future(compute_and_save_snapshot(market))
+    return {"status": "started", "market": market or "ALL"}
+
+
 @router.post("/scan/symbols/market-cap-refresh")
 async def trigger_market_cap_refresh():
     """시가총액 배치 갱신 수동 트리거 (백그라운드 실행)."""

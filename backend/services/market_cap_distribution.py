@@ -45,8 +45,36 @@ def _thresholds_for(currency: str) -> dict:
     return {"large": US_LARGE_THRESHOLD, "mid": US_MID_THRESHOLD}
 
 
+_CRYPTO_TICKERS = [
+    "BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD",
+    "ADA-USD", "DOGE-USD", "AVAX-USD", "LINK-USD", "DOT-USD",
+]
+
+_CRYPTO_NAMES = {
+    "BTC-USD": "Bitcoin", "ETH-USD": "Ethereum", "SOL-USD": "Solana",
+    "BNB-USD": "BNB", "XRP-USD": "Ripple", "ADA-USD": "Cardano",
+    "DOGE-USD": "Dogecoin", "AVAX-USD": "Avalanche",
+    "LINK-USD": "Chainlink", "DOT-USD": "Polkadot",
+}
+
+
+def _fetch_crypto_items() -> list[tuple[str, int, str]]:
+    """yfinance로 CRYPTO 10종목 시총 조회."""
+    import yfinance as yf
+    items: list[tuple[str, int, str]] = []
+    for ticker in _CRYPTO_TICKERS:
+        try:
+            info = yf.Ticker(ticker).info
+            cap = info.get("marketCap") or 0
+            if cap > 0:
+                items.append((ticker, int(cap), _CRYPTO_NAMES.get(ticker, ticker)))
+        except Exception:
+            pass
+    return items
+
+
 async def compute_distribution() -> dict:
-    """KR/US 각각 시총 3등분 분포 계산."""
+    """KR/US/CRYPTO 각각 시총 3등분 분포 계산."""
     import time
 
     now = time.time()
@@ -71,9 +99,12 @@ async def compute_distribution() -> dict:
         elif market == "US" and sym in ALL_US_TICKERS:
             us_items.append((sym, int(cap), name))
 
+    crypto_items = _fetch_crypto_items()
+
     result = {
         "kr": _build_distribution(kr_items, currency="KRW"),
         "us": _build_distribution(us_items, currency="USD"),
+        "crypto": _build_distribution(crypto_items, currency="USD"),
     }
     _cache["data"] = result
     _cache["ts"] = now
