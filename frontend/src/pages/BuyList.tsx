@@ -1,7 +1,8 @@
 import { Bell, CheckCircle, ChevronDown, ChevronUp, Clock, Loader2, RefreshCw, Search, TrendingUp, X, Zap } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchFullScanHistory, fetchFullScanLatest, fetchFullScanStatus, fetchScanSymbols, fetchSnapshotBuyItems, triggerFullScan } from '../api/client'
+import { fetchFullScanHistory, fetchFullScanLatest, fetchFullScanStatus, fetchMarketCapDistribution, fetchScanSymbols, fetchSnapshotBuyItems, triggerFullScan, type MarketCapDistributionResponse } from '../api/client'
+import MarketCapDistributionBar from '../components/MarketCapDistributionBar'
 import { usePageSwipe } from '../hooks/usePageSwipe'
 
 // ── 타입 정의 ────────────────────────────────────────────────
@@ -421,6 +422,10 @@ export default function BuyList() {
   const snapRef = useRef<HTMLDivElement>(null)
   const [currentSection, setCurrentSection] = useState(0)
 
+  // 시총 분포 (KR/US)
+  const [capDist, setCapDist] = useState<MarketCapDistributionResponse | null>(null)
+  const [capDistLoading, setCapDistLoading] = useState(true)
+
   // 종목 목록 로드 (인증 불필요, plain fetch)
   useEffect(() => {
     fetchScanSymbols()
@@ -429,6 +434,14 @@ export default function BuyList() {
         setBreakdown(symData.breakdown || null)
       })
       .catch(e => console.error('fetchScanSymbols error:', e))
+  }, [])
+
+  // 시총 3등분 분포 로드
+  useEffect(() => {
+    fetchMarketCapDistribution()
+      .then(r => setCapDist(r))
+      .catch(e => console.error('fetchMarketCapDistribution error:', e))
+      .finally(() => setCapDistLoading(false))
   }, [])
 
   // 스캔 상황판 별도 로드 + 빈 상황판 자동 처리
@@ -575,6 +588,21 @@ export default function BuyList() {
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
           <SnapHdr title="스캔 현황 (KR)" color="text-blue-400" currentSection={currentSection} total={3} />
           <div className="flex-1 overflow-y-auto px-3 pb-3 pt-2 space-y-3" style={{ overscrollBehaviorY: 'contain' } as any}>
+            {/* 시가총액 3등분 분포 바 */}
+            <div className="grid grid-cols-1 gap-2">
+              <MarketCapDistributionBar
+                title="🇰🇷 국내 시총 분포"
+                titleColor="text-blue-400"
+                data={capDist?.kr}
+                loading={capDistLoading}
+              />
+              <MarketCapDistributionBar
+                title="🇺🇸 미국 시총 분포"
+                titleColor="text-emerald-400"
+                data={capDist?.us}
+                loading={capDistLoading}
+              />
+            </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 text-center">
                 <div className="text-2xl font-bold text-[var(--text)] font-mono">{total.toLocaleString()}</div>
@@ -743,6 +771,22 @@ export default function BuyList() {
         <TrendingUp size={20} className="text-cyan-400" />
         <h1 className="text-lg font-bold text-white">BUY 조회종목 리스트</h1>
         <span className="text-xs text-[var(--muted)]">전체 스캔 대상 종목</span>
+      </div>
+
+      {/* ── 시가총액 3등분 분포 바 (KR / US) ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
+        <MarketCapDistributionBar
+          title="🇰🇷 국내 시총 분포"
+          titleColor="text-blue-400"
+          data={capDist?.kr}
+          loading={capDistLoading}
+        />
+        <MarketCapDistributionBar
+          title="🇺🇸 미국 시총 분포"
+          titleColor="text-emerald-400"
+          data={capDist?.us}
+          loading={capDistLoading}
+        />
       </div>
 
       {/* ── 총 종목수 요약 배너 ── */}

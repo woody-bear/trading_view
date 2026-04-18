@@ -193,6 +193,30 @@ export const fetchTrendAnalysis = (symbol: string, market: string): Promise<Tren
 // BUY 사인조회 — 전체 스캔 대상 종목 목록 (인증 불필요, 인터셉터 우회)
 export const fetchScanSymbols = () => fetch('/api/scan/symbols').then(r => r.json())
 
+// 시가총액 3등분 분포 (KR/US) — BuyList 상단 바
+export interface MarketCapTertile {
+  rank: 1 | 2 | 3
+  count: number
+  market_cap_sum: number
+  top_symbols: { symbol: string; name: string; market_cap: number }[]
+  size_breakdown: { large: number; mid: number; small: number }
+  dominant_size: 'large' | 'mid' | 'small' | null
+}
+export interface MarketCapDistribution {
+  currency: 'KRW' | 'USD'
+  total_count: number
+  total_market_cap: number
+  tertiles: MarketCapTertile[]
+  median_position_pct: number
+  size_thresholds: { large: number; mid: number }
+}
+export interface MarketCapDistributionResponse {
+  kr: MarketCapDistribution
+  us: MarketCapDistribution
+}
+export const fetchMarketCapDistribution = (): Promise<MarketCapDistributionResponse> =>
+  fetch('/api/scan/symbols/market-cap-distribution').then(r => r.json())
+
 // 패턴 케이스 스크랩
 export const fetchPatternCases = (params?: { pattern_type?: string; market?: string }) =>
   api.get('/pattern-cases', { params }).then(r => r.data)
