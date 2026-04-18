@@ -199,6 +199,20 @@ def setup_scheduler():
         replace_existing=True,
     )
 
+    # 시가총액 배치 갱신 — 매일 06:00 KST (미장 마감 후, KR 개장 전)
+    scheduler.add_job(
+        _scheduled_refresh_market_caps,
+        trigger="cron",
+        hour=6, minute=0,
+        timezone=KST,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
+        id="refresh_market_caps",
+        name="시가총액 배치 갱신",
+        replace_existing=True,
+    )
+
     logger.info("스케줄러 등록 완료: 10분 스캔 + KR BUY (10:30/15:00) + US BUY (20:00/04:00) + KR SELL (30분) + US SELL (20:00/04:00) + 국내스캔(9:30~15:30) + 미국스캔(19:50/03:50) + KR 휴장일(00:10)")
 
 
@@ -259,6 +273,16 @@ async def _scheduled_refresh_kr_holidays():
         logger.info(f"KR 휴장일 캐시 갱신 완료: {count}건")
     except Exception as e:
         logger.warning(f"KR 휴장일 캐시 갱신 실패: {e}")
+
+
+async def _scheduled_refresh_market_caps():
+    """시가총액 배치 갱신 — pykrx(KR) + yfinance(US)."""
+    from services.market_cap_updater import refresh_market_caps
+    try:
+        result = await refresh_market_caps()
+        logger.info(f"시총 배치 갱신 완료: {result}")
+    except Exception as e:
+        logger.warning(f"시총 배치 갱신 실패: {e}")
 
 
 def is_market_open(market: str) -> bool:

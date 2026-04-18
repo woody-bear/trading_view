@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     DateTime,
     Float,
@@ -225,6 +226,8 @@ class StockMaster(Base):
     market: Mapped[str] = mapped_column(String(10), nullable=False)  # KR / US
     market_type: Mapped[str] = mapped_column(String(10), nullable=False)  # KOSPI/KOSDAQ/NASDAQ/NYSE/AMEX
     is_etf: Mapped[bool] = mapped_column(Boolean, default=False)
+    # KR: 원, US: USD — 로컬 통화 기준 시가총액 (일 1회 배치 갱신)
+    market_cap: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
