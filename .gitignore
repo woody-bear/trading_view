@@ -35,9 +35,5 @@ Thumbs.db
 backend/data/charts/*.parquet
 
 
-.claude/*
-specs/*
 backend/data/*
 .claude/settings.local.json
-
-CLAUDE.md
