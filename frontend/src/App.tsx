@@ -34,7 +34,7 @@ function AppInner() {
           <span className="text-lg font-bold text-[var(--gold)]">추세추종 연구소</span>
         </a>
         <div className="flex items-center gap-6 ml-6">
-          <a href="/buy-list" className="text-cyan-400 hover:text-cyan-300 text-sm font-semibold">종목리스트</a>
+          <a href="/buy-list" className="text-cyan-400 hover:text-cyan-300 text-sm font-semibold">BUY조회종목리스트</a>
           <a href="/scrap" className="text-[var(--gold)] hover:text-yellow-300 text-sm font-semibold">BUY사례스크랩</a>
         </div>
         <div className="ml-auto flex items-center gap-3">

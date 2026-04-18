@@ -1,10 +1,8 @@
 import { Bell, CheckCircle, ChevronDown, ChevronUp, Clock, Loader2, RefreshCw, Search, TrendingUp, X, Zap } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchFullScanHistory, fetchFullScanLatest, fetchFullScanStatus, fetchMarketCapDistribution, fetchMarketSentiment, fetchScanSymbols, fetchSnapshotBuyItems, triggerFullScan, type MarketCapDistributionResponse, type MarketSentimentResponse } from '../api/client'
-import EmaAlignmentBar from '../components/EmaAlignmentBar'
+import { fetchFullScanHistory, fetchFullScanLatest, fetchFullScanStatus, fetchMarketCapDistribution, fetchScanSymbols, fetchSnapshotBuyItems, triggerFullScan, type MarketCapDistributionResponse } from '../api/client'
 import MarketCapDistributionBar from '../components/MarketCapDistributionBar'
-import VolumeSpikeBar from '../components/VolumeSpikeBar'
 import { usePageSwipe } from '../hooks/usePageSwipe'
 
 // ── 타입 정의 ────────────────────────────────────────────────
@@ -424,15 +422,9 @@ export default function BuyList() {
   const snapRef = useRef<HTMLDivElement>(null)
   const [currentSection, setCurrentSection] = useState(0)
 
-  // 시총 분포 (KR/US/CRYPTO)
+  // 시총 분포 (KR/US)
   const [capDist, setCapDist] = useState<MarketCapDistributionResponse | null>(null)
   const [capDistLoading, setCapDistLoading] = useState(true)
-
-  // 시장분위기 (EMA 배열 + 거래량 급등)
-  const [marketSentiment, setMarketSentiment] = useState<MarketSentimentResponse | null>(null)
-  const [sentimentLoading, setSentimentLoading] = useState(true)
-  const [sentimentError, setSentimentError] = useState(false)
-  const [sentimentPending, setSentimentPending] = useState(false)
 
   // 종목 목록 로드 (인증 불필요, plain fetch)
   useEffect(() => {
@@ -450,21 +442,6 @@ export default function BuyList() {
       .then(r => setCapDist(r))
       .catch(e => console.error('fetchMarketCapDistribution error:', e))
       .finally(() => setCapDistLoading(false))
-  }, [])
-
-  // 시장분위기 로드 (EMA 배열 + 거래량 급등)
-  useEffect(() => {
-    fetchMarketSentiment()
-      .then(r => setMarketSentiment(r))
-      .catch(e => {
-        console.error('fetchMarketSentiment error:', e)
-        if (e?.status === 503 || (e instanceof Error && e.message.includes('503'))) {
-          setSentimentPending(true)
-        } else {
-          setSentimentError(true)
-        }
-      })
-      .finally(() => setSentimentLoading(false))
   }, [])
 
   // 스캔 상황판 별도 로드 + 빈 상황판 자동 처리
@@ -625,53 +602,6 @@ export default function BuyList() {
                 data={capDist?.us}
                 loading={capDistLoading}
               />
-              <MarketCapDistributionBar
-                title="₿ 암호화폐 시총 분포"
-                titleColor="text-yellow-400"
-                data={capDist?.crypto}
-                loading={capDistLoading}
-              />
-            </div>
-            {/* EMA 배열 + 거래량 급등 */}
-            <div className="space-y-2">
-              <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3">
-                <div className="text-xs font-semibold text-[var(--muted)] mb-2">EMA 배열 (5·10·20·60·120)</div>
-                {sentimentError ? (
-                  <p className="text-xs text-red-400">데이터 로드 실패</p>
-                ) : sentimentPending ? (
-                  <p className="text-xs text-[var(--muted)]">집계 준비 중...</p>
-                ) : (
-                  <div className="space-y-0.5">
-                    {(['KR', 'US', 'CRYPTO'] as const).map(mkt => (
-                      <EmaAlignmentBar
-                        key={mkt}
-                        market={mkt}
-                        data={marketSentiment?.[mkt]?.ema_alignment}
-                        loading={sentimentLoading}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3">
-                <div className="text-xs font-semibold text-[var(--muted)] mb-2">거래량 급등 (20일 평균 300%↑)</div>
-                {sentimentError ? (
-                  <p className="text-xs text-red-400">데이터 로드 실패</p>
-                ) : sentimentPending ? (
-                  <p className="text-xs text-[var(--muted)]">집계 준비 중...</p>
-                ) : (
-                  <div className="space-y-0.5">
-                    {(['KR', 'US', 'CRYPTO'] as const).map(mkt => (
-                      <VolumeSpikeBar
-                        key={mkt}
-                        market={mkt}
-                        data={marketSentiment?.[mkt]?.volume_spike}
-                        loading={sentimentLoading}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 text-center">
@@ -839,11 +769,12 @@ export default function BuyList() {
       {/* 페이지 제목 */}
       <div className="flex items-center gap-2 mb-4">
         <TrendingUp size={20} className="text-cyan-400" />
-        <h1 className="text-lg font-bold text-white">종목리스트</h1>
+        <h1 className="text-lg font-bold text-white">BUY 조회종목 리스트</h1>
+        <span className="text-xs text-[var(--muted)]">전체 스캔 대상 종목</span>
       </div>
 
       {/* ── 시가총액 3등분 분포 바 (KR / US) ── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
         <MarketCapDistributionBar
           title="🇰🇷 국내 시총 분포"
           titleColor="text-blue-400"
@@ -856,69 +787,6 @@ export default function BuyList() {
           data={capDist?.us}
           loading={capDistLoading}
         />
-        <MarketCapDistributionBar
-          title="₿ 암호화폐 시총 분포"
-          titleColor="text-yellow-400"
-          data={capDist?.crypto}
-          loading={capDistLoading}
-        />
-      </div>
-
-      {/* ── EMA 정배열/역배열 + 거래량 급등 차트 (30% 너비, 왼쪽 정렬) ── */}
-      <div className="w-[30%] mb-3 space-y-2">
-        {/* EMA 정배열/역배열 */}
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3">
-          <div className="text-xs font-semibold text-[var(--muted)] mb-2">EMA 배열 (5·10·20·60·120)</div>
-          {sentimentError ? (
-            <p className="text-xs text-red-400">데이터 로드 실패</p>
-          ) : sentimentPending ? (
-            <p className="text-xs text-[var(--muted)]">집계 준비 중...</p>
-          ) : (
-            <div className="space-y-0.5">
-              {(['KR', 'US', 'CRYPTO'] as const).map(mkt => (
-                <EmaAlignmentBar
-                  key={mkt}
-                  market={mkt}
-                  data={marketSentiment?.[mkt]?.ema_alignment}
-                  loading={sentimentLoading}
-                />
-              ))}
-            </div>
-          )}
-          {/* 범례 */}
-          <div className="flex gap-3 mt-2">
-            <span className="flex items-center gap-1 text-[10px] text-[var(--muted)]">
-              <span className="inline-block w-2 h-2 rounded-sm bg-[#22c55e]" />정배열
-            </span>
-            <span className="flex items-center gap-1 text-[10px] text-[var(--muted)]">
-              <span className="inline-block w-2 h-2 rounded-sm bg-[#ef4444]" />역배열
-            </span>
-            <span className="flex items-center gap-1 text-[10px] text-[var(--muted)]">
-              <span className="inline-block w-2 h-2 rounded-sm bg-[#6b7280]" />기타
-            </span>
-          </div>
-        </div>
-
-        {/* 거래량 급등 */}
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3">
-          <div className="text-xs font-semibold text-[var(--muted)] mb-2">거래량 급등 (20일 평균 300%↑)</div>
-          {sentimentError ? (
-            <p className="text-xs text-red-400">데이터 로드 실패</p>
-          ) : sentimentPending ? (
-            <p className="text-xs text-[var(--muted)]">집계 준비 중...</p>
-          ) : (
-            <div className="space-y-0.5">
-              {(['KR', 'US', 'CRYPTO'] as const).map(mkt => (
-                <VolumeSpikeBar
-                  key={mkt}
-                  market={mkt}
-                  data={marketSentiment?.[mkt]?.volume_spike}
-                  loading={sentimentLoading}
-                />
-              ))}
-            </div>
-          )}
-        </div>
       </div>
 
       {/* ── 총 종목수 요약 배너 ── */}

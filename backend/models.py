@@ -228,7 +228,6 @@ class StockMaster(Base):
     is_etf: Mapped[bool] = mapped_column(Boolean, default=False)
     # KR: 원, US: USD — 로컬 통화 기준 시가총액 (일 1회 배치 갱신)
     market_cap: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
-    sector: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, default="기타")
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -305,14 +304,4 @@ class PatternCase(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-
-class MarketSentimentSnapshot(Base):
-    """시장분위기 스냅샷 — EMA 배열·거래량 급등 집계 결과."""
-    __tablename__ = "market_sentiment_snapshot"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    kr_data: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
-    us_data: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
-    crypto_data: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
 

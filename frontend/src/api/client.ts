@@ -213,46 +213,9 @@ export interface MarketCapDistribution {
 export interface MarketCapDistributionResponse {
   kr: MarketCapDistribution
   us: MarketCapDistribution
-  crypto?: MarketCapDistribution
 }
 export const fetchMarketCapDistribution = (): Promise<MarketCapDistributionResponse> =>
   fetch('/api/scan/symbols/market-cap-distribution').then(r => r.json())
-
-// 시장분위기 집계 — EMA 정배열/역배열 + 거래량 급등
-export interface EmaAlignmentStats {
-  golden: number
-  death: number
-  other: number
-  total: number
-  golden_pct: number
-  death_pct: number
-  other_pct: number
-}
-export interface VolumeSpikePeriod {
-  period_days: number
-  spike_count: number
-  total: number
-  spike_pct: number
-  top_sector: string
-}
-export interface VolumeSpikeStats {
-  periods: VolumeSpikePeriod[]
-}
-export interface MarketSentimentByMarket {
-  ema_alignment: EmaAlignmentStats
-  volume_spike: VolumeSpikeStats
-}
-export interface MarketSentimentResponse {
-  KR: MarketSentimentByMarket
-  US: MarketSentimentByMarket
-  CRYPTO: MarketSentimentByMarket
-  computed_at: string
-}
-export const fetchMarketSentiment = (): Promise<MarketSentimentResponse> =>
-  fetch('/api/scan/market-sentiment').then(r => {
-    if (!r.ok) { const err: any = new Error(`${r.status}`); err.status = r.status; throw err }
-    return r.json()
-  })
 
 // 패턴 케이스 스크랩
 export const fetchPatternCases = (params?: { pattern_type?: string; market?: string }) =>
