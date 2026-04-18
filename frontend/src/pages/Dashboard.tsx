@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, ChevronRight, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react'
+import { Plus, RefreshCw, Search, Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { addSymbol, deleteSymbol, fetchBatchPrices, fetchFullScanLatest, fetchFullScanStatus, fetchScanStatus, fetchScanSymbols, fetchSignals, searchSymbols, triggerFullScan } from '../api/client'
@@ -139,7 +139,6 @@ export default function Dashboard() {
   }
 
   // 거래량 내림차순 정렬 헬퍼
-  const byVolume = (arr: any[]) => [...arr].sort((a, b) => (b.volume_ratio || 0) - (a.volume_ratio || 0))
 
   const sH = 'calc(100dvh - 64px)' // 각 스냅 섹션 높이
   usePageSwipe(snapRef)
@@ -258,7 +257,7 @@ export default function Dashboard() {
 
         {/* ── 섹션 3: 차트 BUY 신호 ── */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
-          <SnapSectionHeader title="차트 BUY 신호" color="text-[var(--buy)]" currentSection={currentSection} />
+          <SnapSectionHeader title="추천 종목" color="text-[var(--buy)]" currentSection={currentSection} />
           <p className="text-body text-[var(--muted)] px-3 py-1 shrink-0">일봉 10거래일 이내 · 데드크로스 제외 · 거래량 5일 평균 1.5배↑</p>
           <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
             {/* Dead Cross 비율 바 (모바일) */}
@@ -325,50 +324,6 @@ export default function Dashboard() {
                 <BuyCard key={item.symbol} item={item} index={i} nav={nav} />
               ))
             })()}
-          </div>
-        </div>
-
-        {/* ── 섹션 3: 투자과열 ── */}
-        <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
-          <SnapSectionHeader title="투자과열 신호" color="text-[var(--sell)]" currentSection={currentSection} />
-          <p className="text-body text-[var(--muted)] px-3 py-1 shrink-0">RSI 70+ 또는 RSI 65+ 거래량 2x · 국내 개별주</p>
-          <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
-            {mobileScan.overheatItems.length === 0 ? (
-              <p className="text-[var(--muted)] text-sm py-8 text-center">투자과열 종목이 없습니다</p>
-            ) : byVolume(mobileScan.overheatItems).slice(0, 5).map((item: any, i: number) => (
-              <div key={item.symbol}
-                onClick={() => nav(`/${item.symbol}?market=${item.market_type || item.market}`)}
-                className="bg-[var(--bg)] border border-red-500/30 rounded-lg p-4 cursor-pointer hover:border-red-500/60 transition active:scale-[0.98]">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="text-label bg-[var(--sell)]/20 text-[var(--sell)] w-5 h-5 rounded flex items-center justify-center font-mono shrink-0">{i + 1}</span>
-                    <span className="text-[var(--text)] font-semibold text-title truncate">{item.name}</span>
-                    <span className="text-[var(--muted)] text-body shrink-0">{item.symbol}</span>
-                  </div>
-                  <span className="text-body font-bold text-[var(--sell)] bg-[var(--sell)]/20 px-2 py-0.5 rounded shrink-0">과열</span>
-                </div>
-                <div className="flex items-baseline gap-2 mb-1.5">
-                  <span className="text-value font-mono font-bold text-[var(--text)]">{item.price?.toLocaleString()}</span>
-                  <span className={`text-label font-mono font-semibold ${item.change_pct >= 0 ? 'text-[var(--buy)]' : 'text-[var(--sell)]'}`}>
-                    {item.change_pct >= 0 ? '+' : ''}{item.change_pct}%
-                  </span>
-                </div>
-                <div className="flex items-center gap-3 text-body mb-2">
-                  <span className="text-[var(--sell)] font-bold">RSI {item.rsi?.toFixed(0)}</span>
-                  <span className="text-[var(--muted)]">거래량 <span className="text-white font-mono">{item.volume_ratio?.toFixed(1)}x</span></span>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {[marketBadge(item.market_type || item.market), ...indicatorBadges({
-                    rsi: item.rsi,
-                    bb_pct_b: item.bb_pct_b != null ? item.bb_pct_b / 100 : undefined,
-                    volume_ratio: item.volume_ratio,
-                    macd_hist: item.macd_hist,
-                  })].map(b => (
-                    <span key={b.label} className={`text-label px-2 py-0.5 rounded ${b.cls}`}>{b.label}</span>
-                  ))}
-                </div>
-              </div>
-            ))}
           </div>
         </div>
 
@@ -540,8 +495,6 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
   const [scanSymbolsTotal, setScanSymbolsTotal] = useState<number | null>(null)
 
   // 섹션 토글 (localStorage 유지)
-  const [showOverheat, setShowOverheat] = useState(() => localStorage.getItem('dash_showOverheat') === 'true')
-  const toggleOverheat = () => { setShowOverheat(v => { localStorage.setItem('dash_showOverheat', String(!v)); return !v }) }
 
   // 실시간 가격 캐시: {symbol: {price, change_pct, ...}}
   const [livePrices, setLivePrices] = useState<Record<string, any>>({})
@@ -772,7 +725,7 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
         return (
           <div className="mb-2">
             <div className="flex items-center gap-2 mb-3 flex-wrap">
-              <h2 className="text-sm font-bold text-[var(--buy)]">차트 BUY 신호</h2>
+              <h2 className="text-sm font-bold text-[var(--buy)]">추천 종목</h2>
               <span className="text-micro text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">일봉 10거래일 이내 + 데드크로스 제외 + 거래량 5일 평균 1.5배↑</span>
               <span className="text-micro px-1.5 py-0.5 rounded font-medium bg-[var(--bg)] text-[var(--muted)]">{label}</span>
               {Object.keys(livePrices).length > 0 && (
@@ -845,72 +798,6 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
         )
       })()}
 
-      {/* 2. 투자과열 */}
-      {overheatItems.length > 0 && (
-        <>
-        <div className="border-t border-[var(--border)] my-4" />
-        <div className="mb-5">
-          <button onClick={toggleOverheat} className="flex items-center gap-2 mb-3 w-full text-left">
-            {showOverheat ? <ChevronDown size={14} className="text-[var(--sell)]" /> : <ChevronRight size={14} className="text-[var(--sell)]" />}
-            <h2 className="text-sm font-bold text-[var(--sell)]">투자과열 신호</h2>
-            <span className="text-micro text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">RSI 70+ 또는 RSI 65+거래량 2x · 국내 개별주</span>
-            <span className="text-micro text-[var(--sell)] font-bold">{overheatItems.length}종목</span>
-            {!showOverheat && <span className="text-micro text-[var(--muted)]">접힘</span>}
-          </button>
-          {showOverheat && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-              {overheatItems.map((item: any, i: number) => (
-                <div key={item.symbol}
-                  onClick={() => nav(`/${item.symbol}?market=${item.market_type || item.market}`)}
-                  className="bg-[var(--bg)] border border-red-500/30 rounded-lg p-4 md:p-2.5 cursor-pointer hover:border-red-500/60 transition active:scale-[0.98]">
-                  {/* 헤더: 순위 + 이름 + 코드 | 과열 배지 */}
-                  <div className="flex items-center justify-between mb-2 md:mb-1">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="text-caption bg-[var(--sell)]/20 text-[var(--sell)] w-5 h-5 rounded flex items-center justify-center font-mono shrink-0">{i + 1}</span>
-                      <span className="text-[var(--text)] font-semibold text-title md:text-sm truncate">{item.name}</span>
-                      <span className="text-[var(--muted)] text-body md:text-caption shrink-0">{item.symbol}</span>
-                    </div>
-                    <span className="text-body md:text-micro font-bold text-[var(--sell)] bg-[var(--sell)]/20 px-2 py-0.5 rounded shrink-0">과열</span>
-                  </div>
-                  {/* 가격 행 */}
-                  <div className="md:flex md:items-center md:justify-between">
-                    <div className="flex items-baseline gap-2 md:gap-1.5">
-                      <span className="text-value md:text-sm font-mono font-bold text-white">{item.price?.toLocaleString()}</span>
-                      <span className={`text-label md:text-caption font-mono font-semibold ${item.change_pct >= 0 ? 'text-[var(--buy)]' : 'text-[var(--sell)]'}`}>
-                        {item.change_pct >= 0 ? '+' : ''}{item.change_pct}%
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3 md:gap-2 text-label md:text-caption mt-1.5 md:mt-0">
-                      <span className="text-[var(--sell)] font-bold">RSI {item.rsi?.toFixed(0)}</span>
-                      <span className="text-[var(--muted)]">거래량 <span className="text-white font-mono">{item.volume_ratio?.toFixed(1)}x</span></span>
-                    </div>
-                  </div>
-                  {/* 배지 행 */}
-                  {(() => {
-                    const overheatBadges = [
-                      marketBadge(item.market_type || item.market),
-                      ...indicatorBadges({
-                        rsi: item.rsi,
-                        bb_pct_b: item.bb_pct_b != null ? item.bb_pct_b / 100 : undefined,
-                        volume_ratio: item.volume_ratio,
-                        macd_hist: item.macd_hist,
-                      }),
-                    ]
-                    return (
-                      <div className="flex flex-wrap gap-1.5 md:gap-1 mt-2 md:mt-1.5">
-                        {overheatBadges.map(b => (
-                          <span key={b.label} className={`text-label md:text-micro px-2 md:px-1.5 py-0.5 rounded ${b.cls}`}>{b.label}</span>
-                        ))}
-                      </div>
-                    )
-                  })()}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        </>
-      )}
 
 
     </div>
