@@ -258,7 +258,7 @@ export default function Dashboard() {
         {/* ── 섹션 3: 차트 BUY 신호 ── */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
           <SnapSectionHeader title="추천 종목" color="text-[var(--buy)]" currentSection={currentSection} />
-          <p className="text-body text-[var(--muted)] px-3 py-1 shrink-0">일봉 10거래일 이내 · 데드크로스 제외 · 거래량 5일 평균 1.5배↑</p>
+          <p className="text-body text-[var(--muted)] px-3 py-1 shrink-0">일봉 10거래일 이내 BUY/SQZ BUY · 눌림목(EMA20{'>'}60{'>'}120 + EMA5↓) · 데드크로스 제외</p>
           <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
             {/* Dead Cross 비율 바 (모바일) */}
             {mobileScan.marketHealth && (mobileScan.marketHealth.dead_cross + mobileScan.marketHealth.alive) > 0 && (() => {

@@ -80,12 +80,17 @@ sqz_fired AND mom_bull AND mom_rising
 
 ```
 [1] _is_dead_cross(ema)
-    → EMA20 < EMA50 이면 즉시 None 반환 (전체 스킵)
+    → EMA5 < EMA10 < EMA20 < EMA60 < EMA120 (5선 전체 역배열) 이면 즉시 None 반환 (전체 스킵)
 
 [2] _check_buy_signal_precise(df, last_rsi, last_sq)
     → Pine Script 시뮬레이션(_simulate_signals) 실행
     → 마지막 마커가 BUY 또는 SQZ BUY
     → 신호 발생일이 10거래일 이내
+
+[2.5] _is_pullback(ema) — 눌림목 필터
+    → EMA20 > EMA60 > EMA120 (장기 상승추세)
+    → EMA5 현재값 < 직전값 (단기 눌림)
+    → 두 조건 모두 불충족 시 chart_buy 제외
 
 [3] _passes_volume_filter(df, buy_date)
     → 신호 발생일 거래량 > 직전 5거래일 평균 × 1.5
@@ -114,9 +119,18 @@ last_rsi >= 80 AND last_sq == 0  → (None, None) 반환
 
 ### 세부 조건
 
-#### Dead Cross 체크
+#### Dead Cross 체크 (5선 전체 역배열)
 ```python
-float(ema_20.iloc[-1]) < float(ema_50.iloc[-1])  → True면 전체 스킵
+EMA5 < EMA10 < EMA20 < EMA60 < EMA120  → True면 전체 스킵
+```
+
+#### 눌림목 체크 (_is_pullback)
+```python
+# 장기 상승추세
+EMA20 > EMA60 > EMA120
+# 단기 눌림
+ema_5.iloc[-1] < ema_5.iloc[-2]
+# 둘 다 True여야 chart_buy 포함
 ```
 
 #### 신호 탐색 범위

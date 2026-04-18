@@ -11,6 +11,7 @@ def calculate_ema(df: pd.DataFrame) -> dict:
     close = df["close"]
     return {
         "ema_5": ta.ema(close, length=5),
+        "ema_10": ta.ema(close, length=10),
         "ema_20": ta.ema(close, length=20),
         "ema_50": ta.ema(close, length=50),
         "ema_60": ta.ema(close, length=60),

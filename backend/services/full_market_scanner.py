@@ -180,12 +180,40 @@ def _check_trend(df: pd.DataFrame, ema: dict) -> str:
 
 
 def _is_dead_cross(ema: dict) -> bool:
-    e20 = ema.get("ema_20")
-    e50 = ema.get("ema_50")
-    if e20 is None or e50 is None:
-        return False
+    """데드크로스: EMA5 < EMA10 < EMA20 < EMA60 < EMA120 (5선 전체 역배열)."""
+    keys = ["ema_5", "ema_10", "ema_20", "ema_60", "ema_120"]
+    vals: list[float] = []
+    for k in keys:
+        s = ema.get(k)
+        if s is None or len(s.dropna()) == 0:
+            return False
+        try:
+            vals.append(float(s.dropna().iloc[-1]))
+        except Exception:
+            return False
+    # EMA5 < EMA10 < EMA20 < EMA60 < EMA120
+    return all(vals[i] < vals[i + 1] for i in range(len(vals) - 1))
+
+
+def _is_pullback(ema: dict) -> bool:
+    """눌림목: EMA20 > EMA60 > EMA120 (장기 상승추세) + EMA5 하락 (단기 눌림)."""
+    for k in ["ema_5", "ema_20", "ema_60", "ema_120"]:
+        s = ema.get(k)
+        if s is None or len(s.dropna()) < 2:
+            return False
+
     try:
-        return float(e20.iloc[-1]) < float(e50.iloc[-1])
+        e5 = ema["ema_5"].dropna()
+        e20 = ema["ema_20"].dropna()
+        e60 = ema["ema_60"].dropna()
+        e120 = ema["ema_120"].dropna()
+
+        # 장기 상승추세: EMA20 > EMA60 > EMA120
+        long_up = float(e20.iloc[-1]) > float(e60.iloc[-1]) > float(e120.iloc[-1])
+        # 단기 눌림: EMA5 현재값 < 직전값
+        ema5_declining = float(e5.iloc[-1]) < float(e5.iloc[-2])
+
+        return long_up and ema5_declining
     except Exception:
         return False
 
@@ -322,11 +350,11 @@ def _analyze_ticker(df: pd.DataFrame, info: dict) -> dict | None:
         # 카테고리 분류
         categories = []
 
-        # 차트 BUY 신호 (Pine Script 정밀 판정 + 사전 필터)
+        # 차트 BUY 신호: 10거래일 이내 BUY/SQZ BUY + 눌림목 + 거래량 필터
         buy_signal, buy_date = _check_buy_signal_precise(df, last_rsi, last_sq)
-        if buy_signal:
+        if buy_signal and _is_pullback(ema):
             pvf = _passes_volume_filter(df, buy_date)
-            logger.debug(f"[chart_buy] {info['symbol']} signal={buy_signal} date={buy_date} pvf={pvf}")
+            logger.debug(f"[chart_buy] {info['symbol']} signal={buy_signal} date={buy_date} pvf={pvf} pullback=True")
             if pvf:
                 categories.append("chart_buy")
 
