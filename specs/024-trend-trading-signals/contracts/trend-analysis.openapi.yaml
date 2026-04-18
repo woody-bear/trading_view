@@ -1,0 +1,181 @@
+openapi: 3.0.3
+info:
+  title: Trend Analysis API (024)
+  version: "1.0.0"
+  description: |
+    종목의 최근 120봉 일봉 가격을 사용한 추세 분류 + 매매 후보 구간 산출.
+    종목 상세 차트 분석 탭에서만 on-demand 호출됨. 스캔·BUY 신호 파이프라인과 완전 격리.
+
+paths:
+  /trend-analysis/{symbol}:
+    get:
+      summary: 종목 추세 분류 + 매매 후보 산출
+      parameters:
+        - in: path
+          name: symbol
+          required: true
+          schema: { type: string }
+          example: "MU"
+        - in: query
+          name: market
+          required: true
+          schema:
+            type: string
+            enum: [KR, KOSPI, KOSDAQ, US]
+      responses:
+        "200":
+          description: OK — 분류 불가/데이터 부족도 200으로 반환 (signals 빈 배열)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrendAnalysisResponse"
+              examples:
+                uptrend_us:
+                  summary: 상승추세 (US)
+                  value:
+                    symbol: "MU"
+                    market: "US"
+                    classification:
+                      type: "uptrend"
+                      confidence: 0.78
+                      window_size: 120
+                      slope_high: 0.18
+                      slope_low: 0.15
+                      last_close: 458.75
+                      evaluated_at: "2026-04-16T12:00:00Z"
+                    lines:
+                      - kind: "support_up"
+                        start: { time: 1768000000, price: 410.0 }
+                        end:   { time: 1776700000, price: 455.0 }
+                        style: { color: "#22c55e", dashed: true }
+                      - kind: "resistance_up"
+                        start: { time: 1768000000, price: 425.0 }
+                        end:   { time: 1776700000, price: 470.0 }
+                        style: { color: "#22c55e", dashed: true }
+                    buy_signals:
+                      - kind: "buy_candidate"
+                        price: 455.0
+                        condition: "지지선 455원 근처 매수 적합"
+                        distance_pct: -0.82
+                        is_near: true
+                    sell_signals:
+                      - kind: "sell_candidate_1"
+                        price: 470.0
+                        condition: "1차 매도 후보 — 저항선 470원"
+                        distance_pct: 2.45
+                        is_near: false
+                      - kind: "sell_candidate_2"
+                        price: 450.45
+                        condition: "강한 매도 후보 — 지지선 하향이탈 시"
+                        distance_pct: -1.81
+                        is_near: true
+                    disclaimer: "본 안내는 참고용이며 투자 책임은 사용자에게 있습니다."
+                    current_price: 458.75
+                    evaluated_at: "2026-04-16T12:00:00Z"
+                insufficient_data:
+                  summary: 데이터 부족 (120봉 미만)
+                  value:
+                    symbol: "NEWLY_LISTED"
+                    market: "KR"
+                    classification:
+                      type: "insufficient_data"
+                      confidence: null
+                      window_size: 120
+                      slope_high: null
+                      slope_low: null
+                      last_close: null
+                      evaluated_at: "2026-04-16T12:00:00Z"
+                    lines: []
+                    buy_signals: []
+                    sell_signals: []
+                    disclaimer: "본 안내는 참고용이며 투자 책임은 사용자에게 있습니다."
+                    current_price: null
+                    evaluated_at: "2026-04-16T12:00:00Z"
+                unknown_classification:
+                  summary: 분류 불가
+                  value:
+                    symbol: "VOLATILE"
+                    market: "US"
+                    classification:
+                      type: "unknown"
+                      confidence: 0.12
+                      window_size: 120
+                      slope_high: 0.04
+                      slope_low: -0.02
+                      last_close: 100.0
+                      evaluated_at: "2026-04-16T12:00:00Z"
+                    lines: []
+                    buy_signals: []
+                    sell_signals: []
+                    disclaimer: "본 안내는 참고용이며 투자 책임은 사용자에게 있습니다."
+                    current_price: 100.0
+                    evaluated_at: "2026-04-16T12:00:00Z"
+
+components:
+  schemas:
+    TrendType:
+      type: string
+      enum: [uptrend, downtrend, sideways, triangle, unknown, insufficient_data]
+
+    TrendClassification:
+      type: object
+      required: [type, window_size, evaluated_at]
+      properties:
+        type: { $ref: "#/components/schemas/TrendType" }
+        confidence: { type: number, nullable: true }
+        window_size: { type: integer, default: 120 }
+        slope_high: { type: number, nullable: true }
+        slope_low: { type: number, nullable: true }
+        last_close: { type: number, nullable: true }
+        evaluated_at: { type: string, format: date-time }
+
+    PricePoint:
+      type: object
+      properties:
+        time: { type: integer, description: "Unix seconds" }
+        price: { type: number }
+
+    TrendLine:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [support_up, resistance_up, support_down, resistance_down, box_top, box_bottom, triangle_support, triangle_resistance]
+        start: { $ref: "#/components/schemas/PricePoint" }
+        end: { $ref: "#/components/schemas/PricePoint" }
+        style:
+          type: object
+          properties:
+            color: { type: string }
+            dashed: { type: boolean }
+
+    TradingSignal:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [buy_candidate, watch, sell_candidate_1, sell_candidate_2]
+        price: { type: number, nullable: true }
+        condition: { type: string }
+        distance_pct: { type: number, nullable: true }
+        is_near: { type: boolean }
+
+    TrendAnalysisResponse:
+      type: object
+      required: [symbol, market, classification, lines, buy_signals, sell_signals, disclaimer, evaluated_at]
+      properties:
+        symbol: { type: string }
+        market: { type: string }
+        classification: { $ref: "#/components/schemas/TrendClassification" }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/TrendLine" }
+        buy_signals:
+          type: array
+          items: { $ref: "#/components/schemas/TradingSignal" }
+        sell_signals:
+          type: array
+          items: { $ref: "#/components/schemas/TradingSignal" }
+        disclaimer: { type: string }
+        current_price: { type: number, nullable: true }
+        evaluated_at: { type: string, format: date-time }

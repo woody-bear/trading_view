@@ -1,0 +1,133 @@
+openapi: 3.0.3
+info:
+  title: Company API — KR 펀더멘털 보강 (023)
+  version: "1.2.0"
+  description: |
+    기존 GET /company/{symbol} 응답에 `metric_sources` 필드 추가.
+    KR 개별 상장주식은 네이버 파이낸스에서 PER/PBR/EPS/BPS를 보강하여
+    yfinance 결측을 대체. 다른 자산군·시장은 기존 동작 유지.
+
+paths:
+  /company/{symbol}:
+    get:
+      summary: 종목 회사 정보 + 가치 지표 (네이버 보강 KR 한정)
+      parameters:
+        - in: path
+          name: symbol
+          required: true
+          schema: { type: string }
+          example: "000660"
+        - in: query
+          name: market
+          schema: { type: string, enum: [KR, KOSPI, KOSDAQ, US, CRYPTO] }
+      responses:
+        "200":
+          description: OK — 네이버 보강 실패 시에도 200, yfinance 폴백
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanyResponse"
+              examples:
+                sk_hynix_with_naver:
+                  summary: SK하이닉스 — 네이버 보강 성공
+                  value:
+                    company:
+                      name: "SamsungElec"
+                      sector: "Technology"
+                    metrics:
+                      market_cap: 781251598352384
+                      per: 18.9
+                      pbr: 6.4
+                      roe: 44.14
+                      roa: 19.94
+                      eps: 58954
+                      bps: 174538
+                      dividend_yield: 0.27
+                      operating_margin: 58.4
+                      debt_to_equity: 20.52
+                      currency: "KRW"
+                    revenue_segments: null
+                    asset_class: "STOCK_KR"
+                    reporting_period: "2025-Q4"
+                    metric_sources:
+                      market_cap: "yfinance"
+                      per: "naver"
+                      pbr: "naver"
+                      roe: "yfinance"
+                      roa: "yfinance"
+                      operating_margin: "yfinance"
+                      eps: "naver"
+                      bps: "naver"
+                      dividend_yield: "yfinance"
+                      debt_to_equity: "yfinance"
+                      sector: "yfinance"
+                    cached_at: "2026-04-15T03:00:00Z"
+                aapl_no_naver:
+                  summary: AAPL — 네이버 스킵, yfinance 그대로
+                  value:
+                    company: { name: "Apple Inc.", sector: "Technology" }
+                    metrics:
+                      market_cap: 3804263874560
+                      per: 32.72
+                      pbr: 43.15
+                      roe: 152.02
+                      roa: 24.38
+                      eps: 7.91
+                      bps: 6.0
+                      dividend_yield: 0.4
+                      operating_margin: 35.37
+                      debt_to_equity: 102.63
+                      currency: "USD"
+                    asset_class: "STOCK_US"
+                    reporting_period: "2025-Q4"
+                    metric_sources:
+                      per: "yfinance"
+                      pbr: "yfinance"
+                      eps: "yfinance"
+                      bps: "yfinance"
+                      roe: "yfinance"
+                      market_cap: "yfinance"
+                    cached_at: "2026-04-15T03:00:00Z"
+
+  /system/naver-stats:
+    get:
+      summary: 네이버 파이낸스 크롤러 관측 — 성공/실패 카운터 + 최근 실패 10건
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: integer }
+                  fail: { type: integer }
+                  success_rate: { type: number, description: "0.0~1.0" }
+                  recent_fails:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        symbol: { type: string }
+                        stage: { type: string, enum: [network, decode, parse, validate] }
+                        error: { type: string }
+                        ts: { type: string, format: date-time }
+
+components:
+  schemas:
+    MetricSource:
+      type: string
+      enum: [naver, yfinance]
+    CompanyResponse:
+      type: object
+      required: [asset_class]
+      properties:
+        company: { type: object, nullable: true }
+        metrics: { type: object, nullable: true }
+        revenue_segments: { type: array, nullable: true }
+        asset_class: { type: string, enum: [STOCK_KR, STOCK_US, ETF, CRYPTO, INDEX, FX] }
+        reporting_period: { type: string, nullable: true }
+        metric_sources:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/MetricSource"
+        cached_at: { type: string, nullable: true, format: date-time }
