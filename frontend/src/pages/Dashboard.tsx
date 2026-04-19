@@ -268,7 +268,7 @@ export default function Dashboard() {
             {mobileScan.buyTotal != null && (
               <span className="text-label font-semibold text-white bg-[var(--buy)]/20 px-1.5 py-0.5 rounded">총 {mobileScan.buyTotal}개</span>
             )}
-            <span className="text-label text-[var(--muted)]">일봉 20거래일 이내 BUY/SQZ BUY · 데드크로스(EMA 5선 역배열) 제외 · 신호일 거래량 5일 평균 1.5배↑</span>
+            <span className="text-label text-[var(--muted)]">일봉 20거래일 이내 BUY/SQZ BUY · 데드크로스(EMA 5선 역배열) 제외</span>
           </div>
           <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
             {/* Dead Cross 비율 바 (모바일) */}
@@ -762,7 +762,7 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
                   총 {buyTotal}개
                 </span>
               )}
-              <span className="text-micro text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">일봉 20거래일 이내 BUY/SQZ BUY · 데드크로스(EMA 5선 역배열) 제외 · 신호일 거래량 5일 평균 1.5배↑</span>
+              <span className="text-micro text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">일봉 20거래일 이내 BUY/SQZ BUY · 데드크로스(EMA 5선 역배열) 제외</span>
               <span className="text-micro px-1.5 py-0.5 rounded font-medium bg-[var(--bg)] text-[var(--muted)]">{label}</span>
               {Object.keys(livePrices).length > 0 && (
                 <span className="text-micro text-green-400 flex items-center gap-1">

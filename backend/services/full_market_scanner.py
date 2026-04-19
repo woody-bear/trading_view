@@ -355,13 +355,11 @@ def _analyze_ticker(df: pd.DataFrame, info: dict) -> dict | None:
         # chart_buy: 20거래일 이내 BUY/SQZ BUY + 거래량 필터 (dead cross는 위에서 이미 제외)
         buy_signal, buy_date = _check_buy_signal_precise(df, last_rsi, last_sq)
         if buy_signal:
-            pvf = _passes_volume_filter(df, buy_date)
-            if pvf:
-                categories.append("chart_buy")
-                # pullback_buy: chart_buy 조건 + 눌림목 필터
-                if _is_pullback(ema):
-                    categories.append("pullback_buy")
-                logger.debug(f"[chart_buy] {info['symbol']} signal={buy_signal} date={buy_date} pullback={'pullback_buy' in categories}")
+            categories.append("chart_buy")
+            # pullback_buy: chart_buy 조건 + 눌림목 필터
+            if _is_pullback(ema):
+                categories.append("pullback_buy")
+            logger.debug(f"[chart_buy] {info['symbol']} signal={buy_signal} date={buy_date} pullback={'pullback_buy' in categories}")
 
         # 투자과열: RSI >= 70 또는 (RSI >= 65 + 거래량 2배+) — 한국 개별주, 거래량 있는 종목만
         if info["market"] == "KR" and not info.get("is_etf", False) and last_vol >= 0.1:
