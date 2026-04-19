@@ -37,3 +37,5 @@ backend/data/charts/*.parquet
 
 backend/data/*
 .claude/settings.local.json
+
+작업진행상황프롬프트.md

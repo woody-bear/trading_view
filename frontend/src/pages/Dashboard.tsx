@@ -40,8 +40,8 @@ export default function Dashboard() {
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const snapRef = useRef<HTMLDivElement>(null)
   const [currentSection, setCurrentSection] = useState(0)
-  const [mobileScan, setMobileScan] = useState<{ buyItems: any[]; overheatItems: any[]; marketHealth: { dead_cross: number; alive: number; volume_spike?: number; volume_total?: number } | null }>({
-    buyItems: [], overheatItems: [], marketHealth: null,
+  const [mobileScan, setMobileScan] = useState<{ buyItems: any[]; buyTotal: number | null; pullbackItems: any[]; overheatItems: any[]; marketHealth: { dead_cross: number; alive: number; volume_spike?: number; volume_total?: number } | null }>({
+    buyItems: [], buyTotal: null, pullbackItems: [], overheatItems: [], marketHealth: null,
   })
   const [mobileScanTotal, setMobileScanTotal] = useState<number | null>(null)
 
@@ -79,7 +79,13 @@ export default function Dashboard() {
   useEffect(() => {
     fetchFullScanLatest().then(r => {
       if (r?.status !== 'no_data' && r?.chart_buy) {
-        setMobileScan({ buyItems: r.chart_buy?.items || [], overheatItems: r.overheat?.items || [], marketHealth: r.market_health || null })
+        setMobileScan({
+          buyItems: r.chart_buy?.items || [],
+          buyTotal: r.chart_buy?.total ?? null,
+          pullbackItems: r.pullback_buy?.items || [],
+          overheatItems: r.overheat?.items || [],
+          marketHealth: r.market_health || null,
+        })
       }
     }).catch(() => {})
     fetchScanSymbols().then(r => { if (r?.total) setMobileScanTotal(r.total) }).catch(() => {})
@@ -255,10 +261,15 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* ── 섹션 3: 차트 BUY 신호 ── */}
+        {/* ── 섹션 3: 추천 종목 ── */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
           <SnapSectionHeader title="추천 종목" color="text-[var(--buy)]" currentSection={currentSection} />
-          <p className="text-body text-[var(--muted)] px-3 py-1 shrink-0">일봉 10거래일 이내 BUY/SQZ BUY · 눌림목(EMA20{'>'}60{'>'}120 + EMA5↓) · 데드크로스 제외</p>
+          <div className="flex items-center gap-2 px-3 py-1 shrink-0 flex-wrap">
+            {mobileScan.buyTotal != null && (
+              <span className="text-label font-semibold text-white bg-[var(--buy)]/20 px-1.5 py-0.5 rounded">총 {mobileScan.buyTotal}개</span>
+            )}
+            <span className="text-label text-[var(--muted)]">일봉 20거래일 이내 BUY/SQZ BUY · 데드크로스(EMA 5선 역배열) 제외 · 신호일 거래량 5일 평균 1.5배↑</span>
+          </div>
           <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
             {/* Dead Cross 비율 바 (모바일) */}
             {mobileScan.marketHealth && (mobileScan.marketHealth.dead_cross + mobileScan.marketHealth.alive) > 0 && (() => {
@@ -314,12 +325,25 @@ export default function Dashboard() {
             })()}
             {mobileScan.buyItems.length === 0 ? (
               <p className="text-[var(--muted)] text-sm py-8 text-center">BUY 신호 종목이 없습니다</p>
+            ) : (
+              <SectorGrouped
+                items={[...mobileScan.buyItems].sort((a: any, b: any) => (b.trend === 'BULL' ? 1 : 0) - (a.trend === 'BULL' ? 1 : 0))}
+                livePrices={{}}
+                nav={nav}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* ── 섹션 4: 눌림목 ── */}
+        <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
+          <SnapSectionHeader title="눌림목" color="text-cyan-400" currentSection={currentSection} />
+          <p className="text-body text-[var(--muted)] px-3 py-1 shrink-0">추천종목 중 EMA20{'>'}60{'>'}120 + EMA5↓ (장기상승 + 단기눌림)</p>
+          <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
+            {mobileScan.pullbackItems.length === 0 ? (
+              <p className="text-[var(--muted)] text-sm py-8 text-center">눌림목 종목이 없습니다</p>
             ) : (() => {
-              const { mode } = getBuyDisplayMode()
-              const items = filterBuyByMode(
-                [...mobileScan.buyItems].sort((a: any, b: any) => (b.trend === 'BULL' ? 1 : 0) - (a.trend === 'BULL' ? 1 : 0)),
-                mode
-              )
+              const items = [...mobileScan.pullbackItems].sort((a: any, b: any) => (b.trend === 'BULL' ? 1 : 0) - (a.trend === 'BULL' ? 1 : 0))
               return items.map((item: any, i: number) => (
                 <BuyCard key={item.symbol} item={item} index={i} nav={nav} />
               ))
@@ -380,7 +404,7 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* ── 전체 시장 스캔 ── */}
+        {/* ── 시장 스캔 ── */}
         <div className="border-t border-[var(--border)] my-8" />
         <MarketScanBox nav={nav} qc={qc} />
       </div>
@@ -490,6 +514,8 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
 
   const [maxSq] = useState<any>(null)  // 하위 호환용 (제거 예정)
   const [buyItems, setBuyItems] = useState<any[]>([])
+  const [buyTotal, setBuyTotal] = useState<number | null>(null)
+  const [pullbackItems, setPullbackItems] = useState<any[]>([])
   const [overheatItems, setOverheatItems] = useState<any[]>([])
   const [marketHealth, setMarketHealth] = useState<{ dead_cross: number; alive: number; volume_spike?: number; volume_total?: number } | null>(null)
   const [scanSymbolsTotal, setScanSymbolsTotal] = useState<number | null>(null)
@@ -501,7 +527,11 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
   const priceTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const applyResult = (result: any) => {
-    if (result?.chart_buy) setBuyItems(result.chart_buy.items || [])
+    if (result?.chart_buy) {
+      setBuyItems(result.chart_buy.items || [])
+      if (result.chart_buy.total != null) setBuyTotal(result.chart_buy.total)
+    }
+    if (result?.pullback_buy) setPullbackItems(result.pullback_buy.items || [])
     if (result?.overheat) setOverheatItems(result.overheat.items || [])
     if (result?.market_health) setMarketHealth(result.market_health)
     // 마지막 스캔 시각 (full_market_scanner: completed_at, unified_scanner: scan_time)
@@ -528,9 +558,10 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
       add(maxSq.us, 'US'); add(maxSq.crypto, 'CRYPTO')
     }
     add(buyItems)
+    add(pullbackItems)
     add(overheatItems)
     return syms
-  }, [maxSq, buyItems, overheatItems])
+  }, [maxSq, buyItems, pullbackItems, overheatItems])
 
   // 실시간 가격 fetch
   const refreshPrices = useCallback(async () => {
@@ -551,7 +582,7 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
     refreshPrices()
     priceTimer.current = setInterval(refreshPrices, 5_000)
     return () => { if (priceTimer.current) clearInterval(priceTimer.current) }
-  }, [maxSq, buyItems, overheatItems])
+  }, [maxSq, buyItems, pullbackItems, overheatItems])
 
   const [scanElapsed, setScanElapsed] = useState(0)
   const [fullScanRunning, setFullScanRunning] = useState(false)
@@ -559,7 +590,7 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
 
   const runScan = async () => {
     setScanning(true)
-    setScanMsg('전체 시장 스캔 중...')
+    setScanMsg('시장 스캔 중...')
     setScanElapsed(0)
     const elapsed = { v: 0 }
     const elapsedTimer = setInterval(() => { elapsed.v += 1; setScanElapsed(elapsed.v) }, 1000)
@@ -614,7 +645,7 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
         if (status.scan_time) setScanTime(status.scan_time)
         if (status.scanning) {
           setScanning(true)
-          setScanMsg('전체 시장 스캔 중...')
+          setScanMsg('시장 스캔 중...')
           setScanElapsed(status.elapsed_seconds || 0)
         } else if (!hasData) {
           // 데이터가 전혀 없을 때만 스캔 실행
@@ -680,7 +711,7 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
     <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-3 md:p-5">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2 flex-wrap">
-          <h1 className="text-base md:text-xl font-bold text-white">전체 시장 스캔</h1>
+          <h1 className="text-base md:text-xl font-bold text-white">시장 스캔</h1>
           {allClosed && !scanning && (
             <span className="text-caption font-semibold text-slate-300 bg-slate-600/40 border border-slate-500/40 px-2 py-0.5 rounded-full">
               장 종료
@@ -705,7 +736,7 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
       {scanning && buyItems.length === 0 && (
         <div className="text-center py-8 text-[var(--muted)]">
           <RefreshCw size={20} className="animate-spin mx-auto mb-2 text-orange-400" />
-          <p className="text-sm">전체 시장 스캔 중... {scanElapsed > 0 ? `(${scanElapsed}초 경과)` : '(약 30초~1분)'}</p>
+          <p className="text-sm">시장 스캔 중... {scanElapsed > 0 ? `(${scanElapsed}초 경과)` : '(약 30초~1분)'}</p>
         </div>
       )}
       {scanning && buyItems.length > 0 && (
@@ -715,7 +746,7 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
         </div>
       )}
 
-      {/* 1. 차트 BUY 신호 */}
+      {/* 1. 추천 종목 (chart_buy) */}
       {(() => {
         const { mode, label } = getBuyDisplayMode()
         const displayItems = filterBuyByMode(
@@ -726,7 +757,12 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
           <div className="mb-2">
             <div className="flex items-center gap-2 mb-3 flex-wrap">
               <h2 className="text-sm font-bold text-[var(--buy)]">추천 종목</h2>
-              <span className="text-micro text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">일봉 10거래일 이내 + 데드크로스 제외 + 거래량 5일 평균 1.5배↑</span>
+              {buyTotal != null && (
+                <span className="text-micro font-semibold text-white bg-[var(--buy)]/20 px-1.5 py-0.5 rounded">
+                  총 {buyTotal}개
+                </span>
+              )}
+              <span className="text-micro text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">일봉 20거래일 이내 BUY/SQZ BUY · 데드크로스(EMA 5선 역배열) 제외 · 신호일 거래량 5일 평균 1.5배↑</span>
               <span className="text-micro px-1.5 py-0.5 rounded font-medium bg-[var(--bg)] text-[var(--muted)]">{label}</span>
               {Object.keys(livePrices).length > 0 && (
                 <span className="text-micro text-green-400 flex items-center gap-1">
@@ -786,19 +822,27 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
               )
             })()}
             {displayItems.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                {displayItems.map((item: any, i: number) => (
-                  <BuyCard key={item.symbol} item={item} index={i} livePrice={livePrices[item.symbol]} nav={nav} />
-                ))}
-              </div>
+              <SectorGrouped items={displayItems} livePrices={livePrices} nav={nav} />
             ) : !scanning ? (
-              <p className="text-[var(--muted)] text-xs text-center py-4">10거래일 이내 BUY 신호 종목이 없습니다</p>
+              <p className="text-[var(--muted)] text-xs text-center py-4">20거래일 이내 BUY 신호 종목이 없습니다</p>
             ) : null}
           </div>
         )
       })()}
 
-
+      {/* 2. 눌림목 (pullback_buy) */}
+      {pullbackItems.length > 0 && (() => {
+        const displayItems = [...pullbackItems].sort((a: any, b: any) => (b.trend === 'BULL' ? 1 : 0) - (a.trend === 'BULL' ? 1 : 0))
+        return (
+          <div className="mt-4 pt-4 border-t border-[var(--border)]">
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              <h2 className="text-sm font-bold text-cyan-400">눌림목</h2>
+              <span className="text-micro text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">추천종목 중 EMA20{'>'}60{'>'}120 + EMA5↓ (장기상승 + 단기눌림)</span>
+            </div>
+            <SectorGrouped items={displayItems} livePrices={livePrices} nav={nav} />
+          </div>
+        )
+      })()}
 
     </div>
   )
@@ -807,6 +851,49 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
 // ══════════════════════════════════════════════════════════════
 // BuyCard — 차트 BUY 신호 카드 (가격 깜빡임)
 // ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+// SectorGrouped — 업종별 그룹 렌더링
+// ══════════════════════════════════════════════════════════════
+const SECTOR_ORDER = [
+  "IT/기술", "반도체", "커뮤니케이션", "헬스케어",
+  "소비재(경기)", "소비재(필수)", "금융", "산업재",
+  "소재", "에너지", "부동산", "유틸리티",
+  "ETF", "암호화폐", "기타",
+]
+
+function SectorGrouped({ items, livePrices, nav }: { items: any[]; livePrices: Record<string, any>; nav: any }) {
+  // 섹터별 그룹화
+  const groups: Record<string, any[]> = {}
+  for (const item of items) {
+    const sector = item.sector || (item.is_etf ? "ETF" : item.market === "CRYPTO" ? "암호화폐" : "기타")
+    ;(groups[sector] ??= []).push(item)
+  }
+
+  // 섹터 정렬: SECTOR_ORDER 우선, 나머지 알파벳순
+  const ordered = [
+    ...SECTOR_ORDER.filter(s => groups[s]),
+    ...Object.keys(groups).filter(s => !SECTOR_ORDER.includes(s)).sort(),
+  ]
+
+  return (
+    <div className="space-y-4">
+      {ordered.map(sector => (
+        <div key={sector}>
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="text-xs font-semibold text-[var(--muted)]">{sector}</span>
+            <span className="text-micro text-[var(--muted)] bg-[var(--bg)] px-1 py-0.5 rounded">{groups[sector].length}개</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+            {groups[sector].map((item: any, i: number) => (
+              <BuyCard key={item.symbol} item={item} index={i} livePrice={livePrices?.[item.symbol]} nav={nav} />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function BuyCard({ item, index, livePrice, nav }: { item: any; index: number; livePrice?: any; nav: any }) {
   const price = livePrice?.price ?? item.price
   const pct = livePrice?.change_pct ?? item.change_pct
