@@ -858,14 +858,17 @@ const SECTOR_ORDER = [
   "IT/기술", "반도체", "커뮤니케이션", "헬스케어",
   "소비재(경기)", "소비재(필수)", "금융", "산업재",
   "소재", "에너지", "부동산", "유틸리티",
-  "ETF", "암호화폐", "기타",
+  "ETF", "암호화폐", "기타(국내)", "기타(미국)",
 ]
 
 function SectorGrouped({ items, livePrices, nav }: { items: any[]; livePrices: Record<string, any>; nav: any }) {
   // 섹터별 그룹화
   const groups: Record<string, any[]> = {}
   for (const item of items) {
-    const sector = item.sector || (item.is_etf ? "ETF" : item.market === "CRYPTO" ? "암호화폐" : "기타")
+    const rawSector = item.sector || (item.is_etf ? "ETF" : item.market === "CRYPTO" ? "암호화폐" : "")
+    const sector = rawSector === "기타" || !rawSector
+      ? (item.market === "KR" ? "기타(국내)" : item.market === "US" ? "기타(미국)" : "기타")
+      : rawSector
     ;(groups[sector] ??= []).push(item)
   }
 
