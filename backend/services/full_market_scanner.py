@@ -32,6 +32,7 @@ _progress: dict = {
     "started_at": None,
     "current_snapshot_id": None,
     "live_chart_buy_count": 0,
+    "live_pullback_buy_count": 0,
     "markets": None,  # ["KR"] / ["US", "CRYPTO"] / None(전체)
 }
 
@@ -63,6 +64,7 @@ def get_progress() -> dict:
         "progress_pct": pct,
         "current_snapshot_id": _progress.get("current_snapshot_id"),
         "live_chart_buy_count": _progress.get("live_chart_buy_count", 0),
+        "live_pullback_buy_count": _progress.get("live_pullback_buy_count", 0),
         "elapsed_seconds": elapsed,
         "markets": _progress.get("markets"),
         "live_dead_cross": _progress.get("live_dead_cross", 0),
@@ -302,7 +304,7 @@ def _check_buy_signal_precise(df: pd.DataFrame, last_rsi: float, last_sq: int) -
             matching = [i for i, idx in enumerate(df.index) if idx.date() == signal_date]
             if matching:
                 trading_days_since = len(df) - 1 - matching[0]
-                if trading_days_since <= 10:
+                if trading_days_since <= 20:
                     return last_marker["text"], signal_dt.strftime("%Y-%m-%d")
 
         return None, None
@@ -350,13 +352,16 @@ def _analyze_ticker(df: pd.DataFrame, info: dict) -> dict | None:
         # 카테고리 분류
         categories = []
 
-        # 차트 BUY 신호: 10거래일 이내 BUY/SQZ BUY + 눌림목 + 거래량 필터
+        # chart_buy: 20거래일 이내 BUY/SQZ BUY + 거래량 필터 (dead cross는 위에서 이미 제외)
         buy_signal, buy_date = _check_buy_signal_precise(df, last_rsi, last_sq)
-        if buy_signal and _is_pullback(ema):
+        if buy_signal:
             pvf = _passes_volume_filter(df, buy_date)
-            logger.debug(f"[chart_buy] {info['symbol']} signal={buy_signal} date={buy_date} pvf={pvf} pullback=True")
             if pvf:
                 categories.append("chart_buy")
+                # pullback_buy: chart_buy 조건 + 눌림목 필터
+                if _is_pullback(ema):
+                    categories.append("pullback_buy")
+                logger.debug(f"[chart_buy] {info['symbol']} signal={buy_signal} date={buy_date} pullback={'pullback_buy' in categories}")
 
         # 투자과열: RSI >= 70 또는 (RSI >= 65 + 거래량 2배+) — 한국 개별주, 거래량 있는 종목만
         if info["market"] == "KR" and not info.get("is_etf", False) and last_vol >= 0.1:
@@ -416,6 +421,7 @@ async def run_full_scan(markets: list[str] | None = None) -> dict:
     _progress["scanned_count"] = 0
     _progress["current_snapshot_id"] = None
     _progress["live_chart_buy_count"] = 0
+    _progress["live_pullback_buy_count"] = 0
     _progress["live_dead_cross"] = 0
     _progress["live_alive"] = 0
     _progress["markets"] = markets
@@ -465,7 +471,7 @@ async def run_full_scan(markets: list[str] | None = None) -> dict:
                 _progress["completed_chunks"] = ci + 1
                 continue
 
-            chunk_chart_buy = []
+            chunk_realtime: list[tuple[str, dict]] = []  # (category, item)
             for ticker in tickers:
                 info = ticker_map[ticker]
                 df = _extract(df_all, ticker)
@@ -493,17 +499,18 @@ async def run_full_scan(markets: list[str] | None = None) -> dict:
                     alive_count += 1
                 if result:
                     all_items.append(result)
-                    if "chart_buy" in result["categories"]:
-                        chunk_chart_buy.append(result)
+                    for cat in result["categories"]:
+                        if cat in ("chart_buy", "pullback_buy"):
+                            chunk_realtime.append((cat, result))
 
-            # chart_buy 종목 즉시 DB 저장 (실시간 표시용)
-            if chunk_chart_buy:
+            # chart_buy / pullback_buy 즉시 DB 저장 (실시간 표시용)
+            if chunk_realtime:
                 try:
                     async with async_session() as s2:
-                        for item in chunk_chart_buy:
+                        for cat, item in chunk_realtime:
                             s2.add(ScanSnapshotItem(
                                 snapshot_id=snapshot_id,
-                                category="chart_buy",
+                                category=cat,
                                 symbol=item["symbol"],
                                 name=item["name"],
                                 market=item["market"],
@@ -522,9 +529,10 @@ async def run_full_scan(markets: list[str] | None = None) -> dict:
                                 last_signal_date=item.get("last_signal_date"),
                             ))
                         await s2.commit()
-                    _progress["live_chart_buy_count"] += len(chunk_chart_buy)
+                    _progress["live_chart_buy_count"] += sum(1 for c, _ in chunk_realtime if c == "chart_buy")
+                    _progress["live_pullback_buy_count"] += sum(1 for c, _ in chunk_realtime if c == "pullback_buy")
                 except Exception as e:
-                    logger.warning(f"chart_buy 실시간 저장 실패 (청크 {ci + 1}): {e}")
+                    logger.warning(f"realtime 저장 실패 (청크 {ci + 1}): {e}")
 
             _progress["completed_chunks"] = ci + 1
             _progress["scanned_count"] = scanned
@@ -539,12 +547,17 @@ async def run_full_scan(markets: list[str] | None = None) -> dict:
         max_sq_count = 0
         buy_count = 0
 
+        pullback_count = 0
         async with async_session() as session:
             for item in all_items:
                 for cat in item["categories"]:
-                    if cat == "chart_buy":
-                        buy_count += 1
-                        continue  # 이미 청크별로 저장됨 — 중복 방지
+                    if cat in ("chart_buy", "pullback_buy"):
+                        # 이미 청크별로 저장됨 — 중복 방지
+                        if cat == "chart_buy":
+                            buy_count += 1
+                        elif cat == "pullback_buy":
+                            pullback_count += 1
+                        continue
                     session.add(ScanSnapshotItem(
                         snapshot_id=snapshot_id,
                         category=cat,
@@ -590,7 +603,7 @@ async def run_full_scan(markets: list[str] | None = None) -> dict:
         elapsed = round(time.time() - _progress["started_at"])
         logger.info(
             f"전체 스캔 완료: {scanned}/{total} 분석 | "
-            f"추천 {picks_count} | MAX SQ {max_sq_count} | BUY {buy_count} | "
+            f"추천 {picks_count} | MAX SQ {max_sq_count} | BUY {buy_count} | 눌림목 {pullback_count} | "
             f"{elapsed}초 소요"
         )
 
@@ -602,6 +615,7 @@ async def run_full_scan(markets: list[str] | None = None) -> dict:
             "picks": picks_count,
             "max_sq": max_sq_count,
             "chart_buy": buy_count,
+            "pullback_buy": pullback_count,
             "elapsed_seconds": elapsed,
         }
 
@@ -621,10 +635,8 @@ async def run_full_scan(markets: list[str] | None = None) -> dict:
 
 
 def _cap_chart_buy(items: list[dict]) -> list[dict]:
-    """chart_buy 항목을 KR 5개 + US 5개로 제한."""
-    kr = [i for i in items if i.get("market") == "KR"][:5]
-    us = [i for i in items if i.get("market") == "US"][:5]
-    return kr + us
+    """cap 없이 전체 반환."""
+    return items
 
 
 async def get_latest_snapshot() -> dict | None:
@@ -673,7 +685,9 @@ async def get_latest_snapshot() -> dict | None:
                     "scanned_count": _progress.get("scanned_count", 0),
                     "picks_count": 0, "buy_count": len(live_chart_buy_items),
                     "started_at": None, "completed_at": None,
-                    "picks": {}, "chart_buy": {"items": _cap_chart_buy(live_chart_buy_items)},
+                    "picks": {},
+                    "chart_buy": {"items": _cap_chart_buy(live_chart_buy_items)},
+                    "pullback_buy": {"items": []},
                     "overheat": {"items": []},
                     "market_health": {
                         "dead_cross": _progress.get("live_dead_cross", 0),
@@ -683,22 +697,31 @@ async def get_latest_snapshot() -> dict | None:
             return None
 
         items_result = await session.execute(
-            select(ScanSnapshotItem)
+            select(ScanSnapshotItem, StockMaster.is_etf)
+            .outerjoin(
+                StockMaster,
+                (StockMaster.symbol == ScanSnapshotItem.symbol) &
+                (StockMaster.market == ScanSnapshotItem.market),
+            )
             .where(ScanSnapshotItem.snapshot_id == snapshot.id)
             .order_by(ScanSnapshotItem.confidence.desc())
         )
-        items = items_result.scalars().all()
+        rows = items_result.all()
+        items = [r[0] for r in rows]
+        is_etf_map: dict[str, bool] = {r[0].symbol: bool(r[1]) for r in rows}
 
         # 카테고리별 그룹핑 (picks + max_sq 통합)
         picks_by_market = {}
         picks_seen = set()
         chart_buy_items = []
+        pullback_buy_items = []
         overheat_items = []
 
         for item in items:
             d = {
                 "symbol": item.symbol, "name": item.name,
                 "market": item.market, "market_type": item.market_type,
+                "is_etf": is_etf_map.get(item.symbol, False),
                 "price": item.price, "change_pct": item.change_pct,
                 "rsi": item.rsi, "bb_pct_b": item.bb_pct_b,
                 "bb_width": item.bb_width, "squeeze_level": item.squeeze_level,
@@ -714,11 +737,25 @@ async def get_latest_snapshot() -> dict | None:
                     picks_by_market.setdefault(item.market_type.lower(), []).append(d)
             elif item.category == "chart_buy":
                 chart_buy_items.append(d)
+            elif item.category == "pullback_buy":
+                pullback_buy_items.append(d)
             elif item.category == "overheat":
                 overheat_items.append(d)
 
-        # 스캔 진행 중이면 live chart_buy 우선, 아니면 완료 스냅샷 데이터 사용 (KR 5 + US 5)
+        # cap 없이 전체 반환 + 섹터 첨부
         final_chart_buy = _cap_chart_buy(live_chart_buy_items if live_chart_buy_items else chart_buy_items)
+        final_pullback_buy = _cap_chart_buy(pullback_buy_items)
+
+        # 업종(sector) 병렬 fetch — chart_buy + pullback_buy 합산 후 중복 제거
+        try:
+            from services.sector_cache import get_sectors
+            all_for_sector = {i["symbol"]: i for i in (final_chart_buy + final_pullback_buy)}.values()
+            sector_map = await get_sectors(list(all_for_sector))
+            for lst in (final_chart_buy, final_pullback_buy):
+                for i in lst:
+                    i["sector"] = sector_map.get(i["symbol"], "기타")
+        except Exception as e:
+            logger.warning(f"업종 fetch 실패: {e}")
 
         # market_health는 alive/dead_cross 집계가 있는 최신 스냅샷에서 가져옴
         # (전체 스캔의 일부 경로는 집계 컬럼이 NULL로 저장될 수 있어, 가장 가까운
@@ -767,7 +804,8 @@ async def get_latest_snapshot() -> dict | None:
             "started_at": snapshot.started_at.isoformat() if snapshot.started_at else None,
             "completed_at": snapshot.completed_at.isoformat() if snapshot.completed_at else None,
             "picks": picks_by_market,
-            "chart_buy": {"items": final_chart_buy},
+            "chart_buy": {"items": final_chart_buy, "total": snapshot.buy_count or len(chart_buy_items)},
+            "pullback_buy": {"items": final_pullback_buy},
             "overheat": {"items": overheat_items},
             "market_health": {
                 "dead_cross": mh_dead or 0,
