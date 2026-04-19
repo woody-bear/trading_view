@@ -17,9 +17,15 @@ from indicators.ema import calculate_ema
 from indicators.macd import calculate_macd
 from indicators.rsi import calculate_rsi
 from indicators.volume import calculate_volume_ratio
+from services.scan_conditions import (
+    MIN_CANDLES,
+    check_buy_signal_precise,
+    check_trend,
+    is_dead_cross,
+    is_pullback,
+)
 
 CHUNK_SIZE = 100
-SCAN_MIN_CANDLES = 60
 MAX_SNAPSHOTS = 10  # 보관할 최대 스냅샷 수
 
 # 진행 상태 (메모리)
@@ -157,67 +163,9 @@ def _extract(df_all: pd.DataFrame, ticker: str) -> pd.DataFrame | None:
         df.columns = ["open", "high", "low", "close", "volume"]
         df = df.dropna(subset=["close"])
         df = df[(df["open"] > 0) & (df["high"] > 0) & (df["low"] > 0)]
-        return df if len(df) >= SCAN_MIN_CANDLES else None
+        return df if len(df) >= MIN_CANDLES else None
     except Exception:
         return None
-
-
-def _check_trend(df: pd.DataFrame, ema: dict) -> str:
-    e20 = ema.get("ema_20")
-    e50 = ema.get("ema_50")
-    e200 = ema.get("ema_200")
-    if e20 is None or e50 is None or e200 is None:
-        return "NEUTRAL"
-    if len(e20.dropna()) < 10:
-        return "NEUTRAL"
-    price = float(df["close"].iloc[-1])
-    last_e20, last_e50, last_e200 = float(e20.iloc[-1]), float(e50.iloc[-1]), float(e200.iloc[-1])
-    e20_recent = e20.dropna().tail(5)
-    e20_slope = (float(e20_recent.iloc[-1]) - float(e20_recent.iloc[0])) if len(e20_recent) >= 5 else 0
-    if last_e20 > last_e50 > last_e200 and price > last_e20 and e20_slope > 0:
-        return "BULL"
-    if last_e20 < last_e50 < last_e200 and price < last_e20:
-        return "BEAR"
-    return "NEUTRAL"
-
-
-def _is_dead_cross(ema: dict) -> bool:
-    """데드크로스: EMA5 < EMA10 < EMA20 < EMA60 < EMA120 (5선 전체 역배열)."""
-    keys = ["ema_5", "ema_10", "ema_20", "ema_60", "ema_120"]
-    vals: list[float] = []
-    for k in keys:
-        s = ema.get(k)
-        if s is None or len(s.dropna()) == 0:
-            return False
-        try:
-            vals.append(float(s.dropna().iloc[-1]))
-        except Exception:
-            return False
-    # EMA5 < EMA10 < EMA20 < EMA60 < EMA120
-    return all(vals[i] < vals[i + 1] for i in range(len(vals) - 1))
-
-
-def _is_pullback(ema: dict) -> bool:
-    """눌림목: EMA20 > EMA60 > EMA120 (장기 상승추세) + EMA5 하락 (단기 눌림)."""
-    for k in ["ema_5", "ema_20", "ema_60", "ema_120"]:
-        s = ema.get(k)
-        if s is None or len(s.dropna()) < 2:
-            return False
-
-    try:
-        e5 = ema["ema_5"].dropna()
-        e20 = ema["ema_20"].dropna()
-        e60 = ema["ema_60"].dropna()
-        e120 = ema["ema_120"].dropna()
-
-        # 장기 상승추세: EMA20 > EMA60 > EMA120
-        long_up = float(e20.iloc[-1]) > float(e60.iloc[-1]) > float(e120.iloc[-1])
-        # 단기 눌림: EMA5 현재값 < 직전값
-        ema5_declining = float(e5.iloc[-1]) < float(e5.iloc[-2])
-
-        return long_up and ema5_declining
-    except Exception:
-        return False
 
 
 def _has_volume_spike_recent(df: pd.DataFrame, lookback: int = 10) -> bool:
@@ -268,50 +216,6 @@ def _passes_volume_filter(df: pd.DataFrame, buy_date: str) -> bool:
     return signal_vol > avg_vol * 1.5
 
 
-def _check_buy_signal_precise(df: pd.DataFrame, last_rsi: float, last_sq: int) -> tuple[str | None, str | None]:
-    """Pine Script 정밀 BUY 신호 판정 — _simulate_signals 사용.
-
-    사전 필터를 통과한 종목에만 적용 (RSI < 50 또는 스퀴즈 해소 가능성).
-    Returns: (signal_text, signal_date) or (None, None)
-    """
-    # 사전 필터: 10거래일 이내 BUY 신호 가능성이 전혀 없는 종목만 스킵
-    # (신호 후 강하게 랠리하면 현재 RSI가 높을 수 있으므로 임계값 완화)
-    if last_rsi >= 80 and last_sq == 0:
-        return None, None
-
-    # 데이터 신선도 확인 — 마지막 봉이 7일 이상 오래됐으면 stale 데이터 → 스킵
-    from datetime import datetime as _dt, timezone as _tz
-    today_utc = _dt.now(_tz.utc).date()
-    last_bar_date = df.index[-1].date() if hasattr(df.index[-1], "date") else None
-    if last_bar_date and (today_utc - last_bar_date).days > 7:
-        return None, None
-
-    try:
-        from routes.charts import _calc_all, _simulate_signals
-
-        timestamps = [int(idx.timestamp()) for idx in df.index]
-        indicators_data, _, _ = _calc_all(df, timestamps)
-        markers = _simulate_signals(df, timestamps, indicators_data, "1d")
-
-        if not markers:
-            return None, None
-
-        last_marker = markers[-1]
-        if last_marker["text"] in ("BUY", "SQZ BUY"):
-            signal_dt = datetime.utcfromtimestamp(last_marker["time"])
-            # 10거래일 이내 (df는 실제 거래일만 포함 → 주말·공휴일 자동 제외)
-            signal_date = signal_dt.date()
-            matching = [i for i, idx in enumerate(df.index) if idx.date() == signal_date]
-            if matching:
-                trading_days_since = len(df) - 1 - matching[0]
-                if trading_days_since <= 20:
-                    return last_marker["text"], signal_dt.strftime("%Y-%m-%d")
-
-        return None, None
-    except Exception:
-        return None, None
-
-
 def _analyze_ticker(df: pd.DataFrame, info: dict) -> dict | None:
     """단일 종목 지표 계산 + 분류."""
     try:
@@ -322,10 +226,10 @@ def _analyze_ticker(df: pd.DataFrame, info: dict) -> dict | None:
         vol = calculate_volume_ratio(df)
         ema = calculate_ema(df)
 
-        if _is_dead_cross(ema):
+        if is_dead_cross(ema):
             return "dead_cross"
 
-        trend = _check_trend(df, ema)
+        trend = check_trend(df, ema)
         last_sq = int(squeeze_series.iloc[-1]) if not pd.isna(squeeze_series.iloc[-1]) else 0
         last_rsi = float(rsi.iloc[-1]) if not pd.isna(rsi.iloc[-1]) else 50
         last_pctb = float(bb["pct_b"].iloc[-1]) if bb.get("pct_b") is not None and not pd.isna(bb["pct_b"].iloc[-1]) else 0.5
@@ -353,11 +257,11 @@ def _analyze_ticker(df: pd.DataFrame, info: dict) -> dict | None:
         categories = []
 
         # chart_buy: 20거래일 이내 BUY/SQZ BUY + 거래량 필터 (dead cross는 위에서 이미 제외)
-        buy_signal, buy_date = _check_buy_signal_precise(df, last_rsi, last_sq)
+        buy_signal, buy_date = check_buy_signal_precise(df, last_rsi, last_sq)
         if buy_signal:
             categories.append("chart_buy")
             # pullback_buy: chart_buy 조건 + 눌림목 필터
-            if _is_pullback(ema):
+            if is_pullback(ema):
                 categories.append("pullback_buy")
             logger.debug(f"[chart_buy] {info['symbol']} signal={buy_signal} date={buy_date} pullback={'pullback_buy' in categories}")
 
