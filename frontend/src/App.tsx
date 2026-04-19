@@ -16,6 +16,7 @@ import BuyList from './pages/BuyList'
 import Scrap from './pages/Scrap'
 import AuthCallback from './pages/AuthCallback'
 import Forex from './pages/Forex'
+import ScanConditions from './pages/ScanConditions'
 import Toast from './components/ui/Toast'
 
 const queryClient = new QueryClient({
@@ -36,6 +37,7 @@ function AppInner() {
         <div className="flex items-center gap-6 ml-6">
           <a href="/buy-list" className="text-cyan-400 hover:text-cyan-300 text-sm font-semibold">BUY조회종목리스트</a>
           <a href="/scrap" className="text-[var(--gold)] hover:text-yellow-300 text-sm font-semibold">BUY사례스크랩</a>
+          <a href="/conditions" className="text-emerald-400 hover:text-emerald-300 text-sm font-semibold">조회조건</a>
         </div>
         <div className="ml-auto flex items-center gap-3">
           <a href="/settings" className="text-[var(--muted)] hover:text-[var(--gold)] transition" title="설정">
@@ -56,6 +58,7 @@ function AppInner() {
           <Route path="/scrap" element={<Scrap />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/forex" element={<Forex />} />
+          <Route path="/conditions" element={<ScanConditions />} />
           <Route path="/:symbol" element={<SignalDetail />} />
         </Routes>
       </main>

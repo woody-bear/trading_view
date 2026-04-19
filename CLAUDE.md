@@ -290,7 +290,7 @@ main
 
 ---
 
-*Last updated: 2026-04-16*
+*Last updated: 2026-04-19*
 *Version: 2.0 — Strategy A (trigger table)*
 
 ## Active Technologies
@@ -299,6 +299,8 @@ main
 - Python 3.11 (backend), TypeScript 5 / React 18 (frontend) + FastAPI, yfinance, httpx(이미 설치), BeautifulSoup(bs4, 이미 설치) (backend) · React Query, Zustand (frontend, 022에서 도입) (023-kr-naver-fundamentals)
 - 신규 테이블 없음. 네이버 보강 결과는 **in-memory dict 캐시**(24h TTL) + 기존 company in-memory 캐시 재사용. (023-kr-naver-fundamentals)
 - DB 신규 테이블 없음. 서버 in-memory 캐시 60초 TTL + 프론트 React Query staleTime 5분 (024-trend-trading-signals)
+- TypeScript 5 / React 18 (frontend), Python 3.11 (backend) (027-scan-conditions-page)
+- 본 기능은 신규 테이블·DB 변경 없음. 정적 콘텐츠 페이지 + 백엔드 함수 재구성. (027-scan-conditions-page)
 
 ## Recent Changes
 - 022-stock-detail-layered-analysis: Added Python 3.11 (backend), TypeScript 5 / React 18 (frontend) + FastAPI, SQLAlchemy, pydantic-settings, yfinance, pykrx (backend) · React Router, React Query, Zustand, lightweight-charts, Tailwind (frontend)

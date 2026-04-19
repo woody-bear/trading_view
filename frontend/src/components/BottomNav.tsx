@@ -1,4 +1,4 @@
-import { BarChart3, BookMarked, Home, Settings, TrendingUp } from 'lucide-react'
+import { BarChart3, BookMarked, Home, ListChecks, Settings, TrendingUp } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 const tabs = [
@@ -6,6 +6,7 @@ const tabs = [
   { path: '/scan', icon: BarChart3, label: '스캔' },
   { path: '/buy-list', icon: TrendingUp, label: 'BUY종목' },
   { path: '/scrap', icon: BookMarked, label: '스크랩' },
+  { path: '/conditions', icon: ListChecks, label: '조회조건' },
   { path: '/settings', icon: Settings, label: '설정' },
 ]
 
