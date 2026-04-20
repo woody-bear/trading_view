@@ -22,6 +22,7 @@ from services.scan_conditions import (
     check_buy_signal_precise,
     check_trend,
     is_dead_cross,
+    is_large_cap,
     is_pullback,
 )
 
@@ -260,8 +261,8 @@ def _analyze_ticker(df: pd.DataFrame, info: dict) -> dict | None:
         buy_signal, buy_date = check_buy_signal_precise(df, last_rsi, last_sq)
         if buy_signal:
             categories.append("chart_buy")
-            # pullback_buy: chart_buy 조건 + 눌림목 필터
-            if is_pullback(ema):
+            # pullback_buy: chart_buy 조건 + 눌림목 필터 + 대형주 필터
+            if is_pullback(ema) and is_large_cap(info["symbol"], info["market"], info.get("is_etf", False)):
                 categories.append("pullback_buy")
             logger.debug(f"[chart_buy] {info['symbol']} signal={buy_signal} date={buy_date} pullback={'pullback_buy' in categories}")
 
@@ -648,6 +649,11 @@ async def get_latest_snapshot() -> dict | None:
         final_chart_buy = _cap_chart_buy(live_chart_buy_items if live_chart_buy_items else chart_buy_items)
         final_pullback_buy = _cap_chart_buy(pullback_buy_items)
 
+        # 대형주 여부 태깅 (chart_buy 아이템 기준)
+        for item in final_chart_buy:
+            item["is_large_cap"] = is_large_cap(item["symbol"], item["market"], item.get("is_etf", False))
+        large_cap_buy_count = sum(1 for i in final_chart_buy if i.get("is_large_cap", False))
+
         # 업종(sector) 병렬 fetch — chart_buy + pullback_buy 합산 후 중복 제거
         try:
             from services.sector_cache import get_sectors
@@ -706,7 +712,7 @@ async def get_latest_snapshot() -> dict | None:
             "started_at": snapshot.started_at.isoformat() if snapshot.started_at else None,
             "completed_at": snapshot.completed_at.isoformat() if snapshot.completed_at else None,
             "picks": picks_by_market,
-            "chart_buy": {"items": final_chart_buy, "total": snapshot.buy_count or len(chart_buy_items)},
+            "chart_buy": {"items": final_chart_buy, "total": snapshot.buy_count or len(chart_buy_items), "large_cap_count": large_cap_buy_count},
             "pullback_buy": {"items": final_pullback_buy},
             "overheat": {"items": overheat_items},
             "market_health": {

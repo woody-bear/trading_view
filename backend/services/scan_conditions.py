@@ -61,6 +61,22 @@ def is_dead_cross(ema: dict) -> bool:
     return all(vals[i] < vals[i + 1] for i in range(len(vals) - 1))
 
 
+def is_large_cap(symbol: str, market: str, is_etf: bool = False) -> bool:
+    """대형주 판정: KR → KOSPI200/KOSDAQ150, US → S&P500 포함 여부.
+
+    ETF는 필터 미적용(통과). CRYPTO 등 기타 시장도 통과.
+    """
+    if is_etf:
+        return True
+    if market == "KR":
+        from services.scan_symbols_list import KOSDAQ150_SYMBOLS, KOSPI200_SYMBOLS
+        return symbol in KOSPI200_SYMBOLS or symbol in KOSDAQ150_SYMBOLS
+    if market == "US":
+        from services.scan_symbols_list import SP500_TICKERS
+        return symbol in SP500_TICKERS
+    return True  # CRYPTO 등
+
+
 def is_pullback(ema: dict) -> bool:
     """눌림목: EMA20 > EMA60 > EMA120 (장기 상승추세) + EMA5 하락 (단기 눌림)."""
     for k in ["ema_5", "ema_20", "ema_60", "ema_120"]:
