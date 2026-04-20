@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import type { Signal } from '../types'
 import { fmtPrice } from '../utils/format'
 import { indicatorBadges, marketBadge, signalStrengthBadge } from '../utils/indicatorLabels'
@@ -8,7 +7,6 @@ const sqColors = ['#22c55e', '#eab308', '#f97316', '#ef4444']
 const sqLabels = ['NO SQ', 'LOW SQ', 'MID SQ', 'MAX SQ']
 
 export default function SignalCard({ signal: s, index }: { signal: Signal; index?: number }) {
-  const nav = useNavigate()
   const sqLvl = s.squeeze_level ?? 0
   const prevPrice = useRef(s.price)
   const [flash, setFlash] = useState<'up' | 'down' | null>(null)
@@ -29,7 +27,7 @@ export default function SignalCard({ signal: s, index }: { signal: Signal; index
 
   return (
     <div
-      onClick={() => nav(`/${s.symbol.replace(/\//g, '_')}?market=${s.market}`)}
+      onClick={() => window.open(`/${s.symbol.replace(/\//g, '_')}?market=${s.market}`, '_blank')}
       className="bg-[var(--bg)] border border-[var(--border)] rounded-xl p-4 md:p-3 cursor-pointer hover:border-[var(--buy)]/50 transition active:scale-[0.98]"
     >
       {/* Row 1: 종목명 + 추세 + 스퀴즈 */}

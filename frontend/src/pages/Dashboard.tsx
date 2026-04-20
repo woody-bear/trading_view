@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, RefreshCw, Search, Trash2, X } from 'lucide-react'
+import { ChevronDown, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { addSymbol, deleteSymbol, fetchBatchPrices, fetchFullScanLatest, fetchFullScanStatus, fetchScanStatus, fetchScanSymbols, fetchSignals, searchSymbols, triggerFullScan } from '../api/client'
@@ -40,10 +40,23 @@ export default function Dashboard() {
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const snapRef = useRef<HTMLDivElement>(null)
   const [currentSection, setCurrentSection] = useState(0)
-  const [mobileScan, setMobileScan] = useState<{ buyItems: any[]; buyTotal: number | null; pullbackItems: any[]; overheatItems: any[]; marketHealth: { dead_cross: number; alive: number; volume_spike?: number; volume_total?: number } | null }>({
-    buyItems: [], buyTotal: null, pullbackItems: [], overheatItems: [], marketHealth: null,
+  const [mobileScan, setMobileScan] = useState<{ buyItems: any[]; buyTotal: number | null; largeCapCount: number | null; pullbackItems: any[]; overheatItems: any[]; marketHealth: { dead_cross: number; alive: number; volume_spike?: number; volume_total?: number } | null }>({
+    buyItems: [], buyTotal: null, largeCapCount: null, pullbackItems: [], overheatItems: [], marketHealth: null,
   })
   const [mobileScanTotal, setMobileScanTotal] = useState<number | null>(null)
+
+  // 섹션 접기/펼치기 — localStorage 유지 (닫힌 섹션 키 집합)
+  const [closedSec, setClosedSec] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('dash-closed-sec') || '[]')) }
+    catch { return new Set() }
+  })
+  const isOpen = (k: string) => !closedSec.has(k)
+  const toggleSec = (k: string) => setClosedSec(prev => {
+    const next = new Set(prev)
+    if (next.has(k)) next.delete(k); else next.add(k)
+    localStorage.setItem('dash-closed-sec', JSON.stringify([...next]))
+    return next
+  })
 
   const deleteMut = useMutation({
     mutationFn: deleteSymbol,
@@ -82,6 +95,7 @@ export default function Dashboard() {
         setMobileScan({
           buyItems: r.chart_buy?.items || [],
           buyTotal: r.chart_buy?.total ?? null,
+          largeCapCount: r.chart_buy?.large_cap_count ?? null,
           pullbackItems: r.pullback_buy?.items || [],
           overheatItems: r.overheat?.items || [],
           marketHealth: r.market_health || null,
@@ -216,61 +230,79 @@ export default function Dashboard() {
 
         {/* ── 섹션 2: 관심종목 ── */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
-          <SnapSectionHeader title="관심종목" color="text-white" currentSection={currentSection} />
+          <SnapSectionHeader title="관심종목" color="text-white" currentSection={currentSection}
+            onToggle={() => toggleSec('m-watchlist')} isOpen={isOpen('m-watchlist')} />
           {searchInputJSX(true)}
-          <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-3" style={{ overscrollBehaviorY: 'contain' } as any}>
-            {isLoading && <p className="text-[var(--muted)] text-sm py-8 text-center">로딩 중...</p>}
-            {!isLoading && signals.length === 0 && (
-              <div className="text-center py-12 text-[var(--muted)]">
-                <p className="mb-1">등록된 종목이 없습니다</p>
-                <p className="text-xs">위 검색창에서 종목을 추가하세요</p>
-              </div>
-            )}
-            {['KR', 'US', 'CRYPTO'].map((market) =>
-              grouped[market] ? (
-                <div key={market}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <h2 className="text-sm font-semibold text-[var(--muted)]">
-                      {marketLabel[market]} <span className="opacity-60">({grouped[market].length})</span>
-                    </h2>
-                    {isMarketOpenLocal(market) ? (
-                      <span className="text-caption text-green-400 flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-                        실시간
-                      </span>
-                    ) : (
-                      <span className="text-caption text-[var(--muted)]">장종료</span>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    {grouped[market].map((s, i) => (
-                      <div key={s.watchlist_id} className="relative group">
-                        <SignalCard signal={s} index={i + 1} />
-                        <button
-                          onClick={(e) => { e.stopPropagation(); if (confirm(`${s.display_name || s.symbol} 삭제?`)) deleteMut.mutate(s.watchlist_id) }}
-                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1 bg-red-500/80 rounded text-white hover:bg-red-600 transition"
-                          title="워치리스트에서 삭제">
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
+          {isOpen('m-watchlist') && (
+            <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-3" style={{ overscrollBehaviorY: 'contain' } as any}>
+              {isLoading && <p className="text-[var(--muted)] text-sm py-8 text-center">로딩 중...</p>}
+              {!isLoading && signals.length === 0 && (
+                <div className="text-center py-12 text-[var(--muted)]">
+                  <p className="mb-1">등록된 종목이 없습니다</p>
+                  <p className="text-xs">위 검색창에서 종목을 추가하세요</p>
                 </div>
-              ) : null
-            )}
-          </div>
+              )}
+              {['KR', 'US', 'CRYPTO'].map((market) =>
+                grouped[market] ? (
+                  <div key={market}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <h2 className="text-sm font-semibold text-[var(--muted)]">
+                        {marketLabel[market]} <span className="opacity-60">({grouped[market].length})</span>
+                      </h2>
+                      {isMarketOpenLocal(market) ? (
+                        <span className="text-caption text-green-400 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+                          실시간
+                        </span>
+                      ) : (
+                        <span className="text-caption text-[var(--muted)]">장종료</span>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      {grouped[market].map((s, i) => (
+                        <div key={s.watchlist_id} className="relative group">
+                          <SignalCard signal={s} index={i + 1} />
+                          <button
+                            onClick={(e) => { e.stopPropagation(); if (confirm(`${s.display_name || s.symbol} 삭제?`)) deleteMut.mutate(s.watchlist_id) }}
+                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1 bg-red-500/80 rounded text-white hover:bg-red-600 transition"
+                            title="워치리스트에서 삭제">
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null
+              )}
+            </div>
+          )}
         </div>
 
         {/* ── 섹션 3: 추천 종목 ── */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
-          <SnapSectionHeader title="추천 종목" color="text-[var(--buy)]" currentSection={currentSection} />
-          <div className="flex items-center gap-2 px-3 py-1 shrink-0 flex-wrap">
-            {mobileScan.buyTotal != null && (
-              <span className="text-label font-semibold text-white bg-[var(--buy)]/20 px-1.5 py-0.5 rounded">총 {mobileScan.buyTotal}개</span>
-            )}
-            <span className="text-label text-[var(--muted)]">일봉 20거래일 이내 BUY/SQZ BUY · 데드크로스(EMA 5선 역배열) 제외</span>
+          <SnapSectionHeader title="추천 종목" color="text-[var(--buy)]" currentSection={currentSection}
+            onToggle={() => toggleSec('m-buy')} isOpen={isOpen('m-buy')} />
+          <div className="flex items-start gap-3 px-3 py-1.5 shrink-0">
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-1.5">
+                <span className="text-label text-[var(--muted)]">추천 종목</span>
+                <span className="text-label font-bold text-[var(--buy)]">{mobileScan.buyTotal ?? mobileScan.buyItems.length}개</span>
+              </div>
+              <div className="flex items-center gap-3 pl-2 border-l border-[var(--border)]">
+                <div className="flex items-center gap-1">
+                  <span className="text-caption text-[var(--muted)]">└ 눌림목</span>
+                  <span className="text-caption font-bold text-cyan-400">{mobileScan.pullbackItems.length}개</span>
+                </div>
+                {mobileScan.largeCapCount != null && (
+                  <div className="flex items-center gap-1">
+                    <span className="text-caption text-[var(--muted)]">└ 대형주</span>
+                    <span className="text-caption font-bold text-blue-400">{mobileScan.largeCapCount}개</span>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-          <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
+          {isOpen('m-buy') && <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
             {/* Dead Cross 비율 바 (모바일) */}
             {mobileScan.marketHealth && (mobileScan.marketHealth.dead_cross + mobileScan.marketHealth.alive) > 0 && (() => {
               const mh = mobileScan.marketHealth
@@ -329,26 +361,49 @@ export default function Dashboard() {
               <SectorGrouped
                 items={[...mobileScan.buyItems].sort((a: any, b: any) => (b.trend === 'BULL' ? 1 : 0) - (a.trend === 'BULL' ? 1 : 0))}
                 livePrices={{}}
-                nav={nav}
               />
             )}
-          </div>
+          </div>}
         </div>
 
         {/* ── 섹션 4: 눌림목 ── */}
         <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
-          <SnapSectionHeader title="눌림목" color="text-cyan-400" currentSection={currentSection} />
-          <p className="text-body text-[var(--muted)] px-3 py-1 shrink-0">추천종목 중 EMA20{'>'}60{'>'}120 + EMA5↓ (장기상승 + 단기눌림)</p>
-          <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
-            {mobileScan.pullbackItems.length === 0 ? (
-              <p className="text-[var(--muted)] text-sm py-8 text-center">눌림목 종목이 없습니다</p>
-            ) : (() => {
-              const items = [...mobileScan.pullbackItems].sort((a: any, b: any) => (b.trend === 'BULL' ? 1 : 0) - (a.trend === 'BULL' ? 1 : 0))
-              return items.map((item: any, i: number) => (
-                <BuyCard key={item.symbol} item={item} index={i} nav={nav} />
-              ))
-            })()}
-          </div>
+          <SnapSectionHeader title="눌림목" color="text-cyan-400" currentSection={currentSection}
+            onToggle={() => toggleSec('m-pullback')} isOpen={isOpen('m-pullback')} />
+          <p className="text-body text-[var(--muted)] px-3 py-1 shrink-0">EMA20{'>'}60{'>'}120 + EMA5↓ + 대형주</p>
+          {isOpen('m-pullback') && (
+            <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
+              {mobileScan.pullbackItems.length === 0 ? (
+                <p className="text-[var(--muted)] text-sm py-8 text-center">눌림목 종목이 없습니다</p>
+              ) : (() => {
+                const items = [...mobileScan.pullbackItems].sort((a: any, b: any) => (b.trend === 'BULL' ? 1 : 0) - (a.trend === 'BULL' ? 1 : 0))
+                return items.map((item: any, i: number) => (
+                  <BuyCard key={item.symbol} item={item} index={i} />
+                ))
+              })()}
+            </div>
+          )}
+        </div>
+
+        {/* ── 섹션 5: 대형주 ── */}
+        <div className="flex flex-col bg-[var(--bg)]" style={{ height: sH, scrollSnapAlign: 'start' }}>
+          <SnapSectionHeader title="대형주" color="text-blue-400" currentSection={currentSection}
+            onToggle={() => toggleSec('m-largecap')} isOpen={isOpen('m-largecap')} />
+          <p className="text-body text-[var(--muted)] px-3 py-1 shrink-0">추천종목 중 KOSPI200·KOSDAQ150·S&P500 포함 종목</p>
+          {isOpen('m-largecap') && (
+            <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2" style={{ overscrollBehaviorY: 'contain' } as any}>
+              {(() => {
+                const items = mobileScan.buyItems
+                  .filter((i: any) => i.is_large_cap)
+                  .sort((a: any, b: any) => (b.trend === 'BULL' ? 1 : 0) - (a.trend === 'BULL' ? 1 : 0))
+                return items.length === 0
+                  ? <p className="text-[var(--muted)] text-sm py-8 text-center">대형주 BUY 신호 종목이 없습니다</p>
+                  : items.map((item: any, i: number) => (
+                    <BuyCard key={item.symbol} item={item} index={i} />
+                  ))
+              })()}
+            </div>
+          )}
         </div>
 
       </div>
@@ -362,7 +417,14 @@ export default function Dashboard() {
 
         {/* ── 관심종목 ── */}
         <div className="md:bg-[var(--card)] md:border md:border-[var(--border)] md:rounded-xl md:p-5 mb-4">
-          <h1 className="text-lg md:text-xl font-bold text-white mb-3">관심종목</h1>
+          <div className="flex items-center gap-2 mb-3">
+            <button onClick={() => toggleSec('pc-watchlist')} className="text-[var(--muted)] hover:text-white transition-colors p-0.5">
+              <ChevronDown size={16} className={`transition-transform duration-200 ${isOpen('pc-watchlist') ? '' : '-rotate-90'}`} />
+            </button>
+            <h1 className="text-lg md:text-xl font-bold text-white">관심종목</h1>
+            <span className="text-xs text-[var(--muted)]">{signals.length}개</span>
+          </div>
+          {isOpen('pc-watchlist') && <>
           {isLoading && <p className="text-[var(--muted)] text-sm">로딩 중...</p>}
           {signals.length === 0 && !isLoading && (
             <div className="text-center py-8 text-[var(--muted)]">
@@ -402,6 +464,7 @@ export default function Dashboard() {
               </div>
             ) : null
           )}
+          </>}
         </div>
 
         {/* ── 시장 스캔 ── */}
@@ -414,10 +477,19 @@ export default function Dashboard() {
 
 // ══════════════════════════════════════════════════════════════
 // ── 모바일 스냅 섹션 헤더 (외부 컴포넌트 — 내부 정의 시 매 렌더마다 리마운트됨) ──
-function SnapSectionHeader({ title, color, currentSection, total = 4 }: { title: string; color: string; currentSection: number; total?: number }) {
+function SnapSectionHeader({ title, color, currentSection, total = 5, onToggle, isOpen = true }: {
+  title: string; color: string; currentSection: number; total?: number; onToggle?: () => void; isOpen?: boolean
+}) {
   return (
     <div className="flex items-center justify-between px-3 pt-3 pb-2 shrink-0 border-b border-[var(--border)]/50">
-      <h2 className={`text-display font-bold ${color}`}>{title}</h2>
+      <div className="flex items-center gap-2">
+        {onToggle && (
+          <button onClick={onToggle} className="text-[var(--muted)] hover:text-white transition-colors p-0.5">
+            <ChevronDown size={16} className={`transition-transform duration-200 ${isOpen ? '' : '-rotate-90'}`} />
+          </button>
+        )}
+        <h2 className={`text-display font-bold ${color}`}>{title}</h2>
+      </div>
       <div className="flex gap-1.5">
         {Array.from({ length: total }, (_, i) => (
           <div key={i} className={`h-1.5 rounded-full transition-all ${i === currentSection ? `w-4 ${color.replace('text-', 'bg-')}` : 'w-1.5 bg-white/20'}`} />
@@ -506,7 +578,7 @@ function fmtScanTime(isoStr: string | null | undefined): string {
 
 // 통합 시장 스캔 박스 (1회 다운로드, 3개 결과 동시 생성)
 // ══════════════════════════════════════════════════════════════
-export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
+export function MarketScanBox({ }: { nav?: any; qc?: any }) {
   const [scanning, setScanning] = useState(false)
   const [scanMsg, setScanMsg] = useState('')
   const [scanTime, setScanTime] = useState<string | null>(null)
@@ -515,12 +587,24 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
   const [maxSq] = useState<any>(null)  // 하위 호환용 (제거 예정)
   const [buyItems, setBuyItems] = useState<any[]>([])
   const [buyTotal, setBuyTotal] = useState<number | null>(null)
+  const [largeCapCount, setLargeCapCount] = useState<number | null>(null)
   const [pullbackItems, setPullbackItems] = useState<any[]>([])
   const [overheatItems, setOverheatItems] = useState<any[]>([])
   const [marketHealth, setMarketHealth] = useState<{ dead_cross: number; alive: number; volume_spike?: number; volume_total?: number } | null>(null)
   const [scanSymbolsTotal, setScanSymbolsTotal] = useState<number | null>(null)
 
   // 섹션 토글 (localStorage 유지)
+  const [scanClosedSec, setScanClosedSec] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('scan-closed-sec') || '[]')) }
+    catch { return new Set() }
+  })
+  const isScanOpen = (k: string) => !scanClosedSec.has(k)
+  const toggleScan = (k: string) => setScanClosedSec(prev => {
+    const next = new Set(prev)
+    if (next.has(k)) next.delete(k); else next.add(k)
+    localStorage.setItem('scan-closed-sec', JSON.stringify([...next]))
+    return next
+  })
 
   // 실시간 가격 캐시: {symbol: {price, change_pct, ...}}
   const [livePrices, setLivePrices] = useState<Record<string, any>>({})
@@ -530,6 +614,7 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
     if (result?.chart_buy) {
       setBuyItems(result.chart_buy.items || [])
       if (result.chart_buy.total != null) setBuyTotal(result.chart_buy.total)
+      if (result.chart_buy.large_cap_count != null) setLargeCapCount(result.chart_buy.large_cap_count)
     }
     if (result?.pullback_buy) setPullbackItems(result.pullback_buy.items || [])
     if (result?.overheat) setOverheatItems(result.overheat.items || [])
@@ -733,6 +818,30 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
         </div>
       </div>
 
+      {/* 요약 카운트 */}
+      {!scanning && (buyTotal != null || pullbackItems.length > 0) && (
+        <div className="flex items-start gap-6 mb-4 px-1">
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-[var(--muted)]">추천 종목</span>
+              <span className="text-sm font-bold text-[var(--buy)]">{buyTotal ?? buyItems.length}개</span>
+            </div>
+            <div className="flex items-center gap-4 pl-3 border-l border-[var(--border)]">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[var(--muted)] text-xs">└ 눌림목</span>
+                <span className="text-sm font-bold text-cyan-400">{pullbackItems.length}개</span>
+              </div>
+              {largeCapCount != null && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[var(--muted)] text-xs">└ 대형주</span>
+                  <span className="text-sm font-bold text-blue-400">{largeCapCount}개</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {scanning && buyItems.length === 0 && (
         <div className="text-center py-8 text-[var(--muted)]">
           <RefreshCw size={20} className="animate-spin mx-auto mb-2 text-orange-400" />
@@ -756,6 +865,9 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
         return (
           <div className="mb-2">
             <div className="flex items-center gap-2 mb-3 flex-wrap">
+              <button onClick={() => toggleScan('buy')} className="text-[var(--muted)] hover:text-white transition-colors p-0.5">
+                <ChevronDown size={14} className={`transition-transform duration-200 ${isScanOpen('buy') ? '' : '-rotate-90'}`} />
+              </button>
               <h2 className="text-sm font-bold text-[var(--buy)]">추천 종목</h2>
               {buyTotal != null && (
                 <span className="text-micro font-semibold text-white bg-[var(--buy)]/20 px-1.5 py-0.5 rounded">
@@ -771,6 +883,7 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
                 </span>
               )}
             </div>
+            {isScanOpen('buy') && <>
             {/* Dead Cross 비율 바 */}
             {marketHealth && (marketHealth.dead_cross + marketHealth.alive) > 0 && (() => {
               const total = marketHealth.dead_cross + marketHealth.alive
@@ -822,24 +935,50 @@ export function MarketScanBox({ nav }: { nav: any; qc?: any }) {
               )
             })()}
             {displayItems.length > 0 ? (
-              <SectorGrouped items={displayItems} livePrices={livePrices} nav={nav} />
+              <SectorGrouped items={displayItems} livePrices={livePrices} />
             ) : !scanning ? (
               <p className="text-[var(--muted)] text-xs text-center py-4">20거래일 이내 BUY 신호 종목이 없습니다</p>
             ) : null}
+            </>}
           </div>
         )
       })()}
 
       {/* 2. 눌림목 (pullback_buy) */}
-      {pullbackItems.length > 0 && (() => {
-        const displayItems = [...pullbackItems].sort((a: any, b: any) => (b.trend === 'BULL' ? 1 : 0) - (a.trend === 'BULL' ? 1 : 0))
+      <div className="mt-4 pt-4 border-t border-[var(--border)]">
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <button onClick={() => toggleScan('pullback')} className="text-[var(--muted)] hover:text-white transition-colors p-0.5">
+            <ChevronDown size={14} className={`transition-transform duration-200 ${isScanOpen('pullback') ? '' : '-rotate-90'}`} />
+          </button>
+          <h2 className="text-sm font-bold text-cyan-400">눌림목</h2>
+          <span className="text-micro font-semibold text-white bg-cyan-500/20 px-1.5 py-0.5 rounded">{pullbackItems.length}개</span>
+          <span className="text-micro text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">EMA20{'>'}60{'>'}120 + EMA5↓ + 대형주</span>
+        </div>
+        {isScanOpen('pullback') && (
+          pullbackItems.length > 0
+            ? <SectorGrouped items={[...pullbackItems].sort((a: any, b: any) => (b.trend === 'BULL' ? 1 : 0) - (a.trend === 'BULL' ? 1 : 0))} livePrices={livePrices} />
+            : <p className="text-[var(--muted)] text-xs text-center py-4">눌림목 종목이 없습니다</p>
+        )}
+      </div>
+
+      {/* 3. 대형주 (large_cap) */}
+      {(() => {
+        const largeCapItems = buyItems.filter((i: any) => i.is_large_cap)
         return (
           <div className="mt-4 pt-4 border-t border-[var(--border)]">
             <div className="flex items-center gap-2 mb-3 flex-wrap">
-              <h2 className="text-sm font-bold text-cyan-400">눌림목</h2>
-              <span className="text-micro text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">추천종목 중 EMA20{'>'}60{'>'}120 + EMA5↓ (장기상승 + 단기눌림)</span>
+              <button onClick={() => toggleScan('largecap')} className="text-[var(--muted)] hover:text-white transition-colors p-0.5">
+                <ChevronDown size={14} className={`transition-transform duration-200 ${isScanOpen('largecap') ? '' : '-rotate-90'}`} />
+              </button>
+              <h2 className="text-sm font-bold text-blue-400">대형주</h2>
+              <span className="text-micro font-semibold text-white bg-blue-500/20 px-1.5 py-0.5 rounded">{largeCapItems.length}개</span>
+              <span className="text-micro text-[var(--muted)] bg-[var(--bg)] px-1.5 py-0.5 rounded">추천종목 중 KOSPI200·KOSDAQ150·S&P500</span>
             </div>
-            <SectorGrouped items={displayItems} livePrices={livePrices} nav={nav} />
+            {isScanOpen('largecap') && (
+              largeCapItems.length > 0
+                ? <SectorGrouped items={[...largeCapItems].sort((a: any, b: any) => (b.trend === 'BULL' ? 1 : 0) - (a.trend === 'BULL' ? 1 : 0))} livePrices={livePrices} />
+                : <p className="text-[var(--muted)] text-xs text-center py-4">대형주 BUY 신호 종목이 없습니다</p>
+            )}
           </div>
         )
       })()}
@@ -861,7 +1000,7 @@ const SECTOR_ORDER = [
   "ETF", "암호화폐", "기타(국내)", "기타(미국)",
 ]
 
-function SectorGrouped({ items, livePrices, nav }: { items: any[]; livePrices: Record<string, any>; nav: any }) {
+function SectorGrouped({ items, livePrices }: { items: any[]; livePrices: Record<string, any> }) {
   // 섹터별 그룹화
   const groups: Record<string, any[]> = {}
   for (const item of items) {
@@ -888,7 +1027,7 @@ function SectorGrouped({ items, livePrices, nav }: { items: any[]; livePrices: R
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
             {groups[sector].map((item: any, i: number) => (
-              <BuyCard key={item.symbol} item={item} index={i} livePrice={livePrices?.[item.symbol]} nav={nav} />
+              <BuyCard key={item.symbol} item={item} index={i} livePrice={livePrices?.[item.symbol]} />
             ))}
           </div>
         </div>
@@ -897,7 +1036,7 @@ function SectorGrouped({ items, livePrices, nav }: { items: any[]; livePrices: R
   )
 }
 
-function BuyCard({ item, index, livePrice, nav }: { item: any; index: number; livePrice?: any; nav: any }) {
+function BuyCard({ item, index, livePrice }: { item: any; index: number; livePrice?: any }) {
   const price = livePrice?.price ?? item.price
   const pct = livePrice?.change_pct ?? item.change_pct
   const { flashClass } = usePriceFlash(price)
@@ -917,7 +1056,7 @@ function BuyCard({ item, index, livePrice, nav }: { item: any; index: number; li
   const reasons = [mktBadge, signalBadge, ...indicators]
 
   return (
-    <div onClick={() => nav(`/${item.symbol.replace(/\//g, '_')}?market=${item.market_type || item.market}`, { state: { buySignal: item } })}
+    <div onClick={() => window.open(`/${item.symbol.replace(/\//g, '_')}?market=${item.market_type || item.market}`, '_blank')}
       className="bg-[var(--bg)] border border-[var(--border)] rounded-lg p-3.5 md:p-2.5 cursor-pointer hover:border-green-500/50 transition active:scale-[0.98]">
       <div className="flex items-center justify-between mb-1.5 md:mb-1">
         <div className="flex items-center gap-1.5 min-w-0">
