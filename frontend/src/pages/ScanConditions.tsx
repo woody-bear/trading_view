@@ -105,6 +105,12 @@ export default function ScanConditions() {
                   buy: false,
                   pull: true,
                 },
+                {
+                  label: '대형주',
+                  sub: 'KR: KOSPI200·KOSDAQ150 포함 종목 / US: S&P500 포함 종목 (ETF 제외)',
+                  buy: false,
+                  pull: true,
+                },
               ].map(({ label, sub, buy, pull }) => (
                 <tr key={label}>
                   <td className="px-3 py-2">
@@ -123,7 +129,7 @@ export default function ScanConditions() {
           </table>
         </div>
         <p className="text-xs text-[var(--muted)] mt-2">
-          눌림목은 추천종목 조건을 모두 충족한 뒤 장기 상승추세 + 단기 눌림 조건을 추가로 통과한 종목입니다.
+          눌림목은 추천종목 조건을 모두 충족한 뒤 장기 상승추세 + 단기 눌림 + 대형주 조건을 추가로 통과한 종목입니다.
         </p>
       </section>
 

@@ -90,7 +90,14 @@ sqz_fired AND mom_bull AND mom_rising
 [2.5] _is_pullback(ema) — 눌림목 필터
     → EMA20 > EMA60 > EMA120 (장기 상승추세)
     → EMA5 현재값 < 직전값 (단기 눌림)
-    → 두 조건 모두 불충족 시 chart_buy 제외
+    → 두 조건 모두 불충족 시 pullback_buy 제외
+
+[2.6] is_large_cap(symbol, market, is_etf) — 대형주 필터
+    → KR: KOSPI200 또는 KOSDAQ150 포함 종목
+    → US: S&P500 포함 종목
+    → ETF: 필터 미적용 (통과)
+    → CRYPTO: 필터 미적용 (통과)
+    → 미충족 시 pullback_buy 제외
 
 [3] _passes_volume_filter(df, buy_date)
     → 신호 발생일 거래량 > 직전 5거래일 평균 × 1.5
