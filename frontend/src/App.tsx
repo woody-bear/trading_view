@@ -1,12 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { Settings as SettingsIcon } from 'lucide-react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import BottomNav from './components/BottomNav'
+import TopNav from './components/TopNav'
 import { AuthProvider } from './components/AuthProvider'
-import { LoginButton } from './components/LoginButton'
-import { UserMenu } from './components/UserMenu'
 import { useWebSocket } from './hooks/useWebSocket'
-import { useAuthStore } from './store/authStore'
 import Dashboard from './pages/Dashboard'
 import Scan from './pages/Scan'
 import Settings from './pages/Settings'
@@ -25,27 +22,11 @@ const queryClient = new QueryClient({
 
 function AppInner() {
   useWebSocket()
-  const { user } = useAuthStore()
 
   return (
     <div className="min-h-screen bg-[var(--bg)]">
-      {/* PC 상단 네비 (모바일 숨김) */}
-      <nav className="hidden md:flex bg-[var(--navy)] border-b border-[var(--border)] px-6 py-3 items-center">
-        <a href="/" className="flex items-center gap-2 shrink-0">
-          <span className="text-lg font-bold text-[var(--gold)]">추세추종 연구소</span>
-        </a>
-        <div className="flex items-center gap-6 ml-6">
-          <a href="/buy-list" className="text-cyan-400 hover:text-cyan-300 text-sm font-semibold">BUY조회종목리스트</a>
-          <a href="/scrap" className="text-[var(--gold)] hover:text-yellow-300 text-sm font-semibold">BUY사례스크랩</a>
-          <a href="/conditions" className="text-emerald-400 hover:text-emerald-300 text-sm font-semibold">조회조건</a>
-        </div>
-        <div className="ml-auto flex items-center gap-3">
-          <a href="/settings" className="text-[var(--muted)] hover:text-[var(--gold)] transition" title="설정">
-            <SettingsIcon size={18} />
-          </a>
-          {user ? <UserMenu /> : <LoginButton />}
-        </div>
-      </nav>
+      {/* PC 상단 네비 (SQZ Terminal, 1280px 이상에서 표시) */}
+      <TopNav />
 
       {/* 메인 콘텐츠 — 모바일에서 하단바 높이만큼 패딩 */}
       <main className="pb-[68px] md:pb-0">
