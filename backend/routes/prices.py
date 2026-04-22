@@ -113,6 +113,9 @@ async def price_stream(symbol: str, market: str = "KR", request: Request = None)
 
         last_price = None
         last_yf_attempt = 0.0
+        no_data_streak = 0
+        NO_DATA_LIMIT = 10  # 연속 N회 데이터 없으면 장 종료로 판단
+
         while True:
             if request and await request.is_disconnected():
                 break
@@ -133,9 +136,19 @@ async def price_stream(symbol: str, market: str = "KR", request: Request = None)
 
                 if data and data.get("price") != last_price:
                     last_price = data["price"]
+                    no_data_streak = 0
                     yield f"data: {json.dumps(data)}\n\n"
+                elif data is None:
+                    no_data_streak += 1
+                    if no_data_streak >= NO_DATA_LIMIT:
+                        yield f"data: {json.dumps({'error': 'market_closed'})}\n\n"
+                        break
             except Exception as e:
                 logger.debug(f"SSE 가격 조회 실패 [{market}/{symbol}]: {e}")
+                no_data_streak += 1
+                if no_data_streak >= NO_DATA_LIMIT:
+                    yield f"data: {json.dumps({'error': 'market_closed'})}\n\n"
+                    break
             await asyncio.sleep(interval)
 
     return StreamingResponse(

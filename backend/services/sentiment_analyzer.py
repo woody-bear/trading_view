@@ -44,17 +44,20 @@ def _fetch_index(ticker: str, period: str = "5d") -> dict | None:
         return None
 
 
+_INDEX_TICKERS = [
+    ("vix",    "^VIX",    "VIX"),
+    ("kospi",  "^KS11",   "코스피"),
+    ("sp500",  "^GSPC",   "S&P 500"),
+    ("nasdaq", "^IXIC",   "나스닥"),
+    ("usdkrw", "USDKRW=X","USD/KRW"),
+    ("us10y",  "^TNX",    "US10Y"),
+]
+
+
 def _fetch_all_indices() -> dict:
-    """VIX, 코스피, S&P500, 나스닥, USD/KRW 순차 조회 (yfinance thread-safety 문제 회피)."""
-    tickers = [
-        ("vix", "^VIX", "VIX"),
-        ("kospi", "^KS11", "코스피"),
-        ("sp500", "^GSPC", "S&P 500"),
-        ("nasdaq", "^IXIC", "나스닥"),
-        ("usdkrw", "USDKRW=X", "USD/KRW"),
-    ]
+    """VIX, 코스피, S&P500, 나스닥, USD/KRW, US10Y 순차 조회 (yfinance thread-safety 문제 회피)."""
     result = {}
-    for key, ticker, name in tickers:
+    for key, ticker, name in _INDEX_TICKERS:
         data = _fetch_index(ticker)
         if data:
             result[key] = {"name": name, **data}
@@ -64,16 +67,16 @@ def _fetch_all_indices() -> dict:
 
 
 async def fetch_market_indices() -> dict:
-    """VIX, 코스피, S&P500, 나스닥, USD/KRW 조회 (단일 스레드로 순차 실행)."""
+    """VIX, 코스피, S&P500, 나스닥, USD/KRW, US10Y 조회 (단일 스레드로 순차 실행)."""
     try:
         return await asyncio.wait_for(
-            asyncio.to_thread(_fetch_all_indices), timeout=20
+            asyncio.to_thread(_fetch_all_indices), timeout=25
         )
     except Exception as e:
         logger.debug(f"시장 지표 조회 실패: {e}")
         return {
             k: {"name": n, "value": 0, "change": 0, "change_pct": 0, "direction": "flat"}
-            for k, n in [("vix","VIX"),("kospi","코스피"),("sp500","S&P 500"),("nasdaq","나스닥"),("usdkrw","USD/KRW")]
+            for k, n in [(t[0], t[2]) for t in _INDEX_TICKERS]
         }
 
 
@@ -182,7 +185,7 @@ async def get_sentiment_overview() -> dict:
         logger.warning("시장 지표 조회 timeout — 기본값 반환")
         indices = {
             k: {"name": n, "value": 0, "change": 0, "change_pct": 0, "direction": "flat"}
-            for k, n in [("vix","VIX"),("kospi","코스피"),("sp500","S&P 500"),("nasdaq","나스닥"),("usdkrw","USD/KRW")]
+            for k, n in [(t[0], t[2]) for t in _INDEX_TICKERS]
         }
         cnn = None
 

@@ -131,8 +131,17 @@ if _frontend_dist.exists():
     class SPAStaticFiles(StaticFiles):
         async def get_response(self, path, scope):
             try:
-                return await super().get_response(path, scope)
+                response = await super().get_response(path, scope)
             except Exception:
-                return FileResponse(str(Path(self.directory) / "index.html"))
+                response = FileResponse(str(Path(self.directory) / "index.html"))
+            # HTML은 캐시 금지, 해시된 assets/*는 장기 캐시 — 새 번들 즉시 반영
+            ctype = response.headers.get("content-type", "")
+            if "text/html" in ctype:
+                response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+                response.headers["Pragma"] = "no-cache"
+                response.headers["Expires"] = "0"
+            elif path.startswith("assets/"):
+                response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+            return response
 
     app.mount("/", SPAStaticFiles(directory=str(_frontend_dist), html=True), name="spa")

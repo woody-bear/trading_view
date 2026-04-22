@@ -266,6 +266,7 @@ class UserPositionState(Base):
     symbol: Mapped[str] = mapped_column(String(20), nullable=False)
     market: Mapped[str] = mapped_column(String(10), nullable=False)
     completed_stages: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    signal_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 

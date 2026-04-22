@@ -1,5 +1,5 @@
 import uuid
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -17,11 +17,13 @@ class PositionResponse(BaseModel):
     symbol: str
     market: str
     completed_stages: List[int]
+    signal_date: Optional[str] = None
 
 
 class PositionUpdate(BaseModel):
     market: str
     completed_stages: List[int]
+    signal_date: Optional[str] = None
 
 
 @router.get("/position/{symbol}", response_model=PositionResponse)
@@ -44,12 +46,13 @@ async def get_position(
     state = result.scalar_one_or_none()
 
     if not state:
-        return PositionResponse(symbol=symbol, market=market, completed_stages=[])
+        return PositionResponse(symbol=symbol, market=market, completed_stages=[], signal_date=None)
 
     return PositionResponse(
         symbol=state.symbol,
         market=state.market,
         completed_stages=state.completed_stages or [],
+        signal_date=state.signal_date,
     )
 
 
@@ -74,12 +77,14 @@ async def update_position(
 
     if state:
         state.completed_stages = body.completed_stages
+        state.signal_date = body.signal_date
     else:
         state = UserPositionState(
             user_id=user_id,
             symbol=symbol,
             market=body.market,
             completed_stages=body.completed_stages,
+            signal_date=body.signal_date,
         )
         db.add(state)
 
@@ -89,4 +94,5 @@ async def update_position(
         symbol=state.symbol,
         market=state.market,
         completed_stages=state.completed_stages or [],
+        signal_date=state.signal_date,
     )
