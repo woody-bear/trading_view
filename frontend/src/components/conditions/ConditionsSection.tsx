@@ -11,9 +11,8 @@ interface ConditionsSectionProps {
   guidance?: string
 }
 
-// PC(≥768px): Mermaid 플로우차트. 모바일(<768px): 카드형 조건표.
-// md:hidden / hidden md:block 조건부 마운트로 모바일에서는 FlowchartView가 아예 렌더되지 않아
-// mermaid 번들 로드도 발생하지 않는다.
+// PC(≥1280px): Mermaid 플로우차트. 모바일/태블릿(<1280px): 카드형 조건표.
+// xl:hidden / hidden xl:block 으로 SQZ Terminal 브레이크포인트(1280px) 적용.
 export default function ConditionsSection({
   title,
   description,
@@ -23,24 +22,26 @@ export default function ConditionsSection({
   guidance,
 }: ConditionsSectionProps) {
   return (
-    <section className="space-y-3">
+    <section style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div>
-        <h2 className="text-lg font-bold text-[var(--fg)]">{title}</h2>
-        {description && <p className="text-xs text-[var(--muted)] mt-1">{description}</p>}
+        <div className="label" style={{ fontSize: 15, fontWeight: 700, color: 'var(--fg-0)', fontFamily: 'var(--font-sans)' }}>{title}</div>
+        {description && (
+          <p style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 4 }}>{description}</p>
+        )}
       </div>
 
-      {/* PC: Mermaid 도표 */}
-      <div className="hidden md:block">
+      {/* PC(1280px+): Mermaid 도표 */}
+      <div className="hidden xl:block">
         {guidance && (
-          <div className="rounded-lg border border-indigo-500/30 bg-indigo-500/5 p-3 text-xs text-indigo-300 mb-3">
-            {guidance}
+          <div className="panel" style={{ background: 'var(--accent-bg, #eff6ff)', borderColor: 'var(--accent)', padding: '10px 14px', marginBottom: 10 }}>
+            <p style={{ fontSize: 11, color: 'var(--accent)', lineHeight: 1.6 }}>{guidance}</p>
           </div>
         )}
         <FlowchartView diagram={pcDiagram} id={pcDiagramId} />
       </div>
 
-      {/* 모바일: 조건표 */}
-      <div className="md:hidden">
+      {/* 모바일/태블릿(<1280px): 카드형 조건표 */}
+      <div className="xl:hidden">
         <ConditionStepTable steps={steps} title={title} guidance={guidance} />
       </div>
     </section>

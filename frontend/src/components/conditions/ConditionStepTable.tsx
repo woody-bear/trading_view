@@ -7,26 +7,25 @@ interface ConditionStepTableProps {
 }
 
 const KIND_LABEL: Record<StepKind, string> = {
-  entry: '진입',
+  entry:     '시작',
   condition: '조건',
-  branch: '분기',
-  merge: '합류',
-  success: '결과',
-  reject: '제외',
-  note: '참고',
+  branch:    '분기',
+  merge:     '합류',
+  success:   '결과',
+  reject:    '제외',
+  note:      '참고',
 }
 
-const KIND_STYLE: Record<StepKind, string> = {
-  entry: 'bg-sky-500/10 text-sky-300 border-sky-500/30',
-  condition: 'bg-[var(--bg)] text-[var(--muted)] border-[var(--border)]',
-  branch: 'bg-amber-500/10 text-amber-300 border-amber-500/30',
-  merge: 'bg-slate-500/10 text-slate-300 border-slate-500/30',
-  success: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
-  reject: 'bg-red-500/10 text-red-300 border-red-500/30',
-  note: 'bg-indigo-500/10 text-indigo-300 border-indigo-500/30',
+const KIND_CHIP: Record<StepKind, string> = {
+  entry:     'chip chip-ghost',
+  condition: 'chip chip-ghost',
+  branch:    'chip chip-warn',
+  merge:     'chip chip-ghost',
+  success:   'chip chip-up',
+  reject:    'chip chip-down',
+  note:      'chip chip-accent',
 }
 
-// 동일한 id로 타겟되는 Step의 label lookup (분기 결과 표시용)
 function buildLabelMap(steps: readonly Step[]): Record<string, string> {
   const map: Record<string, string> = {}
   for (const s of steps) map[s.id] = s.label
@@ -37,47 +36,66 @@ export default function ConditionStepTable({ steps, title, guidance }: Condition
   const labelMap = buildLabelMap(steps)
 
   return (
-    <div className="space-y-2" aria-label={`${title} 조건표`}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }} aria-label={`${title} 조건표`}>
       {guidance && (
-        <div className="rounded-lg border border-indigo-500/30 bg-indigo-500/5 p-3 text-xs text-indigo-300">
-          {guidance}
+        <div className="panel" style={{ background: 'var(--accent-bg, #eff6ff)', borderColor: 'var(--accent)', padding: '10px 14px' }}>
+          <p style={{ fontSize: 11, color: 'var(--accent)', lineHeight: 1.6 }}>{guidance}</p>
         </div>
       )}
-      <ol className="space-y-2 list-none p-0">
+      <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
         {steps.map((step, index) => (
-          <li
-            key={step.id}
-            className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3"
-          >
-            <div className="flex items-start gap-2">
-              <span className="inline-flex items-center justify-center w-6 h-6 shrink-0 rounded-full bg-[var(--bg)] text-[var(--fg)] text-xs font-bold">
+          <li key={step.id} className="panel" style={{ padding: '10px 14px' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+              {/* 순번 */}
+              <span
+                className="mono"
+                style={{
+                  minWidth: 22,
+                  height: 22,
+                  borderRadius: '50%',
+                  background: 'var(--bg-3)',
+                  border: '1px solid var(--border)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: 'var(--fg-1)',
+                  flexShrink: 0,
+                }}
+              >
                 {index + 1}
               </span>
-              <span
-                className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border shrink-0 ${KIND_STYLE[step.kind]}`}
-              >
+              {/* 종류 칩 */}
+              <span className={KIND_CHIP[step.kind]} style={{ flexShrink: 0, marginTop: 2 }}>
                 {KIND_LABEL[step.kind]}
               </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-[var(--fg)] leading-tight">{step.label}</p>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-0)', lineHeight: 1.35, margin: 0 }}>
+                  {step.label}
+                </p>
                 {step.description && (
-                  <p className="text-xs text-[var(--muted)] mt-1">{step.description}</p>
+                  <p className="mono" style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 4 }}>
+                    {step.description}
+                  </p>
                 )}
                 {step.branches && step.branches.length > 0 && (
-                  <ul className="mt-2 space-y-1 text-xs">
+                  <ul style={{ marginTop: 6, listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
                     {step.branches.map((branch) => (
-                      <li key={branch.targetId} className="flex gap-1.5">
-                        <span className="text-[var(--muted)] shrink-0">└</span>
+                      <li key={branch.targetId} style={{ display: 'flex', gap: 6, fontSize: 11 }}>
+                        <span style={{ color: 'var(--fg-4)', flexShrink: 0 }}>└</span>
                         <span>
-                          <span className="text-[var(--fg)]">{branch.label}</span>
-                          <span className="text-[var(--muted)]"> → {labelMap[branch.targetId] ?? branch.targetId}</span>
+                          <span style={{ color: 'var(--fg-1)', fontWeight: 600 }}>{branch.label}</span>
+                          <span style={{ color: 'var(--fg-3)' }}> → {labelMap[branch.targetId] ?? branch.targetId}</span>
                         </span>
                       </li>
                     ))}
                   </ul>
                 )}
                 {step.note && (
-                  <p className="text-xs text-indigo-300 mt-2">📝 {step.note}</p>
+                  <p style={{ fontSize: 11, color: 'var(--accent)', marginTop: 6, fontStyle: 'italic' }}>
+                    ※ {step.note}
+                  </p>
                 )}
               </div>
             </div>

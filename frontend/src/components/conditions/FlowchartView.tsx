@@ -3,14 +3,12 @@ import { useEffect, useRef, useState } from 'react'
 interface FlowchartViewProps {
   diagram: string
   id: string
-  dark?: boolean
 }
 
 type ViewState = 'loading' | 'ready' | 'error'
 
-// PC 전용 Mermaid 렌더러. 모바일에서는 ConditionsSection이 이 컴포넌트를 마운트하지 않음 →
-// mermaid 번들은 PC 화면에서만 동적으로 로드된다.
-export default function FlowchartView({ diagram, id, dark = true }: FlowchartViewProps) {
+// PC 전용 Mermaid 렌더러 (xl+ 화면에서만 마운트)
+export default function FlowchartView({ diagram, id }: FlowchartViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<ViewState>('loading')
   const [errorMsg, setErrorMsg] = useState<string>('')
@@ -24,9 +22,17 @@ export default function FlowchartView({ diagram, id, dark = true }: FlowchartVie
         const mermaid = mermaidModule.default
         mermaid.initialize({
           startOnLoad: false,
-          theme: dark ? 'dark' : 'default',
+          theme: 'default',
           securityLevel: 'loose',
           flowchart: { htmlLabels: true, curve: 'basis' },
+          themeVariables: {
+            primaryColor: '#f0f4ff',
+            primaryBorderColor: '#3b82f6',
+            primaryTextColor: '#111827',
+            lineColor: '#6b7280',
+            secondaryColor: '#f9fafb',
+            tertiaryColor: '#f3f4f6',
+          },
         })
         const { svg } = await mermaid.render(`${id}-svg`, diagram)
         if (cancelled) return
@@ -42,25 +48,25 @@ export default function FlowchartView({ diagram, id, dark = true }: FlowchartVie
     }
 
     render()
-    return () => {
-      cancelled = true
-    }
-  }, [diagram, id, dark])
+    return () => { cancelled = true }
+  }, [diagram, id])
 
   if (state === 'error') {
     return (
-      <div className="rounded-lg border border-red-500/40 bg-red-500/5 p-4">
-        <p className="text-sm font-semibold text-red-400 mb-2">플로우차트 렌더 실패</p>
-        <p className="text-xs text-red-300 mb-3">{errorMsg}</p>
-        <pre className="text-xs text-[var(--muted)] bg-[var(--bg)] p-2 rounded overflow-x-auto">{diagram}</pre>
+      <div className="panel" style={{ borderColor: 'var(--down)', background: 'var(--down-bg)', padding: 16 }}>
+        <div className="label" style={{ color: 'var(--down)', marginBottom: 6 }}>플로우차트 렌더 실패</div>
+        <p className="mono" style={{ fontSize: 11, color: 'var(--fg-2)', marginBottom: 8 }}>{errorMsg}</p>
+        <pre style={{ fontSize: 10, color: 'var(--fg-3)', background: 'var(--bg-2)', padding: 8, borderRadius: 4, overflow: 'auto' }}>{diagram}</pre>
       </div>
     )
   }
 
   return (
-    <div className="relative">
+    <div className="panel" style={{ padding: 16, overflow: 'auto' }}>
       {state === 'loading' && (
-        <div className="text-xs text-[var(--muted)] py-8 text-center">플로우차트 로딩 중…</div>
+        <div style={{ fontSize: 12, color: 'var(--fg-3)', textAlign: 'center', padding: '32px 0' }}>
+          플로우차트 로딩 중…
+        </div>
       )}
       <div ref={containerRef} className="mermaid-container" aria-label={`${id} 흐름도`} />
     </div>
