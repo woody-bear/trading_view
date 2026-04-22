@@ -1,0 +1,82 @@
+/* SQZ Terminal — utility classes (Phase 2)
+   디자인 파일의 공용 유틸리티 클래스.
+   클래스 기반이므로 글로벌 선언. 내부에서 사용하는 CSS 변수는 [data-theme="sqz"] 스코프에서 정의됨. */
+
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.num  { font-variant-numeric: tabular-nums; }
+
+.up     { color: var(--up); }
+.down   { color: var(--down); }
+.warn   { color: var(--warn); }
+.accent { color: var(--accent); }
+
+.panel {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: 0 1px 2px rgba(20, 30, 60, 0.04);
+}
+
+.hairline {
+  background: var(--border);
+  height: 1px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+}
+
+.chip-up     { background: var(--up-bg);     color: var(--up); }
+.chip-down   { background: var(--down-bg);   color: var(--down); }
+.chip-warn   { background: var(--warn-bg);   color: var(--warn); }
+.chip-accent { background: var(--accent-bg); color: var(--accent); }
+.chip-mag    { background: var(--mag-bg);    color: var(--mag); }
+.chip-ghost  { background: var(--bg-3);      color: var(--fg-2); }
+
+.label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-3);
+  font-weight: 500;
+}
+
+/* SQZ Terminal — text-white 호환 패치 (Phase 12)
+   기존 컴포넌트가 다크 테마 전제로 .text-white를 사용 — 라이트 테마에서 가독성 확보.
+   진짜 흰 텍스트가 필요한 위치(colored 버튼 위 등)는 inline `style={{color:'#fff'}}` 또는
+   .text-white-force 클래스(아래 정의)를 사용해 오버라이드 가능. */
+html[data-theme="sqz"] .text-white { color: var(--fg-0); }
+html[data-theme="sqz"] .hover\:text-white:hover { color: var(--fg-0); }
+html[data-theme="sqz"] .text-white-force { color: #fff !important; }
+
+/* Skeleton shimmer */
+@keyframes sqz-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+.skeleton {
+  border-radius: var(--r-sm);
+  background: linear-gradient(
+    90deg,
+    var(--bg-2) 25%,
+    var(--bg-3) 50%,
+    var(--bg-2) 75%
+  );
+  background-size: 200% 100%;
+  animation: sqz-shimmer 1.4s ease-in-out infinite;
+}
+
+/* Scrollbar — 테마 활성 상태에서만 적용 (롤백 시 기존 스크롤바 유지) */
+html[data-theme="sqz"] ::-webkit-scrollbar { width: 10px; height: 10px; }
+html[data-theme="sqz"] ::-webkit-scrollbar-track { background: transparent; }
+html[data-theme="sqz"] ::-webkit-scrollbar-thumb { background: var(--bg-3); border-radius: 5px; }
+html[data-theme="sqz"] ::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }

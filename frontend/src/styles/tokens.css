@@ -1,0 +1,76 @@
+/* SQZ Terminal — design tokens
+   Scoped to html[data-theme="sqz"] so legacy dark tokens (--bg/--text/--buy/--sell in index.css)
+   remain untouched as a rollback path. Remove the data-theme attribute on <html> to revert. */
+
+html[data-theme="sqz"] {
+  /* Base — light terminal (paper) */
+  --bg-0: oklch(0.985 0.002 250);
+  --bg-1: oklch(1 0 0);
+  --bg-2: oklch(0.965 0.003 250);
+  --bg-3: oklch(0.935 0.005 250);
+  --bg-hover: oklch(0.955 0.005 250);
+  --border: oklch(0.9 0.005 250);
+  --border-strong: oklch(0.82 0.008 250);
+
+  /* Text */
+  --fg-0: oklch(0.18 0.01 250);
+  --fg-1: oklch(0.3 0.01 250);
+  --fg-2: oklch(0.48 0.01 250);
+  --fg-3: oklch(0.6 0.01 250);
+  --fg-4: oklch(0.72 0.008 250);
+
+  /* Accents — light theme (darker tones for AA contrast on white) */
+  --accent: oklch(0.52 0.18 250);       /* electric blue — primary/info */
+  --accent-bg: oklch(0.92 0.05 250);
+  --up: oklch(0.55 0.18 150);           /* BUY / up / green */
+  --up-bg: oklch(0.94 0.06 150);
+  --down: oklch(0.55 0.22 25);          /* SELL / down / red */
+  --down-bg: oklch(0.94 0.06 25);
+  --warn: oklch(0.62 0.16 65);          /* amber / warning */
+  --warn-bg: oklch(0.95 0.08 80);
+  --mag: oklch(0.55 0.2 320);           /* magenta accent */
+  --mag-bg: oklch(0.94 0.06 320);
+
+  /* Sparkline */
+  --spark: oklch(0.55 0.18 250);
+
+  /* Type — Pretendard 우선(한글+영문 통합), Inter 대체, JetBrains Mono는 숫자/코드 전용 */
+  --font-ui: 'Pretendard', 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, monospace;
+  --font-display: 'Pretendard', 'Inter', sans-serif;
+
+  /* Spacing scale (compact pro) */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 10px;
+}
+
+html[data-theme="sqz"] body {
+  background: var(--bg-0);
+  color: var(--fg-1);
+  font-family: var(--font-ui);
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 레거시 토큰 별칭 — 기존 코드의 var(--bg)/var(--text) 등 하드코딩 참조를 새 값으로 재매핑.
+   이후 단계에서 개별 컴포넌트를 새 토큰으로 리팩토링하면서 점진적으로 제거 예정. */
+html[data-theme="sqz"] {
+  --bg: var(--bg-0);
+  --card: var(--bg-1);
+  --text: var(--fg-1);
+  --muted: var(--fg-3);
+  --buy: var(--up);      /* 색상 시맨틱 전환: 빨강 → 초록 (US 관례) */
+  --sell: var(--down);   /* 색상 시맨틱 전환: 파랑 → 빨강 */
+  --neutral: var(--fg-4);
+  --gold: var(--warn);   /* amber 대체 */
+  --navy: var(--bg-2);   /* 기존 네이비 배경 → 연한 회색 */
+}

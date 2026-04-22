@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "./styles/tokens.css";
+@import "./styles/utilities.css";
 
 @theme {
   /* ── 모바일 폰트 스케일 (시맨틱 이름) ──────────────────────
@@ -11,6 +13,13 @@
   --text-value:   18px;  /* 수치, 가격, 지표값             ← text-[17px]/[18px] 통합 */
   --text-title:   22px;  /* 카드 종목명, 항목 헤더          ← text-[21px]/[22px]/[24px] 통합 */
   --text-display: 34px;  /* 스냅 섹션 헤더                 ← text-[34px] */
+
+  /* ── PC 브레이크포인트 ────────────────────────────────────
+     SQZ Terminal 리디자인(#028) 기준. 1280px 미만은 모바일 레이아웃.
+     기존 md(=768px)를 1280px로 이동 — 코드베이스의 모든 `md:*` 클래스가
+     PC 분기점으로 사용되고 있어 일괄 shift.
+     ──────────────────────────────────────────────────────── */
+  --breakpoint-md: 1280px;
 }
 
 :root {
