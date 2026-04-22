@@ -27,6 +27,9 @@ _PRICE_TOLERANCE = 5.0
 
 def _yf_ticker(symbol: str, market: str) -> str:
     """종목 심볼을 yfinance 티커로 변환."""
+    # 지수(^VIX, ^GSPC 등) / 환율(USDKRW=X 등)은 이미 yfinance 형식 — 그대로 반환
+    if symbol.startswith("^") or symbol.endswith("=X"):
+        return symbol
     if market == "KOSDAQ":
         return f"{symbol}.KQ"
     elif market in ("KR", "KOSPI"):
