@@ -217,6 +217,21 @@ export interface MarketCapDistributionResponse {
 export const fetchMarketCapDistribution = (): Promise<MarketCapDistributionResponse> =>
   fetch('/api/scan/symbols/market-cap-distribution').then(r => r.json())
 
+// 포지션 가이드 (매수 완료 체크 상태)
+export interface PositionState {
+  symbol: string
+  market: string
+  completed_stages: number[]
+  signal_date: string | null
+}
+export const getPosition = (symbol: string, market: string = 'KR'): Promise<PositionState> =>
+  api.get(`/position/${symbol}`, { params: { market } }).then(r => r.data)
+export const updatePosition = (
+  symbol: string,
+  data: { market: string; completed_stages: number[]; signal_date: string | null },
+): Promise<PositionState> =>
+  api.put(`/position/${symbol}`, data).then(r => r.data)
+
 // 패턴 케이스 스크랩
 export const fetchPatternCases = (params?: { pattern_type?: string; market?: string }) =>
   api.get('/pattern-cases', { params }).then(r => r.data)
@@ -229,6 +244,14 @@ export const fetchIndicatorsAt = (symbol: string, market: string, date: string) 
   api.get('/chart/indicators-at', { params: { symbol, market, date } }).then(r => r.data)
 
 // 401 응답 시: 토큰 갱신 후 원래 요청 재시도 → 갱신 실패 시만 signOut
+// (비핵심 API는 401이어도 signOut하지 않음 — UX 보호)
+const NON_CRITICAL_PATHS = ['/position/']
+
+function isNonCriticalPath(url: string | undefined): boolean {
+  if (!url) return false
+  return NON_CRITICAL_PATHS.some(p => url.includes(p))
+}
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -238,15 +261,19 @@ api.interceptors.response.use(
       try {
         const { data, error: refreshError } = await supabase.auth.refreshSession()
         if (refreshError || !data.session) {
-          // 갱신 불가 → 로그아웃 (로그인 버튼 표시)
-          await supabase.auth.signOut()
+          // 갱신 불가: 비핵심 API면 조용히 실패, 그 외엔 로그아웃
+          if (!isNonCriticalPath(originalRequest.url)) {
+            await supabase.auth.signOut()
+          }
           return Promise.reject(error)
         }
         // 새 토큰으로 원래 요청 재시도
         originalRequest.headers.Authorization = `Bearer ${data.session.access_token}`
         return api(originalRequest)
       } catch {
-        await supabase.auth.signOut()
+        if (!isNonCriticalPath(originalRequest.url)) {
+          await supabase.auth.signOut()
+        }
         return Promise.reject(error)
       }
     }
