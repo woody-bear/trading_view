@@ -2,6 +2,7 @@
    /sentiment/overview API 재활용 — vix·kospi·sp500·nasdaq·usdkrw·us10y */
 
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { fetchSentiment } from '../api/client'
 import Spark from './charts/Spark'
 import { genSpark } from '../utils/chartDummy'
@@ -29,18 +30,20 @@ interface TickerDef {
   flag: string
   fmt: (v: number) => string
   invertColor?: boolean  // 값 상승이 부정적인 지표 (VIX, US10Y 등)
+  detailSymbol: string   // 종목 상세 페이지 URL 심볼 (yfinance 티커)
+  detailMarket: string   // 종목 상세 페이지 market 파라미터
 }
 
 const TICKERS: TickerDef[] = [
-  { key: 'kospi',   label: 'KOSPI',   flag: '🇰🇷', fmt: v => v.toLocaleString('ko-KR', { maximumFractionDigits: 0 }) },
-  { key: 'nasdaq',  label: 'NASDAQ',  flag: '🇺🇸', fmt: v => v.toLocaleString('en-US', { maximumFractionDigits: 0 }) },
-  { key: 'sp500',   label: 'S&P 500', flag: '🇺🇸', fmt: v => v.toLocaleString('en-US', { maximumFractionDigits: 0 }) },
-  { key: 'vix',     label: 'VIX',     flag: '📉',  fmt: v => v.toFixed(2), invertColor: true },
-  { key: 'usdkrw',  label: 'USD/KRW', flag: '💱',  fmt: v => v.toLocaleString('ko-KR', { maximumFractionDigits: 0 }), invertColor: true },
-  { key: 'us10y',   label: 'US10Y',   flag: '🏦',  fmt: v => v.toFixed(3) + '%', invertColor: true },
+  { key: 'kospi',  label: 'KOSPI',   flag: '🇰🇷', fmt: v => v.toLocaleString('ko-KR', { maximumFractionDigits: 0 }), detailSymbol: '^KS11',    detailMarket: 'KR' },
+  { key: 'nasdaq', label: 'NASDAQ',  flag: '🇺🇸', fmt: v => v.toLocaleString('en-US', { maximumFractionDigits: 0 }), detailSymbol: '^IXIC',    detailMarket: 'US' },
+  { key: 'sp500',  label: 'S&P 500', flag: '🇺🇸', fmt: v => v.toLocaleString('en-US', { maximumFractionDigits: 0 }), detailSymbol: '^GSPC',    detailMarket: 'US' },
+  { key: 'vix',    label: 'VIX',     flag: '📉',  fmt: v => v.toFixed(2), invertColor: true,  detailSymbol: '^VIX',     detailMarket: 'US' },
+  { key: 'usdkrw', label: 'USD/KRW', flag: '💱',  fmt: v => v.toLocaleString('ko-KR', { maximumFractionDigits: 0 }), invertColor: true, detailSymbol: 'USDKRW=X', detailMarket: 'US' },
+  { key: 'us10y',  label: 'US10Y',   flag: '🏦',  fmt: v => v.toFixed(3) + '%', invertColor: true,  detailSymbol: '^TNX',     detailMarket: 'US' },
 ]
 
-function TickerCell({ def: d, data, index }: { def: TickerDef; data: IndexData | undefined; index: number }) {
+function TickerCell({ def: d, data, index, onNavigate }: { def: TickerDef; data: IndexData | undefined; index: number; onNavigate: (symbol: string, market: string) => void }) {
   const noData = !data || data.value === 0
   const pct = data?.change_pct ?? 0
   const isUp = data?.direction === 'up'
@@ -53,6 +56,7 @@ function TickerCell({ def: d, data, index }: { def: TickerDef; data: IndexData |
 
   return (
     <div
+      onClick={() => onNavigate(d.detailSymbol, d.detailMarket)}
       style={{
         padding: '10px 14px',
         borderLeft: index === 0 ? 'none' : '1px solid var(--border)',
@@ -60,7 +64,11 @@ function TickerCell({ def: d, data, index }: { def: TickerDef; data: IndexData |
         flexDirection: 'column',
         gap: 3,
         minWidth: 0,
+        cursor: 'pointer',
+        transition: 'background 0.12s',
       }}
+      onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-2)')}
+      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
     >
       <div className="flex items-center gap-1.5">
         <span style={{ fontSize: 11 }}>{d.flag}</span>
@@ -101,12 +109,17 @@ function TickerSkeleton() {
 }
 
 export default function MarketTicker() {
+  const nav = useNavigate()
   const { data, isPending } = useQuery<SentimentData>({
     queryKey: ['sentiment'],
     queryFn: fetchSentiment,
     staleTime: 60_000,
     refetchInterval: 300_000,
   })
+
+  const handleNavigate = (symbol: string, market: string) => {
+    nav(`/${symbol.replace(/\//g, '_')}?market=${market}`)
+  }
 
   return (
     <div
@@ -121,7 +134,7 @@ export default function MarketTicker() {
       {isPending
         ? <TickerSkeleton />
         : TICKERS.map((def, i) => (
-            <TickerCell key={def.key} def={def} data={data?.[def.key] as IndexData | undefined} index={i} />
+            <TickerCell key={def.key} def={def} data={data?.[def.key] as IndexData | undefined} index={i} onNavigate={handleNavigate} />
           ))
       }
     </div>
