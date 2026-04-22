@@ -8,12 +8,7 @@ import {
   TickMarkType,
 } from 'lightweight-charts'
 import { useEffect, useRef, useState } from 'react'
-import { onPriceUpdate } from '../../hooks/useWebSocket'
-import type { PriceUpdate } from '../../stores/signalStore'
 import type { ChartData } from '../../types'
-import SignalGuide from './SignalGuide'
-import SqueezeGuide from './SqueezeGuide'
-import UBBPanel from './UBBPanel'
 
 interface RealtimePrice {
   price: number
@@ -42,7 +37,6 @@ interface OverlayState {
 
 interface Props {
   data: ChartData
-  watchlistId?: number
   realtimePrice?: RealtimePrice | null
   buyPoint?: BuyPoint | null
   onBuyMarkerClick?: (point: { price: number; markerTime: number }) => void
@@ -51,7 +45,7 @@ interface Props {
   trendLines?: import('../../api/client').TrendLine[]
 }
 
-export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPoint, onBuyMarkerClick, scrapedDates, onScrapSave, trendLines }: Props) {
+export default function IndicatorChart({ data, realtimePrice, buyPoint, onBuyMarkerClick, scrapedDates, onScrapSave, trendLines }: Props) {
   const mainRef = useRef<HTMLDivElement>(null)
   const mainChartRef = useRef<any>(null)
   const rsiRef = useRef<HTMLDivElement>(null)
@@ -92,17 +86,18 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
       if (tickMarkType === TickMarkType.Month) return `${m}월`
       return `${m}/${day}`
     }
+    // SQZ Terminal 라이트 테마 — lightweight-charts는 CSS var를 못 읽으므로 hex 근사값 사용
     const chartOpts = {
       width,
-      layout: { background: { type: ColorType.Solid as const, color: '#000000' }, textColor: '#8e8e93' },
-      grid: { vertLines: { color: '#2c2c2e' }, horzLines: { color: 'rgba(44,44,46,0.5)' } },
+      layout: { background: { type: ColorType.Solid as const, color: '#ffffff' }, textColor: '#6b7280' },
+      grid: { vertLines: { color: 'rgba(0,0,0,0.04)' }, horzLines: { color: 'rgba(0,0,0,0.06)' } },
       crosshair: { mode: 0 as const },
-      rightPriceScale: { borderColor: '#2c2c2e' },
+      rightPriceScale: { borderColor: '#e5e7eb' },
       localization: { locale: 'en-US' },
       timeScale: {
         timeVisible: false,
         secondsVisible: false,
-        borderColor: '#2c2c2e',
+        borderColor: '#e5e7eb',
         tickMarkFormatter,
       },
     }
@@ -111,10 +106,10 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
     const mainChart = createChart(el, { ...chartOpts, height: 450 })
     mainChartRef.current = mainChart
 
-    // 캔들스틱
+    // 캔들스틱 — SQZ Terminal 색상 시맨틱: 상승 초록(--up) / 하락 빨강(--down)
     const candleSeries = mainChart.addSeries(CandlestickSeries, {
-      upColor: '#ff4b6a', downColor: '#4285f4',
-      wickUpColor: '#ff4b6a', wickDownColor: '#4285f4',
+      upColor: '#16a34a', downColor: '#dc2626',
+      wickUpColor: '#16a34a', wickDownColor: '#dc2626',
       borderVisible: false,
     })
     const candleData = data.candles.map(c => ({
@@ -144,14 +139,15 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
     addLine('bb_lower', 'rgba(0, 188, 212, 0.6)', 1)
     addLine('ema_5',   '#06b6d4', 1)        // 단기 (시안)
     addLine('ema_20',  '#3b82f6', 1)        // 중단기 (파랑)
-    addLine('ema_50',  '#f59e0b', 1)        // 기존 주황 (내부 판정선)
     addLine('ema_60',  '#a855f7', 1)        // 중기 (보라)
     addLine('ema_120', '#ec4899', 2)        // 장기 (핑크, 2px 강조)
+    // EMA 50 제거 — SQZ Terminal 디자인 단순화 (#028 Phase 12)
 
     // ── EMA 정배열/역배열 말풍선 ───────────────────────────────────────────
-    // 호버된 날짜에 ema_5 > ema_20 > ema_50 > ema_60 > ema_120 (또는 전부 <) 일 때만 표시
+    // 호버된 날짜에 ema_5 > ema_20 > ema_60 > ema_120 (또는 전부 <) 일 때만 표시
+    // (EMA 50은 SQZ Terminal 단순화로 제외)
     {
-      const emaKeys = ['ema_5', 'ema_20', 'ema_50', 'ema_60', 'ema_120'] as const
+      const emaKeys = ['ema_5', 'ema_20', 'ema_60', 'ema_120'] as const
       const emaByTime: Record<string, Map<number, number>> = {}
       for (const k of emaKeys) {
         const m = new Map<number, number>()
@@ -164,12 +160,11 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
       const classify = (time: number): 'up' | 'down' | null => {
         const e5 = emaByTime.ema_5.get(time)
         const e20 = emaByTime.ema_20.get(time)
-        const e50 = emaByTime.ema_50.get(time)
         const e60 = emaByTime.ema_60.get(time)
         const e120 = emaByTime.ema_120.get(time)
-        if (e5 == null || e20 == null || e50 == null || e60 == null || e120 == null) return null
-        if (e5 > e20 && e20 > e50 && e50 > e60 && e60 > e120) return 'up'
-        if (e5 < e20 && e20 < e50 && e50 < e60 && e60 < e120) return 'down'
+        if (e5 == null || e20 == null || e60 == null || e120 == null) return null
+        if (e5 > e20 && e20 > e60 && e60 > e120) return 'up'
+        if (e5 < e20 && e20 < e60 && e60 < e120) return 'down'
         return null
       }
 
@@ -195,17 +190,15 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
         if (lastTimeShown !== param.time) {
           const e5 = emaByTime.ema_5.get(param.time)!
           const e20 = emaByTime.ema_20.get(param.time)!
-          const e50 = emaByTime.ema_50.get(param.time)!
           const e60 = emaByTime.ema_60.get(param.time)!
           const e120 = emaByTime.ema_120.get(param.time)!
           const label = kind === 'up' ? '📈 정배열' : '📉 역배열'
           const headClass = kind === 'up' ? 'color:#4ade80' : 'color:#f87171'
           bubble.innerHTML =
             `<div style="font-weight:600;${headClass};font-size:11px">${label}</div>` +
-            `<div style="font-family:monospace;color:#fff;font-size:10px;margin-top:2px;line-height:1.35">` +
+            `<div style="font-family:monospace;color:#ffffff;font-size:10px;margin-top:2px;line-height:1.35">` +
             `5:${e5.toFixed(1)} · 20:${e20.toFixed(1)}<br/>` +
-            `50:${e50.toFixed(1)} · 60:${e60.toFixed(1)}<br/>` +
-            `120:${e120.toFixed(1)}` +
+            `60:${e60.toFixed(1)} · 120:${e120.toFixed(1)}` +
             `</div>`
           lastTimeShown = param.time
         }
@@ -398,9 +391,9 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
           hl.setData([{ time: pts[0].time, value: val }, { time: pts[pts.length - 1].time, value: val }])
         }
       }
-      addHLine(70, 'rgba(66,133,244,0.4)')
-      addHLine(30, 'rgba(255,75,106,0.4)')
-      addHLine(50, 'rgba(100,116,139,0.2)')
+      addHLine(70, 'rgba(220,38,38,0.35)')
+      addHLine(30, 'rgba(22,163,74,0.35)')
+      addHLine(50, 'rgba(107,114,128,0.2)')
       rsiChart.timeScale().fitContent()
       mainChart.timeScale().subscribeVisibleLogicalRangeChange((r) => { if (r) rsiChart.timeScale().setVisibleLogicalRange(r) })
       rsiChart.timeScale().subscribeVisibleLogicalRangeChange((r) => { if (r) mainChart.timeScale().setVisibleLogicalRange(r) })
@@ -412,7 +405,7 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
       const histSeries = macdChart.addSeries(HistogramSeries, { lastValueVisible: false, priceLineVisible: false })
       histSeries.setData((data.indicators as any).macd_hist.map((p: any) => ({
         time: p.time, value: p.value,
-        color: p.value >= 0 ? 'rgba(255,75,106,0.6)' : 'rgba(66,133,244,0.6)',
+        color: p.value >= 0 ? 'rgba(22,163,74,0.7)' : 'rgba(220,38,38,0.7)',
       })))
       if ((data.indicators as any).macd_line?.length) {
         const ml = macdChart.addSeries(LineSeries, { color: '#3b82f6', lineWidth: 1 as any, lastValueVisible: false, priceLineVisible: false })
@@ -426,43 +419,16 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
       mainChart.timeScale().subscribeVisibleLogicalRangeChange((r) => { if (r) macdChart.timeScale().setVisibleLogicalRange(r) })
     }
 
-    // 실시간 가격 업데이트 구독
-    let unsubPrice: (() => void) | undefined
-    if (watchlistId) {
-      unsubPrice = onPriceUpdate((updates: PriceUpdate[]) => {
-        const u = updates.find(p => p.watchlist_id === watchlistId)
-        if (!u || !candleSeriesRef.current || !lastCandleRef.current) return
-
-        const lc = lastCandleRef.current
-        const updated = {
-          time: lc.time as any,
-          open: lc.open,
-          high: Math.max(lc.high, u.price),
-          low: Math.min(lc.low, u.price),
-          close: u.price,
-        }
-        candleSeriesRef.current.update(updated)
-        lastCandleRef.current = { ...lc, high: updated.high, low: updated.low, close: u.price }
-
-        // 거래량도 업데이트
-        if (volSeriesRef.current && u.volume > 0) {
-          volSeriesRef.current.update({
-            time: lc.time as any,
-            value: u.volume,
-            color: u.price >= lc.open ? 'rgba(255,75,106,0.12)' : 'rgba(66,133,244,0.12)',
-          })
-        }
-      })
-    }
+    // 실시간 가격 업데이트는 SSE(realtimePrice prop) 경로로 일원화 — 아래 useEffect 참조.
+    // WebSocket onPriceUpdate 이중 업데이트 경로 제거(#028 성능 개선).
 
     const resizeObs = new ResizeObserver(() => { mainChart.applyOptions({ width: el.clientWidth }) })
     resizeObs.observe(el)
     return () => {
-      unsubPrice?.()
       resizeObs.disconnect()
       mainChart.remove()
     }
-  }, [data, watchlistId])
+  }, [data])
 
   // 매수지점 가격선 — buyPoint 변경 시 priceLine 생성/제거
   useEffect(() => {
@@ -586,9 +552,6 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
 
   return (
     <div>
-      <SqueezeGuide />
-      <SignalGuide />
-      {(data as any).current && <UBBPanel data={data} />}
       <div className="relative">
         <div ref={mainRef} className="w-full rounded-t-lg overflow-hidden border border-[var(--border)]" />
         {/* EMA 정배열/역배열 말풍선 — 호버 시에만 나타남 */}
@@ -597,22 +560,25 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
           className="absolute z-30 px-2 py-1.5 rounded bg-black/85 backdrop-blur-sm border border-[var(--border)] pointer-events-none shadow-lg"
           style={{ display: 'none', minWidth: 120 }}
         />
-        {/* EMA 범례 — 메인 차트 좌상단 오버레이 */}
+        {/* EMA 범례 — 메인 차트 좌상단 오버레이 (SQZ Terminal 라이트 테마) */}
         <div
-          className="absolute top-2 left-2 z-40 bg-black/60 backdrop-blur-sm border border-[var(--border)] rounded px-2 py-1.5 text-xs pointer-events-none"
-          style={{ lineHeight: 1.3 }}
+          className="absolute top-2 left-2 z-40 backdrop-blur-sm rounded px-2 py-1.5 text-xs pointer-events-none"
+          style={{
+            lineHeight: 1.3,
+            background: 'color-mix(in oklch, var(--bg-1), transparent 10%)',
+            border: '1px solid var(--border)',
+          }}
         >
-          <div className="text-[10px] text-[var(--muted)] mb-1">EMA</div>
+          <div className="text-[10px] mb-1" style={{ color: 'var(--fg-3)' }}>EMA</div>
           {[
             { label: '5',   color: '#06b6d4', width: 1 },
             { label: '20',  color: '#3b82f6', width: 1 },
-            { label: '50',  color: '#f59e0b', width: 1 },
             { label: '60',  color: '#a855f7', width: 1 },
             { label: '120', color: '#ec4899', width: 2 },
           ].map((e) => (
             <div key={e.label} className="flex items-center gap-1.5">
               <div style={{ width: 18, height: e.width, background: e.color }} />
-              <span className="font-mono text-white text-[11px]">{e.label}</span>
+              <span className="font-mono text-[11px]" style={{ color: 'var(--fg-1)' }}>{e.label}</span>
             </div>
           ))}
         </div>
@@ -630,25 +596,26 @@ export default function IndicatorChart({ data, watchlistId, realtimePrice, buyPo
         >
           <button
             data-scrap-btn
-            className="bg-green-900/90 border border-green-600/60 rounded-lg px-3 py-1.5 text-green-300 text-xs font-medium shadow-lg whitespace-nowrap hover:bg-green-800/90 transition-colors"
+            className="rounded-lg px-3 py-1.5 text-xs font-medium shadow-lg whitespace-nowrap transition-colors"
+            style={{ background: 'var(--up-bg)', border: '1px solid var(--up)', color: 'var(--up)' }}
           >
             이 BUY 사례 저장
           </button>
           <div
             data-scrap-saved
-            style={{ display: 'none' }}
-            className="bg-yellow-900/90 border border-yellow-600/60 rounded-lg px-3 py-1.5 text-yellow-300 text-xs font-medium shadow-lg whitespace-nowrap"
+            style={{ display: 'none', background: 'var(--warn-bg)', border: '1px solid var(--warn)', color: 'var(--warn)' }}
+            className="rounded-lg px-3 py-1.5 text-xs font-medium shadow-lg whitespace-nowrap"
           >
             저장됨 ✓
           </div>
         </div>
       </div>
-      <div className="flex items-center gap-2 px-3 py-1 bg-black border-x border-[var(--border)]">
-        <span className="text-caption text-[var(--muted)]">RSI (14)</span>
+      <div className="flex items-center gap-2 px-3 py-1 border-x border-b border-[var(--border)]" style={{ background: 'var(--bg-2)' }}>
+        <span className="text-caption" style={{ color: 'var(--fg-3)', fontFamily: 'var(--font-mono)', fontSize: 10 }}>RSI (14)</span>
       </div>
       <div ref={rsiRef} className="w-full overflow-hidden border-x border-[var(--border)]" />
-      <div className="flex items-center gap-2 px-3 py-1 bg-black border-x border-[var(--border)]">
-        <span className="text-caption text-[var(--muted)]">MACD (12,26,9)</span>
+      <div className="flex items-center gap-2 px-3 py-1 border-x border-b border-[var(--border)]" style={{ background: 'var(--bg-2)' }}>
+        <span className="text-caption" style={{ color: 'var(--fg-3)', fontFamily: 'var(--font-mono)', fontSize: 10 }}>MACD (12,26,9)</span>
       </div>
       <div ref={macdRef} className="w-full rounded-b-lg overflow-hidden border border-[var(--border)] border-t-0" />
       {markerWarning && (

@@ -6,6 +6,6 @@ interface TrendOverlayStore {
 }
 
 export const useTrendOverlayStore = create<TrendOverlayStore>((set) => ({
-  showLines: false,
+  showLines: true,
   toggle: () => set((s) => ({ showLines: !s.showLines })),
 }))

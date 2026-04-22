@@ -121,10 +121,10 @@ function TrendMiniChart({ chartData, trendData }: { chartData: ChartData; trendD
     const chart = createChart(el, {
       width,
       height: 200,
-      layout: { background: { type: ColorType.Solid, color: '#000000' }, textColor: '#64748b' },
-      grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
-      rightPriceScale: { borderColor: '#334155', scaleMargins: { top: 0.1, bottom: 0.1 } },
-      timeScale: { borderColor: '#334155', timeVisible: false },
+      layout: { background: { type: ColorType.Solid, color: '#ffffff' }, textColor: '#6b7280' },
+      grid: { vertLines: { color: 'rgba(0,0,0,0.04)' }, horzLines: { color: 'rgba(0,0,0,0.06)' } },
+      rightPriceScale: { borderColor: '#e5e7eb', scaleMargins: { top: 0.1, bottom: 0.1 } },
+      timeScale: { borderColor: '#e5e7eb', timeVisible: false },
       crosshair: { mode: 0 },
     })
 
@@ -133,8 +133,8 @@ function TrendMiniChart({ chartData, trendData }: { chartData: ChartData; trendD
     const candles = chartData.candles.slice(-n)
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: '#ff4b6a', downColor: '#4285f4',
-      wickUpColor: '#ff4b6a', wickDownColor: '#4285f4',
+      upColor: '#16a34a', downColor: '#dc2626',
+      wickUpColor: '#16a34a', wickDownColor: '#dc2626',
       borderVisible: false,
     })
     candleSeries.setData(candles.map((c: any) => ({
@@ -165,7 +165,7 @@ function TrendMiniChart({ chartData, trendData }: { chartData: ChartData; trendD
       try {
         candleSeries.createPriceLine({
           price: currentPrice,
-          color: '#ffffff',
+          color: '#374151',
           lineWidth: 2 as any,
           lineStyle: 0, // Solid
           axisLabelVisible: true,

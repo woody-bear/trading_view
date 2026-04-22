@@ -39,19 +39,19 @@ export default function EmaOnlyChart({ data }: Props) {
       width,
       height: 220,
       layout: {
-        background: { type: ColorType.Solid as const, color: '#000000' },
-        textColor: '#8e8e93',
+        background: { type: ColorType.Solid as const, color: '#ffffff' },
+        textColor: '#6b7280',
       },
       grid: {
-        vertLines: { color: '#2c2c2e' },
-        horzLines: { color: 'rgba(44,44,46,0.5)' },
+        vertLines: { color: 'rgba(0,0,0,0.04)' },
+        horzLines: { color: 'rgba(0,0,0,0.06)' },
       },
       crosshair: { mode: 0 as const },
-      rightPriceScale: { borderColor: '#2c2c2e' },
+      rightPriceScale: { borderColor: '#e5e7eb' },
       timeScale: {
         timeVisible: false,
         secondsVisible: false,
-        borderColor: '#2c2c2e',
+        borderColor: '#e5e7eb',
         tickMarkFormatter,
       },
     })
@@ -86,18 +86,22 @@ export default function EmaOnlyChart({ data }: Props) {
 
   return (
     <div className="relative mt-3">
-      <div className="flex items-center gap-3 px-3 py-1 bg-black border border-[var(--border)] rounded-t-lg text-xs">
-        <span className="text-[var(--muted)]">EMA 추이 (일봉)</span>
+      <div
+        className="flex items-center gap-3 px-3 py-1 rounded-t-lg text-xs"
+        style={{ background: 'var(--bg-1)', border: '1px solid var(--border)' }}
+      >
+        <span style={{ color: 'var(--fg-3)' }}>EMA 추이 (일봉)</span>
         {EMA_CONFIG.map((e) => (
           <div key={e.key} className="flex items-center gap-1">
             <div style={{ width: 14, height: 2, background: e.color }} />
-            <span className="font-mono text-white text-[11px]">{e.label}</span>
+            <span className="font-mono text-[11px]" style={{ color: 'var(--fg-1)' }}>{e.label}</span>
           </div>
         ))}
       </div>
       <div
         ref={containerRef}
-        className="w-full rounded-b-lg overflow-hidden border border-[var(--border)] border-t-0"
+        className="w-full rounded-b-lg overflow-hidden border-t-0"
+        style={{ border: '1px solid var(--border)', borderTop: 'none' }}
       />
     </div>
   )

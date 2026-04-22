@@ -1,23 +1,25 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Check, Plus } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Check, Plus } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { useLocation, useParams, useSearchParams } from 'react-router-dom'
 import BuySignalBanner from '../components/BuySignalBanner'
 import type { NavigateState } from '../utils/buyReason'
 import { addSymbol, checkPatternCaseDuplicate, createPatternCase, fetchIndicatorsAt, fetchPatternCases, fetchQuickChart, fetchSignalBySymbol, fetchSignals, getSensitivity, setSensitivity } from '../api/client'
+import { useDetailViewStore, buildDetailKey } from '../stores/detailViewStore'
 import { fmtPrice as _fmtPrice } from '../utils/format'
 import ChartEmptyState from '../components/charts/ChartEmptyState'
 import ChartErrorBoundary from '../components/charts/ChartErrorBoundary'
 import ChartSkeleton from '../components/charts/ChartSkeleton'
 import FinancialChart from '../components/charts/FinancialChart'
 import RevenueSegmentChart from '../components/RevenueSegmentChart'
-import PositionGuide from '../components/PositionGuide'
 import RiskWarningBanner from '../components/RiskWarningBanner'
 import StockFundamentals from '../components/StockFundamentals'
 import OrderbookPanel from '../components/OrderbookPanel'
 import IndicatorChart from '../components/charts/IndicatorChart'
 import EmaOnlyChart from '../components/charts/EmaOnlyChart'
 import TrendAnalysisCard from '../components/charts/TrendAnalysisCard'
+import EntryPlanPanel from '../components/detail/EntryPlanPanel'
+import SignalLegend from '../components/detail/SignalLegend'
 import { useTrendOverlayStore } from '../stores/trendOverlayStore'
 import { useTrendAnalysis } from '../hooks/useTrendAnalysis'
 import ConnectionIndicator from '../components/ui/ConnectionIndicator'
@@ -29,12 +31,11 @@ import { useBuyPoint } from '../hooks/useBuyPoint'
 import { useToastStore } from '../stores/toastStore'
 import { useAuthStore } from '../store/authStore'
 import DetailTabs from '../components/DetailTabs'
-import { useDetailViewStore, buildDetailKey } from '../stores/detailViewStore'
 import ValueAnalysisTab from '../components/ValueAnalysisTab'
 import { fetchCompanyInfo } from '../api/client'
 import { useDetailTab } from '../hooks/useDetailTab'
 
-const stateLabel: Record<string, string> = { BUY: '매수', SELL: '매도', NEUTRAL: '대기' }
+// stateLabel은 더 이상 사용하지 않음 (칩 기반 신호 표시로 대체)
 
 interface IndicatorGauge {
   label: string
@@ -63,37 +64,51 @@ function MiniGauge({ g }: { g: IndicatorGauge }) {
   const pos = Math.max(0, Math.min(100, ((g.value - g.min) / range) * 100))
   const medianPos = Math.max(0, Math.min(100, ((g.median - g.min) / range) * 100))
 
-  const zoneColor = g.zone === 'buy' ? 'text-[var(--buy)]' : g.zone === 'sell' ? 'text-[var(--sell)]' : 'text-[var(--muted)]'
-  const dotColor = g.zone === 'buy' ? 'bg-green-500 border-green-300' : g.zone === 'sell' ? 'bg-red-500 border-red-300' : 'bg-blue-500 border-blue-300'
-  const gradientClass = 'from-green-800/40 via-slate-700/40 to-red-800/40'
+  const valColor = g.zone === 'buy' ? 'var(--up)' : g.zone === 'sell' ? 'var(--down)' : 'var(--fg-2)'
+  const dotBg   = g.zone === 'buy' ? 'var(--up)' : g.zone === 'sell' ? 'var(--down)' : 'var(--accent)'
 
   return (
-    <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-xs text-[var(--muted)]">{g.label}</span>
-        <span className={`text-sm font-bold font-mono ${zoneColor}`}>{g.format(g.value)}</span>
+    <div className="panel" style={{ padding: '10px 12px' }}>
+      <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
+        <span style={{ fontSize: 10.5, color: 'var(--fg-3)', fontFamily: 'var(--font-mono)' }}>{g.label}</span>
+        <span style={{ fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-mono)', color: valColor }}>{g.format(g.value)}</span>
       </div>
 
       {/* 게이지 바 */}
-      <div className="relative h-2 bg-[#0f172a] rounded-full mb-1.5 mt-2">
-        <div className={`absolute h-full bg-gradient-to-r ${gradientClass} rounded-full w-full`} />
-        {/* 중앙값 (회색 삼각형) */}
-        <div className="absolute -top-[3px] -translate-x-1/2" style={{ left: `${medianPos}%` }}>
-          <div className="w-0 h-0 border-l-[4px] border-r-[4px] border-b-[6px] border-l-transparent border-r-transparent border-b-gray-400" />
-        </div>
-        {/* 현재값 */}
-        <div className={`absolute w-2.5 h-2.5 rounded-full -translate-x-1/2 -top-[1px] border-2 ${dotColor}`}
-          style={{ left: `${pos}%` }} />
+      <div className="relative" style={{ height: 6, background: 'var(--bg-3)', borderRadius: 3, margin: '2px 0 4px' }}>
+        {/* 그라데이션 오버레이 */}
+        <div style={{
+          position: 'absolute', inset: 0, borderRadius: 3,
+          background: 'linear-gradient(to right, var(--up-bg), var(--bg-3), var(--down-bg))',
+        }} />
+        {/* 중앙값 마커 */}
+        <div style={{
+          position: 'absolute', top: -2, left: `${medianPos}%`,
+          transform: 'translateX(-50%)',
+          width: 0, height: 0,
+          borderLeft: '3px solid transparent',
+          borderRight: '3px solid transparent',
+          borderBottom: '5px solid var(--fg-3)',
+        }} />
+        {/* 현재값 도트 */}
+        <div style={{
+          position: 'absolute', top: '50%', left: `${pos}%`,
+          transform: 'translate(-50%, -50%)',
+          width: 10, height: 10, borderRadius: '50%',
+          background: dotBg,
+          border: '2px solid var(--bg-1)',
+          boxShadow: `0 0 4px ${dotBg}`,
+        }} />
       </div>
 
-      {/* 하단 범위 + 중앙값 */}
-      <div className="flex justify-between text-micro text-[var(--muted)]">
-        <span className="font-mono">{g.format(g.min)}</span>
-        <span className="font-mono text-gray-400">적정 {g.format(g.median)}</span>
-        <span className="font-mono">{g.format(g.max)}</span>
+      {/* 범위 표시 */}
+      <div className="flex justify-between" style={{ fontSize: 9.5, color: 'var(--fg-4)', fontFamily: 'var(--font-mono)' }}>
+        <span>{g.format(g.min)}</span>
+        <span style={{ color: 'var(--fg-3)' }}>적정 {g.format(g.median)}</span>
+        <span>{g.format(g.max)}</span>
       </div>
 
-      {g.warn && <div className="text-caption text-yellow-400 mt-1 text-center">{g.warn}</div>}
+      {g.warn && <div style={{ fontSize: 10, color: 'var(--warn)', marginTop: 3, textAlign: 'center', fontFamily: 'var(--font-mono)' }}>{g.warn}</div>}
     </div>
   )
 }
@@ -101,7 +116,6 @@ function MiniGauge({ g }: { g: IndicatorGauge }) {
 export default function SignalDetail() {
   const { symbol: urlSymbol } = useParams()
   const [searchParams] = useSearchParams()
-  const nav = useNavigate()
   const { state: navState } = useLocation()
   const buySignal = (navState as NavigateState)?.buySignal
   const qc = useQueryClient()
@@ -182,8 +196,28 @@ export default function SignalDetail() {
     ema_200: signal?.ema_200 ?? cur.ema_200 ?? 0,
   }
 
-  // 실시간 가격 SSE (1초 간격)
-  const { livePrice, connected: realtimeConnected, connectionStatus, reconnect } = useRealtimePrice(lookupSymbol, s.market)
+  // 차트 마커 기준 마지막 신호 추출 (EntryPlanPanel 입력)
+  const lastMarker = useMemo(() => {
+    const markers = (chartData as any)?.markers || []
+    for (let i = markers.length - 1; i >= 0; i--) {
+      const t = markers[i].text
+      if (['BUY', 'SQZ BUY', 'SELL', 'SQZ SELL'].includes(t)) {
+        const d = new Date(markers[i].time * 1000)
+        const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        const state = t === 'BUY' || t === 'SQZ BUY' ? 'BUY' : 'SELL'
+        return { state, text: t, date }
+      }
+    }
+    return { state: 'NEUTRAL' as const, text: null as string | null, date: null as string | null }
+  }, [chartData])
+
+  // 탭 상태 — URL ?tab=chart|value 동기화 (FR-005, US3)
+  // useRealtimePrice 이전에 선언 — 차트 탭이 아닐 때 SSE 연결을 맺지 않기 위해
+  const [activeTab, setActiveTab] = useDetailTab()
+
+  // 실시간 가격 SSE (1초 간격) — 차트 탭일 때만 연결, 가치 탭이면 연결 해제
+  const { livePrice, connected: realtimeConnected, connectionStatus, reconnect } =
+    useRealtimePrice(activeTab === 'chart' ? lookupSymbol : undefined, s.market)
   const { addToast } = useToastStore()
   const { user } = useAuthStore()
   const { buyPoint, toggleBuyPoint } = useBuyPoint(lookupSymbol)
@@ -239,9 +273,6 @@ export default function SignalDetail() {
     } finally { setAdding(false) }
   }
 
-  // 탭 상태 — URL ?tab=chart|value 동기화 (FR-005, US3)
-  const [activeTab, setActiveTab] = useDetailTab()
-
   // 자산군 판정 — 가치 탭 활성화 여부 (FR-006). market 코드 정규화 후 prefetch
   const normalizedMarket =
     s.market === 'CRYPTO' ? 'CRYPTO'
@@ -263,36 +294,24 @@ export default function SignalDetail() {
   const showTrendLines = useTrendOverlayStore((s) => s.showLines)
   const { data: trendData } = useTrendAnalysis(lookupSymbol, normalizedMarket)
 
-  // 세션 단위 차트 UI 상태 보존 (FR-010) — symbol 단위 키로 복원
+  // 민감도 설정 (매수조건 임계값)
   const detailKey = buildDetailKey(s.market || guessMarket, lookupSymbol)
   const storedUi = useDetailViewStore((st) => st.byKey[detailKey])
   const setStoredUi = useDetailViewStore((st) => st.set)
-
   const [sens, setSens] = useState(storedUi?.sensitivity ?? 'strict')
   const [sensLoading, setSensLoading] = useState(false)
   useEffect(() => {
-    if (storedUi?.sensitivity) {
-      setSens(storedUi.sensitivity)
-      return
-    }
+    if (storedUi?.sensitivity) { setSens(storedUi.sensitivity); return }
     getSensitivity().then((d) => {
       setSens(d.current)
       setStoredUi(detailKey, { sensitivity: d.current })
     }).catch(() => {})
   }, [detailKey])
 
-  const stateColor = s.signal_state === 'BUY' ? 'text-[var(--buy)]' : s.signal_state === 'SELL' ? 'text-[var(--sell)]' : 'text-[var(--neutral)]'
-
-  // 차트 상태 판별
-  const chartEmpty = chartData && (!chartData.candles || chartData.candles.length === 0)
-  const chartTimeout = chartError && !chartData
-
-  const fmtPrice = (price: number) => _fmtPrice(price, s.market)
-
-  const sensPresets: Record<string, { label: string; rsi: number; bb: number; vol: number; req: number; color: string }> = {
-    strict: { label: '엄격', rsi: 30, bb: 0.05, vol: 1.2, req: 4, color: 'text-blue-400' },
-    normal: { label: '보통', rsi: 35, bb: 0.15, vol: 1.1, req: 3, color: 'text-yellow-400' },
-    sensitive: { label: '민감', rsi: 40, bb: 0.25, vol: 1.0, req: 2, color: 'text-red-400' },
+  const sensPresets: Record<string, { label: string; rsi: number; req: number }> = {
+    strict:    { label: '엄격', rsi: 30, req: 3 },
+    normal:    { label: '보통', rsi: 35, req: 2 },
+    sensitive: { label: '민감', rsi: 40, req: 2 },
   }
   const sp = sensPresets[sens] || sensPresets.strict
 
@@ -309,16 +328,27 @@ export default function SignalDetail() {
     } finally { setSensLoading(false) }
   }
 
-
-
-  // BUY 조건 체크리스트 (민감도에 따라 동적)
   const buyConditions = [
-    { label: `BB %B ≤ ${sp.bb}`, met: s.bb_pct_b <= sp.bb, value: `${(s.bb_pct_b * 100).toFixed(1)}%` },
+    { label: 'BB 하단 터치/복귀', met: s.bb_pct_b <= 0.05, value: `%B ${(s.bb_pct_b * 100).toFixed(1)}%` },
     { label: `RSI < ${sp.rsi}`, met: s.rsi < sp.rsi, value: s.rsi?.toFixed(1) },
-    { label: 'MACD 히스토그램 상승', met: s.macd_hist > 0, value: s.macd_hist?.toFixed(4) },
-    { label: `거래량 ${sp.vol}배 이상`, met: s.volume_ratio > sp.vol, value: `${s.volume_ratio?.toFixed(1)}x` },
+    { label: 'MACD 모멘텀 양수', met: s.macd_hist > 0, value: s.macd_hist > 0 ? '↑ 상승' : '↓ 하락' },
   ]
   const metCount = buyConditions.filter(c => c.met).length
+
+  const signalChip = useMemo(() => {
+    const sq = s.squeeze_level ?? 0
+    if (s.signal_state === 'BUY' && sq >= 1)  return { label: 'SQZ BUY',  cls: 'chip chip-mag' }
+    if (s.signal_state === 'BUY')              return { label: 'BUY',      cls: 'chip chip-up' }
+    if (s.signal_state === 'SELL' && sq >= 1) return { label: 'SQZ SELL', cls: 'chip chip-down' }
+    if (s.signal_state === 'SELL')             return { label: 'SELL',     cls: 'chip chip-down' }
+    return { label: 'WATCH', cls: 'chip chip-ghost' }
+  }, [s.signal_state, s.squeeze_level])
+
+  // 차트 상태 판별
+  const chartEmpty = chartData && (!chartData.candles || chartData.candles.length === 0)
+  const chartTimeout = chartError && !chartData
+
+  const fmtPrice = (price: number) => _fmtPrice(price, s.market)
 
   // 지표 게이지 데이터 구성
   const gauges: IndicatorGauge[] = [
@@ -418,49 +448,66 @@ export default function SignalDetail() {
     <div>
       <DetailTabs activeTab={activeTab} onChange={setActiveTab} valueEnabled={valueEnabled} />
       {activeTab === 'value' && (
-        <ValueAnalysisTab
-          symbol={lookupSymbol}
-          market={normalizedMarket}
-          assetClassHint={assetClass}
-        />
+        <div>
+          <ValueAnalysisTab
+            symbol={lookupSymbol}
+            market={normalizedMarket}
+            assetClassHint={assetClass}
+          />
+          {/* 실적 차트 */}
+          <FinancialChart symbol={lookupSymbol} market={s.market} />
+          {/* 매출 구성 */}
+          <RevenueSegmentChart symbol={lookupSymbol} market={guessMarket || 'US'} />
+        </div>
       )}
-      <div className="p-3 md:p-6" style={{ display: activeTab === 'chart' ? 'block' : 'none' }}>
-      {/* 모바일 상단 헤더 */}
-      <div className="flex items-center gap-3 mb-3 md:mb-4">
-        <button onClick={() => nav('/')} className="text-[var(--muted)] hover:text-white p-1">
-          <ArrowLeft size={20} />
-        </button>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl md:text-2xl font-bold text-white truncate">{s.display_name || s.symbol}</h1>
-            <span className="text-[var(--muted)] text-sm shrink-0">{s.symbol}</span>
+      {activeTab === 'chart' && (
+      <div className="p-3 md:p-6">
+      {/* 헤더 */}
+      <div className="flex items-center" style={{ gap: 8, marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="flex items-center" style={{ gap: 8, flexWrap: 'wrap' }}>
+            <h1 style={{ fontSize: 17, fontWeight: 700, color: 'var(--fg-0)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>
+              {s.display_name || s.symbol}
+            </h1>
+            <span style={{ fontSize: 10.5, color: 'var(--fg-3)', fontFamily: 'var(--font-mono)', flexShrink: 0 }}>
+              {s.symbol}
+            </span>
+            <span className="chip chip-ghost" style={{ flexShrink: 0 }}>
+              {guessMarket}
+            </span>
           </div>
         </div>
         {s.signal_state !== 'NEUTRAL' && (
-          <div className="text-right shrink-0">
-            <span className={`text-base md:text-lg font-bold ${stateColor}`}>{stateLabel[s.signal_state]}</span>
-          </div>
+          <span className={signalChip.cls} style={{ flexShrink: 0 }}>{signalChip.label}</span>
         )}
         {!isInWatchlist && !addedNow && (
-          <button onClick={handleAddToWatchlist} disabled={adding}
-            className="shrink-0 flex items-center gap-1 px-2.5 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs disabled:opacity-50">
-            <Plus size={14} /> {adding ? '...' : '관심종목'}
+          <button
+            onClick={handleAddToWatchlist}
+            disabled={adding}
+            style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: 'var(--accent)', color: 'var(--bg-0)', borderRadius: 4, fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer', opacity: adding ? 0.6 : 1 }}
+          >
+            <Plus size={13} /> {adding ? '...' : '관심'}
           </button>
         )}
-        {addedNow && !isInWatchlist && (
-          <span className="shrink-0 flex items-center gap-1 text-green-400 text-xs"><Check size={14} /> 추가됨</span>
+        {(isInWatchlist || addedNow) && (
+          <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--up)' }}>
+            <Check size={13} /> 관심
+          </span>
         )}
       </div>
 
       {/* 가격 영역 */}
-      <div className="flex items-baseline gap-3 mb-4 md:mb-6 pl-1">
-        <span className={`text-2xl md:text-xl font-mono font-semibold transition-colors duration-300 ${flashClass}`}>
+      <div className="flex items-center flex-wrap" style={{ gap: 8, marginBottom: 16, paddingLeft: 4 }}>
+        <span
+          className={flashClass}
+          style={{ fontSize: 26, fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--fg-0)', transition: 'color 0.3s' }}
+        >
           {fmtPrice(currentPrice)}
         </span>
-        <span className={`text-sm font-mono ${currentChangePct >= 0 ? 'text-[var(--buy)]' : 'text-[var(--sell)]'}`}>
-          {currentChangePct >= 0 ? '+' : ''}{currentChangePct?.toFixed(2)}%
+        <span style={{ fontSize: 13, fontFamily: 'var(--font-mono)', fontWeight: 600, color: currentChangePct >= 0 ? 'var(--up)' : 'var(--down)' }}>
+          {currentChangePct >= 0 ? '▲' : '▼'} {Math.abs(currentChangePct ?? 0).toFixed(2)}%
           {currentChange != null && (
-            <span className="ml-1 text-xs opacity-80">
+            <span style={{ marginLeft: 4, fontSize: 11, opacity: 0.8 }}>
               ({currentChange >= 0 ? '+' : ''}{s.market === 'US' ? `$${currentChange.toFixed(2)}` : `${Math.round(currentChange).toLocaleString()}원`})
             </span>
           )}
@@ -471,94 +518,144 @@ export default function SignalDetail() {
           : s.market === 'US' ? 'US'
           : (lookupSymbol.match(/^\d{6}$/) ? 'KR' : 'US')
         } />
-        {livePrice?.is_expected && <span className="text-xs text-yellow-400 border border-yellow-400/30 rounded px-1.5 py-0.5">예상가</span>}
-        {livePrice?.is_pre_market && <span className="text-xs text-cyan-400 border border-cyan-400/30 rounded px-1.5 py-0.5">프리마켓</span>}
-        {livePrice?.is_post_market && <span className="text-xs text-purple-400 border border-purple-400/30 rounded px-1.5 py-0.5">애프터마켓</span>}
-        {s.confidence > 0 && <span className="text-xs text-[var(--muted)]">강도 {s.confidence.toFixed(0)}점</span>}
+        {livePrice?.is_expected && <span className="chip chip-warn">예상가</span>}
+        {livePrice?.is_pre_market && <span className="chip chip-accent">프리마켓</span>}
+        {livePrice?.is_post_market && <span className="chip chip-ghost">애프터마켓</span>}
+        {s.confidence > 0 && <span style={{ fontSize: 10.5, color: 'var(--fg-3)', fontFamily: 'var(--font-mono)' }}>강도 {s.confidence.toFixed(0)}점</span>}
         <ConnectionIndicator status={connectionStatus || (realtimeConnected ? 'connected' : 'disconnected')} onReconnect={reconnect || (() => {})} />
       </div>
 
       {/* BUY 신호 이유 배너 — BUY 리스트 진입 시만 표시 */}
       {buySignal && <BuySignalBanner item={buySignal} />}
 
-      {/* 포지션 가이드 — 차트 마지막 BUY/SELL 마커 기준 (가격 영역 아래, 차트 위) */}
-      <PositionGuide
-        symbol={lookupSymbol}
-        signalState={(() => {
-          const markers = (chartData as any)?.markers || []
-          for (let i = markers.length - 1; i >= 0; i--) {
-            const t = markers[i].text
-            if (t === 'BUY' || t === 'SQZ BUY') return 'BUY'
-            if (t === 'SELL' || t === 'SQZ SELL') return 'SELL'
-          }
-          return 'NEUTRAL'
-        })()}
-        lastSignalText={(() => {
-          const markers = (chartData as any)?.markers || []
-          for (let i = markers.length - 1; i >= 0; i--) {
-            const t = markers[i].text
-            if (['BUY', 'SQZ BUY', 'SELL', 'SQZ SELL'].includes(t)) return t
-          }
-          return undefined
-        })()}
-        lastSignalDate={(() => {
-          const markers = (chartData as any)?.markers || []
-          for (let i = markers.length - 1; i >= 0; i--) {
-            const t = markers[i].text
-            if (['BUY', 'SQZ BUY', 'SELL', 'SQZ SELL'].includes(t)) {
-              const d = new Date(markers[i].time * 1000)
-              return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
-            }
-          }
-          return undefined
-        })()}
-        rsi={s.rsi}
-        bbPctB={s.bb_pct_b}
-        ema20={s.ema_20}
-        ema50={s.ema_50}
-      />
-
       {/* 위험경고 배너 (한국 주식만) */}
       <RiskWarningBanner symbol={lookupSymbol} market={guessMarket} />
 
-      {/* 차트 */}
-      {(chartLoading || chartFetching || !chartSymbolMatch) && !chartError && (
-        <div className="relative">
-          <ChartSkeleton />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-sm text-[var(--muted)] bg-[var(--card)]/80 px-3 py-1.5 rounded-lg backdrop-blur-sm">차트 로드중...</span>
-          </div>
+      {/* 차트 영역 — PC(1280px+) 2컬럼: 좌 차트 / 우 EntryPlan·Squeeze·Legend */}
+      <div className="xl:grid xl:gap-3" style={{ gridTemplateColumns: '1fr 340px' }}>
+        <div className="min-w-0">
+          {(chartLoading || chartFetching || !chartSymbolMatch) && !chartError && (
+            <div className="relative">
+              <ChartSkeleton />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span style={{ fontSize: 13, color: 'var(--fg-3)', background: 'color-mix(in oklch, var(--bg-1), transparent 20%)', padding: '6px 12px', borderRadius: 6, backdropFilter: 'blur(4px)' }}>차트 로드중...</span>
+              </div>
+            </div>
+          )}
+          {chartEmpty && chartSymbolMatch && <ChartEmptyState status="empty" />}
+          {chartTimeout && <ChartEmptyState status="timeout" onRetry={() => refetchChart()} />}
+          {chartError && !chartTimeout && <ChartEmptyState status="error" onRetry={() => refetchChart()} />}
+          {chartData && chartSymbolMatch && !chartEmpty && !chartError && !chartFetching && (
+            <ChartErrorBoundary onReset={() => refetchChart()}>
+              <IndicatorChart
+                data={chartData}
+                realtimePrice={livePrice}
+                buyPoint={buyPoint}
+                onBuyMarkerClick={({ price, markerTime }) => {
+                  toggleBuyPoint({
+                    symbol: lookupSymbol,
+                    price,
+                    date: new Date().toISOString().slice(0, 10),
+                    markerTime,
+                  })
+                }}
+                scrapedDates={scrapedDates}
+                onScrapSave={user ? handleScrapSave : undefined}
+                trendLines={showTrendLines ? trendData?.lines : undefined}
+              />
+              {/* EMA 전용 보조 차트 — 5/20/60/120만 일봉 기준 */}
+              <EmaOnlyChart data={chartData} />
+            </ChartErrorBoundary>
+          )}
+          {/* 추세 분석 카드 — EmaOnlyChart와 동일 너비 */}
+          <TrendAnalysisCard symbol={lookupSymbol} market={normalizedMarket} chartData={chartData || undefined} />
         </div>
-      )}
-      {chartEmpty && chartSymbolMatch && <ChartEmptyState status="empty" />}
-      {chartTimeout && <ChartEmptyState status="timeout" onRetry={() => refetchChart()} />}
-      {chartError && !chartTimeout && <ChartEmptyState status="error" onRetry={() => refetchChart()} />}
-      {chartData && chartSymbolMatch && !chartEmpty && !chartError && !chartFetching && (
-        <ChartErrorBoundary onReset={() => refetchChart()}>
-          <IndicatorChart
-            data={chartData}
-            watchlistId={wid}
-            realtimePrice={livePrice}
-            buyPoint={buyPoint}
-            onBuyMarkerClick={({ price, markerTime }) => {
-              toggleBuyPoint({
-                symbol: lookupSymbol,
-                price,
-                date: new Date().toISOString().slice(0, 10),
-                markerTime,
-              })
-            }}
-            scrapedDates={scrapedDates}
-            onScrapSave={user ? handleScrapSave : undefined}
-            trendLines={showTrendLines ? trendData?.lines : undefined}
-          />
-          {/* EMA 전용 보조 차트 — 5/20/60/120만 일봉 기준 */}
-          <EmaOnlyChart data={chartData} />
-        </ChartErrorBoundary>
-      )}
 
-      {/* 추세 분석 카드 (024) — EmaOnlyChart 직하단, 미니 차트 포함 */}
-      <TrendAnalysisCard symbol={lookupSymbol} market={normalizedMarket} chartData={chartData || undefined} />
+        {/* 사이드레일 — 모바일: 추세 확인 아래 단일 컬럼 / PC(1280px+): 우측 340px 고정 컬럼 */}
+        <div className="flex flex-col mt-3 xl:mt-0" style={{ gap: 12 }}>
+          <EntryPlanPanel
+            symbol={lookupSymbol}
+            signalState={lastMarker.state}
+            lastSignalText={lastMarker.text}
+            lastSignalDate={lastMarker.date}
+            rsi={s.rsi}
+            bbPctB={s.bb_pct_b}
+            ema20={s.ema_20}
+            ema50={s.ema_50}
+          />
+          <SignalLegend
+            level={s.squeeze_level}
+            bandwidthPct={s.bb_width != null ? s.bb_width * 100 : null}
+          />
+          {/* 매수 조건 체크리스트 */}
+          <div className="panel" style={{ padding: 0 }}>
+            <div className="flex justify-between items-center" style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
+              <div className="flex items-center" style={{ gap: 8 }}>
+                <div className="label">매수 조건</div>
+                <span className={metCount >= sp.req ? 'chip chip-up' : metCount >= sp.req - 1 ? 'chip chip-warn' : 'chip chip-ghost'}>
+                  {metCount}/{buyConditions.length}
+                </span>
+              </div>
+              {/* 민감도 토글 */}
+              <div className="flex" style={{ gap: 2, background: 'var(--bg-2)', borderRadius: 4, padding: 2 }}>
+                {Object.entries(sensPresets).map(([key, p]) => (
+                  <button
+                    key={key}
+                    onClick={() => handleSensChange(key)}
+                    disabled={sensLoading}
+                    style={{
+                      padding: '2px 7px',
+                      borderRadius: 3,
+                      fontSize: 10,
+                      fontWeight: 700,
+                      fontFamily: 'var(--font-mono)',
+                      border: 'none',
+                      cursor: 'pointer',
+                      background: sens === key ? 'var(--bg-1)' : 'transparent',
+                      color: sens === key ? 'var(--fg-0)' : 'var(--fg-3)',
+                      boxShadow: sens === key ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                    }}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-col" style={{ padding: '8px 12px', gap: 5 }}>
+              {buyConditions.map((c) => (
+                <div
+                  key={c.label}
+                  className="flex items-center justify-between"
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 4,
+                    background: c.met ? 'var(--up-bg)' : 'var(--bg-2)',
+                    border: `1px solid ${c.met ? 'var(--up)' : 'var(--border)'}`,
+                  }}
+                >
+                  <div className="flex items-center" style={{ gap: 7 }}>
+                    <span style={{ fontSize: 11, color: c.met ? 'var(--up)' : 'var(--fg-4)', fontWeight: 700 }}>
+                      {c.met ? '✓' : '✗'}
+                    </span>
+                    <span style={{ fontSize: 11, color: c.met ? 'var(--fg-0)' : 'var(--fg-3)', fontFamily: 'var(--font-mono)' }}>
+                      {c.label}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', fontWeight: 600, color: c.met ? 'var(--up)' : 'var(--fg-3)' }}>
+                    {c.value}
+                  </span>
+                </div>
+              ))}
+              <div style={{ fontSize: 9.5, color: 'var(--fg-4)', paddingTop: 2, fontFamily: 'var(--font-mono)' }}>
+                {metCount >= sp.req ? '✦ 매수 신호 조건 충족' : metCount >= sp.req - 1 ? '△ 조건 근접' : '○ 대기 중'}
+              </div>
+            </div>
+          </div>
+
+          {/* 지표 게이지 — 6종 세로 정렬 */}
+          {gauges.map((g) => <MiniGauge key={g.label} g={g} />)}
+        </div>
+      </div>
 
       {/* 투자지표 + 52주 범위 + 가격제한 */}
       <StockFundamentals symbol={lookupSymbol} market={guessMarket} />
@@ -566,78 +663,10 @@ export default function SignalDetail() {
       {/* 호가창 (한국 주식만) */}
       <OrderbookPanel symbol={lookupSymbol} market={guessMarket} />
 
-      {/* 실적 차트 */}
-      <FinancialChart symbol={lookupSymbol} market={s.market} />
 
-      {/* 매출 구성 */}
-      <RevenueSegmentChart symbol={lookupSymbol} market={guessMarket || 'US'} />
 
-      {/* 기본 정보 */}
-      <div className="grid grid-cols-2 gap-2 md:gap-3 mt-4 md:mt-6 mb-4">
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3">
-          <div className="text-xs text-[var(--muted)]">현재가</div>
-          <div className={`font-mono mt-1 transition-colors duration-300 ${flashClass}`}>{fmtPrice(currentPrice)}</div>
-        </div>
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3">
-          <div className="text-xs text-[var(--muted)]">등락률</div>
-          <div className={`font-mono mt-1 ${currentChangePct >= 0 ? 'text-[var(--buy)]' : 'text-[var(--sell)]'}`}>
-            {currentChangePct >= 0 ? '+' : ''}{currentChangePct?.toFixed(2)}%
-          </div>
-        </div>
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3">
-          <div className="text-xs text-[var(--muted)]">EMA 20 / 50 / 200</div>
-          <div className="text-white font-mono mt-1 text-xs">{s.ema_20?.toFixed(0)} / {s.ema_50?.toFixed(0)} / {s.ema_200?.toFixed(0)}</div>
-          <div className="text-micro mt-0.5" style={{ color: s.ema_20 > s.ema_50 && s.ema_50 > s.ema_200 ? '#ff4b6a' : s.ema_20 < s.ema_50 && s.ema_50 < s.ema_200 ? '#4285f4' : '#8e8e93' }}>
-            {s.ema_20 > s.ema_50 && s.ema_50 > s.ema_200 ? '정배열 (상승추세)' : s.ema_20 < s.ema_50 && s.ema_50 < s.ema_200 ? '역배열 (하락추세)' : '혼조 (횡보)'}
-          </div>
-        </div>
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3">
-          <div className="text-xs text-[var(--muted)]">종합 신호</div>
-          {s.signal_state !== 'NEUTRAL' && <div className={`font-mono mt-1 text-lg font-bold ${stateColor}`}>{stateLabel[s.signal_state]}</div>}
-          {s.confidence > 0 && <div className="text-micro text-[var(--muted)] mt-0.5">신뢰도 {s.confidence.toFixed(0)}점 / {s.signal_grade}</div>}
-        </div>
       </div>
-
-      {/* BUY 조건 충족 현황 */}
-      <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-4 mb-4">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-sm font-semibold text-white">매수 조건 ({metCount}/4)</span>
-          <div className="flex items-center gap-2">
-            <span className={`text-xs font-bold px-2 py-0.5 rounded ${metCount >= sp.req ? 'bg-green-500/20 text-green-400' : metCount >= 2 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-slate-500/20 text-[var(--muted)]'}`}>
-              {metCount >= sp.req ? '매수 신호' : metCount >= sp.req - 1 ? '조건 근접' : '대기'}
-            </span>
-            {/* 민감도 선택 */}
-            <div className="flex gap-0.5 bg-[var(--bg)] rounded-md p-0.5">
-              {Object.entries(sensPresets).map(([key, p]) => (
-                <button key={key} onClick={() => handleSensChange(key)} disabled={sensLoading}
-                  className={`px-2 py-1 rounded text-caption font-bold transition ${sens === key ? `${p.color} bg-[var(--card)]` : 'text-[var(--muted)] hover:text-white'}`}>
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          {buyConditions.map((c) => (
-            <div key={c.label} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs ${c.met ? 'bg-green-500/10 border border-green-500/30' : 'bg-[var(--bg)] border border-transparent'}`}>
-              <span className={`text-sm ${c.met ? 'text-green-400' : 'text-[var(--muted)]'}`}>{c.met ? '✓' : '✗'}</span>
-              <div>
-                <div className={c.met ? 'text-green-400' : 'text-[var(--muted)]'}>{c.label}</div>
-                <div className="text-caption text-[var(--muted)] font-mono">현재: {c.value}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* 지표 게이지 */}
-      <div className="mb-2">
-        <h2 className="text-sm font-semibold text-white mb-3">지표 적정 범위</h2>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-3">
-        {gauges.map((g) => <MiniGauge key={g.label} g={g} />)}
-      </div>
-      </div>
+      )}
     </div>
   )
 }

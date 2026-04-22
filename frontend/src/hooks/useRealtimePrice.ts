@@ -62,6 +62,8 @@ export function useRealtimePrice(symbol: string | undefined, market: string = 'K
         const data = JSON.parse(e.data)
         if (data.error) {
           setConnectionStatus('disconnected')
+          es.close()
+          eventSourceRef.current = null
           return
         }
         errorCountRef.current = 0
