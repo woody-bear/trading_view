@@ -544,7 +544,7 @@ function ScrapSkeleton({ mobile }: { mobile: boolean }) {
 // ── 메인 ─────────────────────────────────────────────────────────
 
 export default function Scrap() {
-  const { user } = useAuthStore()
+  const { user, loading: authLoading } = useAuthStore()
   const nav = useNavigate()
   const [cases, setCases] = useState<PatternCase[]>([])
   const [loading, setLoading] = useState(true)
@@ -566,8 +566,12 @@ export default function Scrap() {
     try { setCases(await fetchPatternCases()) } catch { /* ignore */ } finally { setLoading(false) }
   }
 
-  // user 객체 참조가 setSession마다 바뀌므로 id 기준으로만 실행
-  useEffect(() => { if (user) load(); else setLoading(false) }, [user?.id])
+  // authLoading 체크: 인증 초기화 전에 쿼리 발사하면 토큰 없이 요청됨 (새로고침 시 race condition 방지)
+  useEffect(() => {
+    if (authLoading) return
+    if (user) load()
+    else setLoading(false)
+  }, [user?.id, authLoading])
 
   const filtered = useMemo(() => {
     let list = cases

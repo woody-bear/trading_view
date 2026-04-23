@@ -1,13 +1,13 @@
 import { useState } from 'react'
-import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
+import { signOutWithReason } from '../lib/authService'
 
 export function UserMenu() {
   const { user } = useAuthStore()
   const [open, setOpen] = useState(false)
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
+    await signOutWithReason('user_requested', 'UserMenu')
     setOpen(false)
   }
 

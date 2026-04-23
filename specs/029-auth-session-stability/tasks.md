@@ -24,7 +24,7 @@ Setup 태스크 없음 — Phase 2로 바로 진행.
 
 **⚠️ CRITICAL**: T001 완료 전에 T002~T008 진행 불가.
 
-- [ ] T001 `frontend/src/lib/authService.ts` 파일 신규 생성 — 타입 정의 + `logAuthEvent` + `signOutWithReason` 전체 구현
+- [x] T001 `frontend/src/lib/authService.ts` 파일 신규 생성 — 타입 정의 + `logAuthEvent` + `signOutWithReason` 전체 구현
 
 **T001 구현 세부사항**:
 
@@ -62,8 +62,8 @@ grep -r "supabase.auth.signOut" frontend/src
 ```
 DevTools 콘솔에서 로그아웃 버튼 클릭 시 `[AUTH] SIGNED_OUT | reason=user_requested | source=UserMenu` 출력 확인.
 
-- [ ] T002 [P] [US1] [US2] `frontend/src/components/UserMenu.tsx` — `supabase.auth.signOut()` → `signOutWithReason('user_requested', 'UserMenu')` 교체 (import 추가 포함)
-- [ ] T003 [P] [US1] [US2] `frontend/src/api/client.ts` — 인터셉터 내 `signOut` 2곳 교체
+- [x] T002 [P] [US1] [US2] `frontend/src/components/UserMenu.tsx` — `supabase.auth.signOut()` → `signOutWithReason('user_requested', 'UserMenu')` 교체 (import 추가 포함)
+- [x] T003 [P] [US1] [US2] `frontend/src/api/client.ts` — 인터셉터 내 `signOut` 2곳 교체
 
 **T003 구현 세부사항**:
 ```typescript
@@ -84,7 +84,7 @@ DevTools 콘솔에서 로그아웃 버튼 클릭 시 `[AUTH] SIGNED_OUT | reason
 
 **Independent Test**: 로그인 상태에서 `/scrap` 새로고침 → 스켈레톤 표시 후 데이터 로드. 빈 리스트 후 채워지는 현상 없음.
 
-- [ ] T004 [US3] `frontend/src/pages/Scrap.tsx` — line 547·570 수정하여 `authLoading` 게이팅 추가
+- [x] T004 [US3] `frontend/src/pages/Scrap.tsx` — line 547·570 수정하여 `authLoading` 게이팅 추가
 
 **T004 구현 세부사항**:
 ```typescript
@@ -109,7 +109,7 @@ DevTools 콘솔에서 로그아웃 버튼 클릭 시 `[AUTH] SIGNED_OUT | reason
 
 **Independent Test**: DevTools Network 탭에서 토큰 만료 후 401 → 자동 재시도 성공 → 콘솔에 `[AUTH] TOKEN_REFRESHED` 후 `[AUTH] AUTO_RECOVERED` 출력.
 
-- [ ] T005 [US4] `frontend/src/api/client.ts` — 401 인터셉터에 `logAuthEvent` 호출 4곳 추가
+- [x] T005 [US4] `frontend/src/api/client.ts` — 401 인터셉터에 `logAuthEvent` 호출 4곳 추가
 
 **T005 구현 세부사항**:
 ```typescript
@@ -147,7 +147,7 @@ if (useAuthStore.getState().user) {
 
 **Independent Test**: `backend/auth.py`에서 `_jwks_cache_time` 변수 존재 + `_get_jwks()`가 TTL 기반 갱신 로직 포함.
 
-- [ ] T006 [US5] `backend/auth.py` — `_jwks_cache_time` 모듈 변수 추가 + `_get_jwks()` TTL 갱신 로직 수정
+- [x] T006 [US5] `backend/auth.py` — `_jwks_cache_time` 모듈 변수 추가 + `_get_jwks()` TTL 갱신 로직 수정
 
 **T006 구현 세부사항**:
 ```python
@@ -178,8 +178,8 @@ def _get_jwks() -> dict:
 
 **Independent Test**: 종목 상세 페이지(`/SAMSUNG?market=KR`)에서 토큰 만료로 로그아웃 → 재로그인 → 동일 페이지 복귀.
 
-- [ ] T007 [P] [US6] `frontend/src/lib/authService.ts` — `signOutWithReason` 내 ReturnUrl 저장 로직 추가
-- [ ] T008 [P] [US6] `frontend/src/pages/AuthCallback.tsx` — ReturnUrl 복귀 처리 추가
+- [x] T007 [P] [US6] `frontend/src/lib/authService.ts` — `signOutWithReason` 내 ReturnUrl 저장 로직 추가
+- [x] T008 [P] [US6] `frontend/src/pages/AuthCallback.tsx` — ReturnUrl 복귀 처리 추가
 
 **T007 구현 세부사항**:
 ```typescript
@@ -209,7 +209,7 @@ navigate(returnUrl ?? '/', { replace: true })
 
 ## Phase 8: Polish & Verification
 
-- [ ] T009 최종 검증 — 아래 항목 수동 확인 후 완료 처리
+- [x] T009 최종 검증 — 아래 항목 수동 확인 후 완료 처리
 
 **검증 체크리스트**:
 

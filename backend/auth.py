@@ -1,5 +1,6 @@
 """Supabase JWT 검증 미들웨어."""
 import json
+import time
 import urllib.request
 from typing import Optional
 
@@ -11,15 +12,18 @@ from config import get_settings
 
 _bearer = HTTPBearer(auto_error=False)
 _jwks_cache: Optional[dict] = None
+_jwks_cache_time: float = 0.0
+_JWKS_TTL: float = 3600.0  # Supabase 키 rotation 주기보다 짧게 유지
 
 
 def _get_jwks() -> dict:
-    global _jwks_cache
-    if _jwks_cache is None:
+    global _jwks_cache, _jwks_cache_time
+    if _jwks_cache is None or time.time() - _jwks_cache_time > _JWKS_TTL:
         settings = get_settings()
         url = f"{settings.SUPABASE_URL}/auth/v1/.well-known/jwks.json"
         with urllib.request.urlopen(url, timeout=5) as r:
             _jwks_cache = json.load(r)
+        _jwks_cache_time = time.time()
     return _jwks_cache
 
 

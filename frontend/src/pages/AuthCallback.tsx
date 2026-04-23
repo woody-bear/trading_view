@@ -30,7 +30,9 @@ export default function AuthCallback() {
         setAuthError(msg)
         addToast('error', msg)
       }
-      navigate('/', { replace: true })
+      const returnUrl = localStorage.getItem('auth_return_url')
+      localStorage.removeItem('auth_return_url')
+      navigate(returnUrl ?? '/', { replace: true })
     })
   }, [navigate])
 

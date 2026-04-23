@@ -1,5 +1,7 @@
 import axios from 'axios'
 import { supabase } from '../lib/supabase'
+import { signOutWithReason, logAuthEvent } from '../lib/authService'
+import { useAuthStore } from '../store/authStore'
 
 const api = axios.create({ baseURL: '/api' })
 
@@ -263,16 +265,25 @@ api.interceptors.response.use(
         if (refreshError || !data.session) {
           // 갱신 불가: 비핵심 API면 조용히 실패, 그 외엔 로그아웃
           if (!isNonCriticalPath(originalRequest.url)) {
-            await supabase.auth.signOut()
+            if (useAuthStore.getState().user) {
+              logAuthEvent({ type: 'SILENT_FAILURE', source: 'api_interceptor', url: originalRequest.url, recovered: false, ts: new Date().toISOString() })
+            }
+            await signOutWithReason('token_refresh_failed', 'api_interceptor', originalRequest.url)
           }
           return Promise.reject(error)
         }
         // 새 토큰으로 원래 요청 재시도
+        logAuthEvent({ type: 'TOKEN_REFRESHED', source: 'api_interceptor', ts: new Date().toISOString() })
         originalRequest.headers.Authorization = `Bearer ${data.session.access_token}`
-        return api(originalRequest)
+        const retryResult = await api(originalRequest)
+        logAuthEvent({ type: 'AUTO_RECOVERED', source: 'api_interceptor', url: originalRequest.url, ts: new Date().toISOString() })
+        return retryResult
       } catch {
         if (!isNonCriticalPath(originalRequest.url)) {
-          await supabase.auth.signOut()
+          if (useAuthStore.getState().user) {
+            logAuthEvent({ type: 'SILENT_FAILURE', source: 'api_interceptor', url: originalRequest.url, recovered: false, ts: new Date().toISOString() })
+          }
+          await signOutWithReason('network_error', 'api_interceptor', originalRequest.url)
         }
         return Promise.reject(error)
       }
