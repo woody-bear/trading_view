@@ -8,6 +8,8 @@ interface SparkProps {
   color?: string
   fill?: boolean
   strokeW?: number
+  /** true이면 width:100% + viewBox 스케일링 (카드 전체 너비 채움) */
+  responsive?: boolean
 }
 
 export default function Spark({
@@ -17,6 +19,7 @@ export default function Spark({
   color = 'var(--spark)',
   fill = true,
   strokeW = 1.5,
+  responsive = false,
 }: SparkProps) {
   if (!data || data.length === 0) return null
   const max = Math.max(...data)
@@ -32,7 +35,13 @@ export default function Spark({
   const gradId = `spark-g-${color.replace(/\W/g, '')}`
 
   return (
-    <svg width={w} height={h} style={{ display: 'block', overflow: 'visible' }}>
+    <svg
+      width={responsive ? '100%' : w}
+      height={h}
+      viewBox={responsive ? `0 0 ${w} ${h}` : undefined}
+      preserveAspectRatio={responsive ? 'none' : undefined}
+      style={{ display: 'block', overflow: 'visible' }}
+    >
       {fill && (
         <>
           <defs>

@@ -3,10 +3,9 @@
    스냅샷 없으면 null 반환(숨김). */
 
 import { useQuery } from '@tanstack/react-query'
-import { useMemo } from 'react'
 import { fetchFullScanLatest } from '../api/client'
+import { useSparklines } from '../hooks/useSparklines'
 import Spark from './charts/Spark'
-import { genCandles } from '../utils/chartDummy'
 import { fmt, fmtPrice } from '../utils/format'
 
 interface ScanItem {
@@ -20,12 +19,7 @@ interface ScanItem {
   last_signal: string
 }
 
-function QuickRow({ item, index }: { item: ScanItem; index: number }) {
-  const sparkData = useMemo(() => {
-    const seed = (item.symbol.charCodeAt(0) || 1) + (index + 1) * 7
-    return genCandles(20, seed, 100, 0.03).map(c => c.c)
-  }, [item.symbol, index])
-
+function QuickRow({ item, sparkData }: { item: ScanItem; sparkData?: number[] }) {
   const pct = item.change_pct ?? 0
   const signalChip = item.last_signal === 'SQZ BUY'
     ? { label: 'SQZ BUY', cls: 'chip chip-mag' }
@@ -62,14 +56,16 @@ function QuickRow({ item, index }: { item: ScanItem; index: number }) {
       </span>
 
       {/* 스파크 */}
-      <div style={{ flexShrink: 0 }}>
-        <Spark
-          data={sparkData}
-          w={48}
-          h={22}
-          color={pct >= 0 ? 'var(--up)' : 'var(--down)'}
-        />
-      </div>
+      {sparkData && sparkData.length >= 2 && (
+        <div style={{ flexShrink: 0 }}>
+          <Spark
+            data={sparkData}
+            w={48}
+            h={22}
+            color={pct >= 0 ? 'var(--up)' : 'var(--down)'}
+          />
+        </div>
+      )}
 
       {/* 가격·등락률 */}
       <div className="flex flex-col items-end" style={{ flexShrink: 0 }}>
@@ -93,6 +89,10 @@ export default function QuickBuyStrip() {
   })
 
   const items: ScanItem[] = data?.chart_buy?.items?.slice(0, 5) ?? []
+  const sparklines = useSparklines(
+    items.map(i => ({ symbol: i.symbol, market: i.market_type || i.market }))
+  )
+
   if (!items.length) return null
 
   return (
@@ -102,8 +102,8 @@ export default function QuickBuyStrip() {
         <span className="chip chip-ghost">{items.length}</span>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {items.map((item, i) => (
-          <QuickRow key={item.symbol} item={item} index={i} />
+        {items.map((item) => (
+          <QuickRow key={item.symbol} item={item} sparkData={sparklines[item.symbol]} />
         ))}
       </div>
     </div>

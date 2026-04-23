@@ -2,11 +2,9 @@
    원본 디자인: /tmp/design_extract/asst/project/pc-dashboard.jsx SignalCard
    기존 호출 시그니처(signal, index) 유지. 새탭 클릭, 가격 flash 동작 보존. */
 
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import type { Signal } from '../types'
-import MiniCandles from './charts/MiniCandles'
 import Spark from './charts/Spark'
-import { genCandles } from '../utils/chartDummy'
 import { fmt } from '../utils/format'
 import { fmtPrice } from '../utils/format'
 import { indicatorBadges, marketBadge } from '../utils/indicatorLabels'
@@ -29,7 +27,17 @@ function deriveTrendLabel(s: Signal): { label: string; color: string } {
   return { label: '중립', color: 'var(--fg-2)' }
 }
 
-function SignalCardImpl({ signal: s, index, compact }: { signal: Signal; index?: number; compact?: boolean }) {
+function SignalCardImpl({
+  signal: s,
+  index,
+  compact,
+  sparkData,
+}: {
+  signal: Signal
+  index?: number
+  compact?: boolean
+  sparkData?: number[]
+}) {
   const prevPrice = useRef(s.price)
   const [flash, setFlash] = useState<'up' | 'down' | null>(null)
 
@@ -53,11 +61,7 @@ function SignalCardImpl({ signal: s, index, compact }: { signal: Signal; index?:
     macd_hist: s.macd_hist,
   })
 
-  const candles = useMemo(() => {
-    const candleSeed = (s.symbol.charCodeAt(0) || 1) + (index ?? 1) * 7
-    return genCandles(20, candleSeed, 100, 0.03)
-  }, [s.symbol, index])
-  const sparkData = useMemo(() => candles.map(c => c.c), [candles])
+  const hasSpark = sparkData && sparkData.length >= 2
   const sparkUp = (s.change_pct ?? 0) >= 0
 
   const flashColor =
@@ -123,7 +127,7 @@ function SignalCardImpl({ signal: s, index, compact }: { signal: Signal; index?:
             >
               {s.symbol}
             </span>
-            {market && <span className={market.cls && market.label ? 'chip chip-ghost' : 'chip chip-ghost'} style={{ flexShrink: 0 }}>{market.label}</span>}
+            {market && <span className="chip chip-ghost" style={{ flexShrink: 0 }}>{market.label}</span>}
           </div>
         </div>
         <span className={signal.cls} style={{ flexShrink: 0 }}>
@@ -133,7 +137,7 @@ function SignalCardImpl({ signal: s, index, compact }: { signal: Signal; index?:
 
       {/* Body */}
       {compact ? (
-        /* 모바일 compact: Spark(72) + 가격(14px) + RSI/Trend */
+        /* 모바일 compact: 가격 + Spark(실제 5일) + RSI/Trend */
         <div style={{ padding: '8px 12px' }}>
           <div className="flex items-center" style={{ gap: 10 }}>
             <div style={{ minWidth: 80 }}>
@@ -144,7 +148,9 @@ function SignalCardImpl({ signal: s, index, compact }: { signal: Signal; index?:
                 {sparkUp ? '▲' : '▼'} {fmt.pct(s.change_pct ?? 0)}
               </div>
             </div>
-            <Spark data={sparkData} w={72} h={28} color={sparkUp ? 'var(--up)' : 'var(--down)'} />
+            {hasSpark && (
+              <Spark data={sparkData!} w={72} h={28} color={sparkUp ? 'var(--up)' : 'var(--down)'} />
+            )}
             <div className="flex-1 min-w-0">
               <div className="flex items-center" style={{ gap: 8, fontSize: 10.5, fontFamily: 'var(--font-mono)', color: 'var(--fg-2)', flexWrap: 'wrap' }}>
                 {s.rsi != null && (
@@ -163,7 +169,7 @@ function SignalCardImpl({ signal: s, index, compact }: { signal: Signal; index?:
           </div>
         </div>
       ) : (
-        /* PC full: MiniCandles(140) + 가격(18px) + RSI/Trend + tags */
+        /* PC full: 가격 + Spark(실제 5일, 90×36) + RSI/Trend + tags */
         <div className="flex items-center" style={{ padding: '10px 12px', gap: 14 }}>
           <div style={{ minWidth: 95 }}>
             <div style={{ fontSize: 18, fontFamily: 'var(--font-mono)', fontWeight: 600, color: flashColor, transition: 'color 0.3s' }}>
@@ -173,7 +179,11 @@ function SignalCardImpl({ signal: s, index, compact }: { signal: Signal; index?:
               {s.change_pct >= 0 ? '▲' : '▼'} {fmt.pct(s.change_pct ?? 0)}
             </div>
           </div>
-          <MiniCandles data={candles} w={140} h={40} />
+          {hasSpark && (
+            <div style={{ width: 90, flexShrink: 0 }}>
+              <Spark data={sparkData!} w={90} h={36} color={sparkUp ? 'var(--up)' : 'var(--down)'} responsive />
+            </div>
+          )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center" style={{ gap: 10, fontSize: 10.5, fontFamily: 'var(--font-mono)', color: 'var(--fg-2)' }}>
               {s.rsi != null && (
