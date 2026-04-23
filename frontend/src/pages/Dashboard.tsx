@@ -8,12 +8,14 @@ import MarketTicker from '../components/MarketTicker'
 import ScanStatusPanel from '../components/ScanStatusPanel'
 import WatchlistPanel from '../components/WatchlistPanel'
 import FGGauge from '../components/charts/FGGauge'
+import Spark from '../components/charts/Spark'
 import { useSignalStore } from '../stores/signalStore'
 import { useAuthStore } from '../store/authStore'
 import { useToastStore } from '../stores/toastStore'
 import type { Signal } from '../types'
 import { fmt, fmtPrice, fmtSignalAge } from '../utils/format'
 import { indicatorBadges } from '../utils/indicatorLabels'
+import { useSparklines } from '../hooks/useSparklines'
 import SignalCard from '../components/SignalCard'
 import QuickBuyStrip from '../components/QuickBuyStrip'
 
@@ -305,6 +307,10 @@ function MobileWatchlistGroups({ signals }: { signals: any[] }) {
     return acc
   }, {})
 
+  const sparklines = useSparklines(
+    signals.map(s => ({ symbol: s.symbol, market: s.market_type || s.market }))
+  )
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {MOBILE_MARKET_GROUPS.map(sec => {
@@ -327,7 +333,7 @@ function MobileWatchlistGroups({ signals }: { signals: any[] }) {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {items.map((s: any, i: number) => (
-                <SignalCard key={s.watchlist_id} signal={s} index={i + 1} compact />
+                <SignalCard key={s.watchlist_id} signal={s} index={i + 1} compact sparkData={sparklines[s.symbol]} />
               ))}
             </div>
           </div>
@@ -602,6 +608,35 @@ function PcScanSkeleton() {
   )
 }
 
+// PC 전용 최근 BUY 신호 스트립 (탭 위 독립 섹션)
+function PcBuyStrip({ livePrices }: { livePrices: Record<string, any> }) {
+  const { data } = useQuery({
+    queryKey: ['quick-buy-strip'],
+    queryFn: fetchFullScanLatest,
+    staleTime: 120_000,
+    refetchInterval: 300_000,
+  })
+  const items: any[] = data?.chart_buy?.items?.slice(0, 5) ?? []
+  const sparklines = useSparklines(
+    items.map((i: any) => ({ symbol: i.symbol, market: i.market_type || i.market }))
+  )
+  if (items.length === 0) return null
+
+  return (
+    <div className="hidden md:block mb-4 pb-4" style={{ borderBottom: '1px solid var(--border)' }}>
+      <div className="flex items-center gap-2 mb-3">
+        <span className="label">최근 BUY</span>
+        <span className="chip chip-up">{items.length}</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+        {items.map((item: any) => (
+          <BuyCard key={item.symbol} item={item} livePrice={livePrices?.[item.symbol]} sparkData={sparklines[item.symbol]} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // 통합 시장 스캔 박스 (1회 다운로드, 3개 결과 동시 생성)
 // ══════════════════════════════════════════════════════════════
 export function MarketScanBox({ }: { nav?: any; qc?: any }) {
@@ -849,6 +884,7 @@ export function MarketScanBox({ }: { nav?: any; qc?: any }) {
 
   return (
     <div className="panel" style={{ padding: '12px 20px' }}>
+      <PcBuyStrip livePrices={livePrices} />
       {/* SQZ Terminal — 시장 스캔 4칸 패널 (Phase 8) */}
       <div className="mb-4">
         <ScanStatusPanel
@@ -900,7 +936,7 @@ export function MarketScanBox({ }: { nav?: any; qc?: any }) {
               <div className="label">추천 종목</div>
               {buyTotal != null && <span className="chip chip-up">{buyTotal}</span>}
               <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>
-                일봉 20거래일 이내 BUY/SQZ BUY · 데드크로스(EMA 5선 역배열) 제외
+                일봉 20거래일 이내 BUY/SQZ BUY · 데드크로스 제외 · EMA20{'>'}{'>'}60{'>'}{'>'}120
               </span>
               <span className="chip chip-ghost">{label}</span>
               {Object.keys(livePrices).length > 0 && (
@@ -980,7 +1016,7 @@ export function MarketScanBox({ }: { nav?: any; qc?: any }) {
           </button>
           <div className="label">눌림목</div>
           <span className="chip chip-warn">{pullbackItems.length}</span>
-          <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>EMA20{'>'}60{'>'}120 + EMA5↓ + 대형주</span>
+          <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>추천종목 + EMA5↓ + 대형주</span>
         </div>
         {isScanOpen('pullback') && (
           pullbackItems.length > 0
@@ -1033,6 +1069,10 @@ const SECTOR_ORDER = [
 ]
 
 export const SectorGrouped = memo(function SectorGrouped({ items, livePrices, compact }: { items: any[]; livePrices: Record<string, any>; compact?: boolean }) {
+  const sparklines = useSparklines(
+    items.map((i: any) => ({ symbol: i.symbol, market: i.market_type || i.market }))
+  )
+
   // 섹터별 그룹화
   const groups: Record<string, any[]> = {}
   for (const item of items) {
@@ -1062,7 +1102,7 @@ export const SectorGrouped = memo(function SectorGrouped({ items, livePrices, co
           </div>
           <div className={compact ? 'space-y-2' : 'grid grid-cols-1 md:grid-cols-3 gap-2'}>
             {groups[sector].map((item: any) => (
-              <BuyCard key={item.symbol} item={item} livePrice={livePrices?.[item.symbol]} />
+              <BuyCard key={item.symbol} item={item} livePrice={livePrices?.[item.symbol]} sparkData={sparklines[item.symbol]} />
             ))}
           </div>
         </div>
@@ -1071,7 +1111,7 @@ export const SectorGrouped = memo(function SectorGrouped({ items, livePrices, co
   )
 })
 
-export const BuyCard = memo(function BuyCard({ item, livePrice }: { item: any; livePrice?: any }) {
+export const BuyCard = memo(function BuyCard({ item, livePrice, sparkData }: { item: any; livePrice?: any; sparkData?: number[] }) {
   const price = livePrice?.price ?? item.price
   const pct = livePrice?.change_pct ?? item.change_pct
 
@@ -1131,7 +1171,7 @@ export const BuyCard = memo(function BuyCard({ item, livePrice }: { item: any; l
           {item.symbol}
         </span>
       </div>
-      <div className="flex items-baseline" style={{ gap: 8, marginBottom: 6 }}>
+      <div className="flex items-baseline" style={{ gap: 8, marginBottom: sparkData && sparkData.length >= 2 ? 4 : 6 }}>
         <span style={{ fontSize: 16, fontFamily: 'var(--font-mono)', fontWeight: 600, color: flashColor, transition: 'color 0.3s' }}>
           {fmtPrice(price, item.market)}
         </span>
@@ -1139,6 +1179,11 @@ export const BuyCard = memo(function BuyCard({ item, livePrice }: { item: any; l
           {pct >= 0 ? '▲' : '▼'} {fmt.pct(pct ?? 0)}
         </span>
       </div>
+      {sparkData && sparkData.length >= 2 && (
+        <div style={{ marginBottom: 6 }}>
+          <Spark data={sparkData} w={200} h={36} color={pct >= 0 ? 'var(--up)' : 'var(--down)'} responsive />
+        </div>
+      )}
       {tags.length > 0 && (
         <div className="flex flex-wrap" style={{ gap: 3 }}>
           {tags.map(t => {
