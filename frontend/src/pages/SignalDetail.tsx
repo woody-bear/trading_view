@@ -504,7 +504,7 @@ export default function SignalDetail() {
         >
           {fmtPrice(currentPrice)}
         </span>
-        <span style={{ fontSize: 13, fontFamily: 'var(--font-mono)', fontWeight: 600, color: currentChangePct >= 0 ? 'var(--up)' : 'var(--down)' }}>
+        <span style={{ fontSize: 13, fontFamily: 'var(--font-mono)', fontWeight: 600, color: currentChangePct >= 0 ? 'var(--up)' : 'var(--blue)' }}>
           {currentChangePct >= 0 ? '▲' : '▼'} {Math.abs(currentChangePct ?? 0).toFixed(2)}%
           {currentChange != null && (
             <span style={{ marginLeft: 4, fontSize: 11, opacity: 0.8 }}>
