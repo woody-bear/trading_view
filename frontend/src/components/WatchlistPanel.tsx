@@ -3,6 +3,7 @@
    디자인은 SignalCard 보다 단순한 미니 카드(스타·종목명·가격·태그)를 사용. */
 
 import { Minus } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import type { Signal } from '../types'
 import { fmt } from '../utils/format'
 import { fmtPrice } from '../utils/format'
@@ -15,6 +16,7 @@ interface Props {
   onToggle: () => void
   onDelete: (watchlistId: number, displayName: string) => void
   isMarketOpenLocal: (market: string) => boolean
+  livePrices?: Record<string, any>
 }
 
 const SECTION_DEF: { key: string; label: string; flag: string }[] = [
@@ -55,10 +57,28 @@ function tagStyle(tag: string): { bg: string; fg: string } {
 function MiniWatchCard({
   s,
   onDelete,
+  livePrice,
 }: {
   s: Signal
   onDelete: (id: number, name: string) => void
+  livePrice?: any
 }) {
+  const price = livePrice?.price ?? s.price
+  const changePct = livePrice?.change_pct ?? s.change_pct
+
+  const prevPriceRef = useRef<number | undefined>(price)
+  const [flashDir, setFlashDir] = useState<'up' | 'down' | null>(null)
+  useEffect(() => {
+    if (price != null && prevPriceRef.current != null && price !== prevPriceRef.current) {
+      setFlashDir(price > prevPriceRef.current ? 'up' : 'down')
+      const t = setTimeout(() => setFlashDir(null), 800)
+      prevPriceRef.current = price
+      return () => clearTimeout(t)
+    }
+    prevPriceRef.current = price
+  }, [price])
+  const flashColor = flashDir === 'up' ? 'var(--up)' : flashDir === 'down' ? 'var(--blue)' : 'var(--fg-0)'
+
   const sigTag = deriveSignalTag(s)
   const trendTag = deriveTrendTag(s)
   const indicators = indicatorBadges({
@@ -120,20 +140,21 @@ function MiniWatchCard({
             fontSize: 16,
             fontFamily: 'var(--font-mono)',
             fontWeight: 600,
-            color: 'var(--fg-0)',
+            color: flashColor,
+            transition: 'color 0.3s',
           }}
         >
-          {fmtPrice(s.price, s.market)}
+          {fmtPrice(price, s.market)}
         </span>
         <span
           style={{
             fontSize: 11,
             fontFamily: 'var(--font-mono)',
             fontWeight: 600,
-            color: s.change_pct >= 0 ? 'var(--up)' : 'var(--down)',
+            color: changePct > 0 ? 'var(--up)' : changePct < 0 ? 'var(--blue)' : 'var(--fg-2)',
           }}
         >
-          {s.change_pct >= 0 ? '▲' : '▼'} {fmt.pct(s.change_pct ?? 0)}
+          {changePct >= 0 ? '▲' : '▼'} {fmt.pct(changePct ?? 0)}
         </span>
       </div>
       {tags.length > 0 && (
@@ -242,6 +263,7 @@ export default function WatchlistPanel({
   onToggle,
   onDelete,
   isMarketOpenLocal,
+  livePrices,
 }: Props) {
   const grouped = signals.reduce<Record<string, Signal[]>>((acc, s) => {
     ;(acc[s.market] ??= []).push(s)
@@ -338,7 +360,7 @@ export default function WatchlistPanel({
                   style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}
                 >
                   {items.map(s => (
-                    <MiniWatchCard key={s.watchlist_id} s={s} onDelete={onDelete} />
+                    <MiniWatchCard key={s.watchlist_id} s={s} onDelete={onDelete} livePrice={livePrices?.[s.symbol]} />
                   ))}
                 </div>
               </div>

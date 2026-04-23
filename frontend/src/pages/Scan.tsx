@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchFullScanLatest } from '../api/client'
+import { fetchBatchPrices, fetchFullScanLatest } from '../api/client'
 import { MarketScanBox, SectorGrouped } from './Dashboard'
 import { usePageSwipe } from '../hooks/usePageSwipe'
 
@@ -107,6 +107,8 @@ export default function Scan() {
     buyItems: any[]; pullbackItems: any[]; buyTotal: number | null
   }>({ buyItems: [], pullbackItems: [], buyTotal: null })
   const [scanLoading, setScanLoading] = useState(true)
+  const [livePrices, setLivePrices] = useState<Record<string, any>>({})
+  const priceTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     fetchFullScanLatest().then(r => {
@@ -119,6 +121,53 @@ export default function Scan() {
       }
     }).catch(() => {}).finally(() => setScanLoading(false))
   }, [])
+
+  const extractSymbols = useCallback(() => {
+    const syms: { symbol: string; market: string }[] = []
+    const seen = new Set<string>()
+    const add = (items: any[]) => {
+      for (const item of items) {
+        if (seen.has(item.symbol)) continue
+        seen.add(item.symbol)
+        const mt = item.market_type || item.market || 'KR'
+        const market = (mt === 'KOSPI' || mt === 'KOSDAQ') ? 'KR' : mt === 'CRYPTO' ? 'CRYPTO' : 'US'
+        syms.push({ symbol: item.symbol, market })
+      }
+    }
+    add(scanData.buyItems)
+    add(scanData.pullbackItems)
+    return syms
+  }, [scanData.buyItems, scanData.pullbackItems])
+
+  const refreshPrices = useCallback(async () => {
+    const filtered = extractSymbols().filter(s => s.market !== 'CRYPTO')
+    if (filtered.length === 0) return
+    try {
+      const prices = await fetchBatchPrices(filtered)
+      setLivePrices(prev => {
+        let changed = false
+        const next = { ...prev }
+        for (const [sym, p] of Object.entries(prices)) {
+          const old = prev[sym]
+          if (!old || old.price !== (p as any).price || old.change_pct !== (p as any).change_pct) {
+            next[sym] = p
+            changed = true
+          }
+        }
+        return changed ? next : prev
+      })
+    } catch {}
+  }, [extractSymbols])
+
+  const PRICE_POLL_INTERVAL_MS = 5_000
+
+  useEffect(() => {
+    const syms = extractSymbols()
+    if (syms.length === 0) return
+    refreshPrices()
+    priceTimer.current = setInterval(refreshPrices, PRICE_POLL_INTERVAL_MS)
+    return () => { if (priceTimer.current) clearInterval(priceTimer.current) }
+  }, [scanData.buyItems, scanData.pullbackItems])
 
   useEffect(() => {
     const el = snapRef.current
@@ -174,7 +223,7 @@ export default function Scan() {
               ? <ScanSkeleton />
               : sortedBuy.length === 0
                 ? <p style={{ color: 'var(--fg-3)', fontSize: 13, textAlign: 'center', padding: '48px 0' }}>BUY 신호 종목이 없습니다</p>
-                : <div className="px-3"><SectorGrouped items={sortedBuy} livePrices={{}} compact /></div>
+                : <div className="px-3"><SectorGrouped items={sortedBuy} livePrices={livePrices} compact /></div>
             }
           </div>
         </div>
@@ -190,7 +239,7 @@ export default function Scan() {
               ? <ScanSkeleton />
               : sortedPullback.length === 0
                 ? <p style={{ color: 'var(--fg-3)', fontSize: 13, textAlign: 'center', padding: '48px 0' }}>눌림목 종목이 없습니다</p>
-                : <div className="px-3"><SectorGrouped items={sortedPullback} livePrices={{}} compact /></div>
+                : <div className="px-3"><SectorGrouped items={sortedPullback} livePrices={livePrices} compact /></div>
             }
           </div>
         </div>
@@ -206,7 +255,7 @@ export default function Scan() {
               ? <ScanSkeleton />
               : largeCapItems.length === 0
                 ? <p style={{ color: 'var(--fg-3)', fontSize: 13, textAlign: 'center', padding: '48px 0' }}>대형주 BUY 신호 종목이 없습니다</p>
-                : <div className="px-3"><SectorGrouped items={largeCapItems} livePrices={{}} compact /></div>
+                : <div className="px-3"><SectorGrouped items={largeCapItems} livePrices={livePrices} compact /></div>
             }
           </div>
         </div>

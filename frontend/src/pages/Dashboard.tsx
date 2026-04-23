@@ -8,7 +8,6 @@ import MarketTicker from '../components/MarketTicker'
 import ScanStatusPanel from '../components/ScanStatusPanel'
 import WatchlistPanel from '../components/WatchlistPanel'
 import FGGauge from '../components/charts/FGGauge'
-import { usePriceFlash } from '../hooks/usePriceFlash'
 import { useSignalStore } from '../stores/signalStore'
 import { useAuthStore } from '../store/authStore'
 import { useToastStore } from '../stores/toastStore'
@@ -54,6 +53,41 @@ export default function Dashboard() {
     mutationFn: deleteSymbol,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['signals'] }) },
   })
+
+  // 관심종목 실시간 가격
+  const [watchlistLivePrices, setWatchlistLivePrices] = useState<Record<string, any>>({})
+  const watchlistPriceTimer = useRef<ReturnType<typeof setInterval> | null>(null)
+  const WATCHLIST_POLL_INTERVAL_MS = 5_000
+
+  const refreshWatchlistPrices = useCallback(async (signals: Signal[]) => {
+    const filtered = signals
+      .filter(s => s.market !== 'CRYPTO')
+      .map(s => ({ symbol: s.symbol, market: s.market }))
+    if (filtered.length === 0) return
+    try {
+      const prices = await fetchBatchPrices(filtered)
+      setWatchlistLivePrices(prev => {
+        let changed = false
+        const next = { ...prev }
+        for (const [sym, p] of Object.entries(prices)) {
+          const old = prev[sym]
+          if (!old || old.price !== (p as any).price || old.change_pct !== (p as any).change_pct) {
+            next[sym] = p
+            changed = true
+          }
+        }
+        return changed ? next : prev
+      })
+    } catch {}
+  }, [])
+
+  useEffect(() => {
+    const signals = data ?? []
+    if (signals.length === 0) return
+    refreshWatchlistPrices(signals)
+    watchlistPriceTimer.current = setInterval(() => refreshWatchlistPrices(signals), WATCHLIST_POLL_INTERVAL_MS)
+    return () => { if (watchlistPriceTimer.current) clearInterval(watchlistPriceTimer.current) }
+  }, [data])
 
   useEffect(() => { if (data) setSignals(data) }, [data, setSignals])
 
@@ -243,6 +277,7 @@ export default function Dashboard() {
             onToggle={() => setPcWatchlistOpen(v => !v)}
             onDelete={(id) => deleteMut.mutate(id)}
             isMarketOpenLocal={isMarketOpenLocal}
+            livePrices={watchlistLivePrices}
           />
         </div>
       </div>
@@ -655,12 +690,14 @@ export function MarketScanBox({ }: { nav?: any; qc?: any }) {
     } catch {}
   }, [extractSymbols])
 
-  // 스캔 결과 로드 후 실시간 가격 갱신 시작 (30초 간격 — 5초는 과도해 CPU 부하 원인)
+  const PRICE_POLL_INTERVAL_MS = 5_000
+
+  // 스캔 결과 로드 후 실시간 가격 갱신 시작
   useEffect(() => {
     const syms = extractSymbols()
     if (syms.length === 0) return
     refreshPrices()
-    priceTimer.current = setInterval(refreshPrices, 30_000)
+    priceTimer.current = setInterval(refreshPrices, PRICE_POLL_INTERVAL_MS)
     return () => { if (priceTimer.current) clearInterval(priceTimer.current) }
   }, [maxSq, buyItems, pullbackItems, overheatItems])
 
@@ -1028,8 +1065,19 @@ export const SectorGrouped = memo(function SectorGrouped({ items, livePrices, co
 export const BuyCard = memo(function BuyCard({ item, index, livePrice, compact }: { item: any; index: number; livePrice?: any; compact?: boolean }) {
   const price = livePrice?.price ?? item.price
   const pct = livePrice?.change_pct ?? item.change_pct
-  const { flashClass: _flashClass } = usePriceFlash(price)
-  void _flashClass // SQZ Terminal 카드는 flashColor inline 적용 (아래 hook 결과 미사용)
+
+  const prevPriceRef = useRef<number | undefined>(price)
+  const [flashDir, setFlashDir] = useState<'up' | 'down' | null>(null)
+  useEffect(() => {
+    if (price != null && prevPriceRef.current != null && price !== prevPriceRef.current) {
+      setFlashDir(price > prevPriceRef.current ? 'up' : 'down')
+      const t = setTimeout(() => setFlashDir(null), 800)
+      prevPriceRef.current = price
+      return () => clearTimeout(t)
+    }
+    prevPriceRef.current = price
+  }, [price])
+  const flashColor = flashDir === 'up' ? 'var(--up)' : flashDir === 'down' ? 'var(--blue)' : 'var(--fg-0)'
 
   const mktBadge = marketBadge(item.market_type || item.market)
   const indicators = indicatorBadges({
@@ -1103,10 +1151,10 @@ export const BuyCard = memo(function BuyCard({ item, index, livePrice, compact }
         <div style={{ padding: '8px 12px' }}>
           <div className="flex items-center" style={{ gap: 10 }}>
             <div style={{ minWidth: 80 }}>
-              <div style={{ fontSize: 14, fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--fg-0)' }}>
+              <div style={{ fontSize: 14, fontFamily: 'var(--font-mono)', fontWeight: 600, color: flashColor, transition: 'color 0.3s' }}>
                 {fmtPrice(price, item.market)}
               </div>
-              <div style={{ fontSize: 11, color: sparkUp ? 'var(--up)' : 'var(--down)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+              <div style={{ fontSize: 11, color: sparkUp ? 'var(--up)' : 'var(--blue)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
                 {sparkUp ? '▲' : '▼'} {fmt.pct(pct ?? 0)}
               </div>
               {item.last_signal_date && (
@@ -1137,10 +1185,10 @@ export const BuyCard = memo(function BuyCard({ item, index, livePrice, compact }
         /* PC full: MiniCandles(140) + 가격(18px) */
         <div className="flex items-center" style={{ padding: '10px 12px', gap: 14 }}>
           <div style={{ minWidth: 95 }}>
-            <div style={{ fontSize: 18, fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--fg-0)', transition: 'color 0.3s' }}>
+            <div style={{ fontSize: 18, fontFamily: 'var(--font-mono)', fontWeight: 600, color: flashColor, transition: 'color 0.3s' }}>
               {fmtPrice(price, item.market)}
             </div>
-            <div style={{ fontSize: 11, color: sparkUp ? 'var(--up)' : 'var(--down)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+            <div style={{ fontSize: 11, color: sparkUp ? 'var(--up)' : 'var(--blue)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
               {sparkUp ? '▲' : '▼'} {fmt.pct(pct ?? 0)}
             </div>
             {item.last_signal_date && (
