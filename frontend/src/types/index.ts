@@ -30,6 +30,7 @@ export interface Signal {
   ema_50: number
   ema_200: number
   updated_at: string
+  last_signal_date?: string
 }
 
 export interface ChartData {
