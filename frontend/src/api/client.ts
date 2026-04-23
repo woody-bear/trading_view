@@ -5,31 +5,27 @@ import { useAuthStore } from '../store/authStore'
 
 const api = axios.create({ baseURL: '/api' })
 
-// 동시 요청들이 getSession()을 각자 호출하면 Supabase 내부 락 경합 발생 →
-// 2초 타임아웃보다 락 대기(5초)가 길어져 토큰 없이 요청이 나가는 silent failure 유발.
-// 진행 중인 getSession() 프로미스를 공유해 락 경합을 제거한다.
-let _sessionPromise: ReturnType<typeof supabase.auth.getSession> | null = null
-
+// AuthProvider가 getSession()으로 authStore.session을 채운 뒤 loading=false로 바꾼다.
+// 인터셉터에서 getSession()을 직접 호출하면 AuthProvider와 락 경합이 발생하므로
+// authStore.session을 직접 읽어 락 충돌을 원천 차단한다.
 api.interceptors.request.use(async (config) => {
   try {
-    if (!_sessionPromise) {
-      _sessionPromise = supabase.auth.getSession().finally(() => {
-        _sessionPromise = null
+    if (useAuthStore.getState().loading) {
+      // 인증 초기화 완료까지 대기 (authLoading → false 신호 구독)
+      await new Promise<void>((resolve) => {
+        const unsub = useAuthStore.subscribe((state) => {
+          if (!state.loading) { unsub(); resolve() }
+        })
+        setTimeout(() => { unsub(); resolve() }, 6000)
       })
     }
-    const result = await Promise.race([
-      _sessionPromise,
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000)),
-    ])
-    const session = result && 'data' in result ? result.data.session : null
+
+    const { session, user, loading } = useAuthStore.getState()
     if (session?.access_token) {
       config.headers.Authorization = `Bearer ${session.access_token}`
-    } else {
-      // 인증 초기화 완료 후 로그인 상태인데 토큰이 없으면 사일런트 실패
-      const { user, loading } = useAuthStore.getState()
-      if (user && !loading) {
-        logAuthEvent({ type: 'SILENT_FAILURE', source: 'request_interceptor', url: config.url, recovered: false, ts: new Date().toISOString() })
-      }
+    } else if (user && !loading) {
+      // 초기화 완료 + 로그인 상태인데 세션 없음 → 사일런트 실패
+      logAuthEvent({ type: 'SILENT_FAILURE', source: 'request_interceptor', url: config.url, recovered: false, ts: new Date().toISOString() })
     }
   } catch {
     // auth 실패 시 토큰 없이 요청 진행
