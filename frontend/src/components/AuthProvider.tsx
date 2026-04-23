@@ -7,33 +7,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { setSession, setLoading } = useAuthStore()
 
   useEffect(() => {
-    // 초기 세션 확인 (5초 타임아웃 — Supabase 미응답 시 무한 로딩 방지)
-    Promise.race([
-      supabase.auth.getSession(),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
-    ]).then((result) => {
-      const session = result && 'data' in result ? result.data.session : null
-      setSession(session)
-      if (session) syncUser(session.access_token)
-      setLoading(false)
-    }).catch(() => {
-      setLoading(false)
-    })
+    // getSession()과 onAuthStateChange를 동시에 호출하면 Supabase 내부 락 경합 발생 (5초 블락).
+    // onAuthStateChange만 사용 — INITIAL_SESSION 이벤트로 초기 세션을 즉시 받아 락 충돌 없음.
+    const timeout = setTimeout(() => setLoading(false), 5000) // 미응답 안전망
 
-    // 세션 변경 구독
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        clearTimeout(timeout)
         setSession(session)
-        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
-          await syncUser(session.access_token)
-        } else if (event === 'SIGNED_OUT') {
-          setSession(null)
-        }
+        // syncUser보다 먼저 loading 해제 — apiClient 인터셉터가 authStore.session을 읽을 수 있어야 함
         setLoading(false)
+        if (session && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION')) {
+          await syncUser(session.access_token)
+        }
       }
     )
 
-    return () => subscription.unsubscribe()
+    return () => { subscription.unsubscribe(); clearTimeout(timeout) }
   }, [])
 
   return <>{children}</>
