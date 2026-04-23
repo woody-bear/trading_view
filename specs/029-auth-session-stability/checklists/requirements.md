@@ -2,6 +2,7 @@
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-04-23
+**Updated**: 2026-04-23 (post-clarification)
 **Feature**: [spec.md](../spec.md)
 
 ## Content Quality
@@ -31,7 +32,8 @@
 
 ## Notes
 
-- Background 섹션에 현재 아키텍처의 문제점이 명시되어 있어 개발자가 맥락을 파악하기 쉬움
-- P1 두 개(원인 추적 + 중앙화)가 독립적으로 구현 가능하고 각각 단독 가치를 가짐
-- JWKS 백엔드 이슈(FR-007)는 프론트엔드 범위를 벗어나지만 연계 원인이므로 포함
-- Assumptions에 재시도 횟수, JWKS TTL 등 구현 결정사항을 명시하여 플래닝 시 혼선 방지
+- Clarification session (2026-04-23) 5개 질문 완료
+- 관심종목·스크랩 미표시 현상(사일런트 인증 실패)이 스코프에 추가됨 → User Story 3·4, FR-009~011, SC-006~007 신규 추가
+- 두 현상(로그아웃 + 사일런트 실패) 모두 같은 [AUTH] 로그 채널로 통합
+- 새로고침 시 인증 대기 후 쿼리 발사(스켈레톤 표시) 패턴 명확화
+- 자동 복구 최대 1회 재시도 제한이 Assumptions에 명시됨
