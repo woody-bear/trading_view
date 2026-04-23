@@ -77,6 +77,21 @@ def is_large_cap(symbol: str, market: str, is_etf: bool = False) -> bool:
     return True  # CRYPTO 등
 
 
+def is_uptrend(ema: dict) -> bool:
+    """장기 상승추세: EMA20 > EMA60 > EMA120."""
+    for k in ["ema_20", "ema_60", "ema_120"]:
+        s = ema.get(k)
+        if s is None or len(s.dropna()) < 1:
+            return False
+    try:
+        e20 = ema["ema_20"].dropna()
+        e60 = ema["ema_60"].dropna()
+        e120 = ema["ema_120"].dropna()
+        return float(e20.iloc[-1]) > float(e60.iloc[-1]) > float(e120.iloc[-1])
+    except Exception:
+        return False
+
+
 def is_pullback(ema: dict) -> bool:
     """눌림목: EMA20 > EMA60 > EMA120 (장기 상승추세) + EMA5 하락 (단기 눌림)."""
     for k in ["ema_5", "ema_20", "ema_60", "ema_120"]:

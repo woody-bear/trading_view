@@ -216,7 +216,7 @@ export default function Scan() {
           <ScanSectionHeader idx={0} currentSection={currentSection} onDotClick={scrollToSection} />
           <div style={{ padding: '6px 12px', display: 'flex', gap: 8, flexShrink: 0 }}>
             {scanData.buyTotal != null && <span className="chip chip-up">{scanData.buyTotal}</span>}
-            <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>20거래일 이내 BUY/SQZ BUY</span>
+            <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>BUY/SQZ BUY · 데드크로스 제외 · EMA20&gt;60&gt;120</span>
           </div>
           <div className="flex-1 overflow-y-auto pb-2" style={{ overscrollBehaviorY: 'contain' } as any}>
             {scanLoading
@@ -232,7 +232,7 @@ export default function Scan() {
         <div className="flex flex-col" style={{ height: sH, scrollSnapAlign: 'start', background: 'var(--bg-0)' }}>
           <ScanSectionHeader idx={1} currentSection={currentSection} onDotClick={scrollToSection} />
           <p style={{ fontSize: 11, color: 'var(--fg-3)', padding: '4px 12px 6px', flexShrink: 0 }}>
-            EMA20&gt;60&gt;120 + EMA5↓ + 대형주
+            추천종목 + EMA5↓ + 대형주
           </p>
           <div className="flex-1 overflow-y-auto pb-2" style={{ overscrollBehaviorY: 'contain' } as any}>
             {scanLoading

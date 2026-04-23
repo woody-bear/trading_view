@@ -217,17 +217,17 @@ function ScanConditionPanel() {
 
   const COND_BLOCKS = [
     {
-      title: '📊 차트 BUY 신호',
+      title: '📊 추천종목 조건',
       color: 'text-green-400',
       border: 'border-green-500/20',
       bg: 'bg-green-500/5',
       rows: [
         { label: '기준 봉', value: '일봉 (1D)' },
-        { label: '신호 유효기간', value: '20거래일 이내' },
+        { label: '신호 유효기간', value: '20거래일 이내 BUY / SQZ BUY' },
         { label: '데드크로스 제외', value: 'EMA5 < EMA10 < EMA20 < EMA60 < EMA120 (5선 전체 역배열) → 제외' },
+        { label: 'EMA 추세', value: 'EMA20 > EMA60 > EMA120 — 역배열·수렴 시 제외' },
         { label: '사전 필터', value: 'RSI ≥ 80 AND 스퀴즈 없음(Lv=0) 동시 충족 시 스킵' },
         { label: 'BUY 판정', value: 'Pine Script 시뮬레이션 — BUY / SQZ BUY 마커' },
-        { label: '거래량 조건', value: '미적용 (현재 파이프라인에서 비활성)' },
       ],
     },
     {

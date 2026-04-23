@@ -101,8 +101,8 @@ export function stepsToMermaidFlowchart(steps: readonly Step[]): string {
 }
 
 // ── 매수 통합 파이프라인 ────────────────────────────────────────────
-// 핵심조건(BUY/SQZ BUY 라벨 판정)이 진입점, 이후 조회조건 필터가 결합되어
-// 추천종목 → 눌림목으로 좁혀감.
+// 핵심조건(BUY/SQZ BUY 라벨 판정)이 진입점, 이후 3단 필터(데드크로스 제외 →
+// 신호 신선도 → EMA 장기추세)를 거쳐 추천종목 확정, 추가로 눌림목으로 좁혀감.
 export const BUY_PIPELINE_STEPS: readonly Step[] = [
   // BUY 판정 진입부 (분기 1: 터치/돌파)
   {
@@ -237,7 +237,7 @@ export const BUY_PIPELINE_STEPS: readonly Step[] = [
     description: 'df 길이 − 신호 봉 인덱스 ≤ 20 거래일. 신호 자체가 매매 가치를 잃지 않았는지 확인. (데이터 소스가 살아있어도 신호가 한참 전이면 제외)',
     branches: [
       { label: '오래된 신호 (제외)', targetId: 'recent_reject' },
-      { label: '최근 신호 (통과)', targetId: 'volume_note' },
+      { label: '최근 신호 (통과)', targetId: 'ema_trend' },
     ],
     group: 'common-filter',
   },
@@ -249,11 +249,21 @@ export const BUY_PIPELINE_STEPS: readonly Step[] = [
     group: 'common-filter',
   },
   {
-    id: 'volume_note',
-    kind: 'note',
-    label: '거래량 필터 미적용',
-    description: '현재 파이프라인에서는 거래량 필터를 사용하지 않음',
-    nextId: 'chart_buy_confirmed',
+    id: 'ema_trend',
+    kind: 'branch',
+    label: 'EMA 장기추세 — EMA20 > EMA60 > EMA120?',
+    description: '세 EMA의 정배열로 장기 상승추세 확인. 역배열이면 추천종목에서 제외.',
+    branches: [
+      { label: '역배열 또는 수렴 (제외)', targetId: 'ema_trend_reject' },
+      { label: '정배열 (통과)', targetId: 'chart_buy_confirmed' },
+    ],
+    group: 'common-filter',
+  },
+  {
+    id: 'ema_trend_reject',
+    kind: 'reject',
+    label: '제외 — EMA 장기추세 미충족',
+    description: 'EMA20 ≤ EMA60 또는 EMA60 ≤ EMA120 → 장기 상승추세가 아님',
     group: 'common-filter',
   },
   // 결과 분기
@@ -261,7 +271,7 @@ export const BUY_PIPELINE_STEPS: readonly Step[] = [
     id: 'chart_buy_confirmed',
     kind: 'success',
     label: '추천종목 확정',
-    description: '메인페이지 추천종목 목록에 포함',
+    description: '20거래일 이내 BUY/SQZ BUY + 데드크로스 없음 + EMA20>60>120 모두 충족',
     nextId: 'pullback_branch',
     group: 'outcome',
   },
@@ -269,7 +279,7 @@ export const BUY_PIPELINE_STEPS: readonly Step[] = [
     id: 'pullback_branch',
     kind: 'branch',
     label: '눌림목 필터 통과?',
-    description: 'EMA20 > EMA60 > EMA120 AND EMA5 현재 < 직전',
+    description: 'EMA5 현재 < 직전 (단기 눌림) + 대형주(KOSPI200·KOSDAQ150·S&P500)',
     branches: [
       { label: '통과', targetId: 'pullback_confirmed' },
       { label: '미통과', targetId: 'chart_buy_only' },

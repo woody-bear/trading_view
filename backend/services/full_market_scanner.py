@@ -18,6 +18,7 @@ from indicators.macd import calculate_macd
 from indicators.rsi import calculate_rsi
 from indicators.volume import calculate_volume_ratio
 from services.scan_conditions import (
+    is_uptrend,
     MIN_CANDLES,
     check_buy_signal_precise,
     check_trend,
@@ -257,11 +258,11 @@ def _analyze_ticker(df: pd.DataFrame, info: dict) -> dict | None:
         # 카테고리 분류
         categories = []
 
-        # chart_buy: 20거래일 이내 BUY/SQZ BUY + 거래량 필터 (dead cross는 위에서 이미 제외)
+        # chart_buy: 20거래일 이내 BUY/SQZ BUY + EMA20>60>120 (dead cross는 위에서 이미 제외)
         buy_signal, buy_date = check_buy_signal_precise(df, last_rsi, last_sq)
-        if buy_signal:
+        if buy_signal and is_uptrend(ema):
             categories.append("chart_buy")
-            # pullback_buy: chart_buy 조건 + 눌림목 필터 + 대형주 필터
+            # pullback_buy: chart_buy 조건 + EMA5↓ (단기 눌림) + 대형주
             if is_pullback(ema) and is_large_cap(info["symbol"], info["market"], info.get("is_etf", False)):
                 categories.append("pullback_buy")
             logger.debug(f"[chart_buy] {info['symbol']} signal={buy_signal} date={buy_date} pullback={'pullback_buy' in categories}")

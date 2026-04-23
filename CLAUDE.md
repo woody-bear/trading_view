@@ -307,6 +307,8 @@ main
 - N/A — 신규 DB 테이블 없음, in-memory 상태만 사용 (030-list-price-flicker)
 - TypeScript 5 / React 18 (frontend), Python 3.11 (backend) + React, Tailwind CSS, FastAPI, SQLAlchemy (backend) (031-signal-days-label)
 - 신규 테이블 없음. `ScanSnapshotItem.last_signal_date` 기존 컬럼 활용 (031-signal-days-label)
+- TypeScript 5 / React 18 + React Query (`@tanstack/react-query`), Tailwind CSS, Vite (032-scan-buy-strip-pc)
+- N/A — 신규 테이블 없음, 기존 스냅샷 API 재사용 (032-scan-buy-strip-pc)
 
 ## Recent Changes
 - 022-stock-detail-layered-analysis: Added Python 3.11 (backend), TypeScript 5 / React 18 (frontend) + FastAPI, SQLAlchemy, pydantic-settings, yfinance, pykrx (backend) · React Router, React Query, Zustand, lightweight-charts, Tailwind (frontend)
