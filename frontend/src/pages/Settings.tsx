@@ -95,6 +95,7 @@ export default function Settings() {
   }, [])
 
   useEffect(() => {
+    if (!user) return  // 비로그인 시 인증 필요 API 호출 생략
     getSensitivity().then(d => setCurrentSens(d.current)).catch(() => {})
     getTelegram().then(d => {
       setTgConfigured(d.configured)
@@ -104,7 +105,7 @@ export default function Settings() {
     }).catch(() => {})
     fetchFullScanHistory(10).then(setScanHistory).catch(() => {})
     fetchFullScanStatus().then(setScanStatus).catch(() => {})
-  }, [])
+  }, [user])
 
   useEffect(() => {
     if (!scanStatus?.running) return
@@ -406,6 +407,24 @@ export default function Settings() {
     </div>
   )
 
+  // ── 비로그인: 모바일·PC 통합 안내 화면 ──────────────────────────
+  if (!user) {
+    return (
+      <div style={{
+        minHeight: 'calc(100dvh - 44px)',
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'center',
+        padding: '32px 16px 80px',
+        background: 'var(--bg-0)',
+      }}>
+        <div style={{ width: '100%', maxWidth: 480 }}>
+          {profileBlock}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <>
       {/* ── 모바일: 스냅 3섹션 ── */}
@@ -451,16 +470,13 @@ export default function Settings() {
         <h1 style={{ fontSize: 18, fontWeight: 700, color: 'var(--fg-0)', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24 }}>
           <SettingsIcon size={20} style={{ color: 'var(--accent)' }} /> 설정
         </h1>
-
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {profileBlock}
-
           {msg && (
             <div style={{ fontSize: 11, padding: '8px 12px', borderRadius: 4, background: 'color-mix(in oklch, var(--up), transparent 85%)', color: 'var(--up)', display: 'flex', alignItems: 'center', gap: 6 }}>
               <Check size={12} /> {msg}
             </div>
           )}
-
           {sensitivityBlock}
           {telegramBlock}
           {buyAlertBlock}
