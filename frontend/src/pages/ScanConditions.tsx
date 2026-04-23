@@ -20,11 +20,17 @@ const SELL_GUIDANCE =
 
 const SCAN_SCHEDULE: { time: string; label: string; market: 'KR' | 'US' }[] = [
   { time: '09:30', label: '09:30', market: 'KR' },
+  { time: '10:00', label: '10:00', market: 'KR' },
   { time: '10:30', label: '10:30', market: 'KR' },
+  { time: '11:00', label: '11:00', market: 'KR' },
   { time: '11:30', label: '11:30', market: 'KR' },
+  { time: '12:00', label: '12:00', market: 'KR' },
   { time: '12:30', label: '12:30', market: 'KR' },
+  { time: '13:00', label: '13:00', market: 'KR' },
   { time: '13:30', label: '13:30', market: 'KR' },
+  { time: '14:00', label: '14:00', market: 'KR' },
   { time: '14:30', label: '14:30', market: 'KR' },
+  { time: '15:00', label: '15:00', market: 'KR' },
   { time: '15:30', label: '15:30', market: 'KR' },
   { time: '19:50', label: '19:50', market: 'US' },
   { time: '03:50', label: '03:50', market: 'US' },
@@ -217,11 +223,11 @@ function ScanConditionPanel() {
       bg: 'bg-green-500/5',
       rows: [
         { label: '기준 봉', value: '일봉 (1D)' },
-        { label: '신호 유효기간', value: '3일 이내' },
-        { label: '데드크로스 제외', value: 'EMA20 < EMA50 → 종목 제외' },
-        { label: '사전 필터', value: 'RSI < 55 또는 스퀴즈 Lv ≥ 1' },
+        { label: '신호 유효기간', value: '20거래일 이내' },
+        { label: '데드크로스 제외', value: 'EMA5 < EMA10 < EMA20 < EMA60 < EMA120 (5선 전체 역배열) → 제외' },
+        { label: '사전 필터', value: 'RSI ≥ 80 AND 스퀴즈 없음(Lv=0) 동시 충족 시 스킵' },
         { label: 'BUY 판정', value: 'Pine Script 시뮬레이션 — BUY / SQZ BUY 마커' },
-        { label: '거래량 조건', value: '신호일 거래량 > 직전 5거래일 평균' },
+        { label: '거래량 조건', value: '미적용 (현재 파이프라인에서 비활성)' },
       ],
     },
     {
@@ -230,20 +236,8 @@ function ScanConditionPanel() {
       border: 'border-yellow-500/20',
       bg: 'bg-yellow-500/5',
       rows: [
-        { label: '스퀴즈', value: 'Lv 1 이상 (밴드 수축 중)' },
-        { label: 'EMA 배열', value: 'BULL 정배열 (EMA20 > EMA50 > EMA200)' },
+        { label: 'Trend', value: 'BULL 정배열: EMA20 > EMA50 > EMA200 + 가격 > EMA20 + EMA20 상승 중' },
         { label: '점수 산정', value: 'SQ×25 + BULL+15 + RSI<40+10 + BB<30%+5 + MACD>0+5 + Vol>1+5' },
-      ],
-    },
-    {
-      title: '🔥 투자과열 신호',
-      color: 'text-orange-400',
-      border: 'border-orange-500/20',
-      bg: 'bg-orange-500/5',
-      rows: [
-        { label: '대상', value: '국내 개별주 (ETF 제외)' },
-        { label: '조건 A', value: 'RSI ≥ 70' },
-        { label: '조건 B', value: 'RSI ≥ 65 + 거래량비율 ≥ 2.0x (OR)' },
       ],
     },
   ]
@@ -317,7 +311,7 @@ function ScanScheduleSection() {
             const kst = new Date(d.getTime() + 9 * 3600000)
             return kst.getUTCHours() * 60 + kst.getUTCMinutes()
           })()
-          const schedMins = [9*60+30, 10*60+30, 11*60+30, 12*60+30, 13*60+30, 14*60+30, 15*60+30, 19*60+50, 3*60+50]
+          const schedMins = [9*60+30, 10*60, 10*60+30, 11*60, 11*60+30, 12*60, 12*60+30, 13*60, 13*60+30, 14*60, 14*60+30, 15*60, 15*60+30, 19*60+50, 3*60+50]
           const past = schedMins.filter(m => m <= nowKST)
           const future = schedMins.filter(m => m > nowKST)
           const prevDiff = past.length > 0 ? nowKST - Math.max(...past) : Infinity
@@ -407,9 +401,9 @@ function ScanScheduleSection() {
         <div className="mb-3">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-caption text-blue-400 font-semibold">🇰🇷 국내 스캔</span>
-            <span className="text-caption text-[var(--muted)] leading-relaxed">평일 매시 :30 (9:30~15:30) · 완료 슬롯 탭 → BUY 종목 확인</span>
+            <span className="text-caption text-[var(--muted)] leading-relaxed">평일 9:30 · 이후 매시 :00/:30 (10:00~15:30) · 완료 슬롯 탭 → BUY 종목 확인</span>
           </div>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-4 md:grid-cols-5 gap-2">
             {krSlots.map(slot => <SlotCard key={slot.time} slot={slot} onClick={() => setSelectedSlot(slot)} />)}
           </div>
         </div>
