@@ -303,6 +303,8 @@ main
 - 본 기능은 신규 테이블·DB 변경 없음. 정적 콘텐츠 페이지 + 백엔드 함수 재구성. (027-scan-conditions-page)
 - Python 3.11 (backend), TypeScript 5 / React 18 (frontend) + FastAPI, PyJWT (backend) · Supabase JS Client, Zustand, React Query, Axios (frontend) (029-auth-session-stability)
 - N/A — 신규 테이블 없음. ReturnUrl은 localStorage, JWKS는 메모리 캐시 (029-auth-session-stability)
+- TypeScript 5 / React 18 (frontend), Python 3.11 (backend) + React, Tailwind CSS, React Query, Zustand, Vite (030-list-price-flicker)
+- N/A — 신규 DB 테이블 없음, in-memory 상태만 사용 (030-list-price-flicker)
 
 ## Recent Changes
 - 022-stock-detail-layered-analysis: Added Python 3.11 (backend), TypeScript 5 / React 18 (frontend) + FastAPI, SQLAlchemy, pydantic-settings, yfinance, pykrx (backend) · React Router, React Query, Zustand, lightweight-charts, Tailwind (frontend)
