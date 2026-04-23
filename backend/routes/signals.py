@@ -2,12 +2,12 @@ import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import get_optional_user, get_user_id
 from database import get_session
-from models import CurrentSignal, StockMaster, Watchlist
+from models import CurrentSignal, ScanSnapshotItem, SignalHistory, StockMaster, Watchlist
 from services.scanner import run_scan
 
 router = APIRouter(tags=["signals"])
@@ -44,6 +44,32 @@ async def get_signals(
     )
     market_type_map = {r.symbol: r.market_type for r in mt_result}
 
+    # Primary: ScanSnapshotItem (chart-scan algorithm, matches chart markers)
+    lsd_result = await session.execute(
+        select(ScanSnapshotItem.symbol, func.max(ScanSnapshotItem.last_signal_date).label("lsd"))
+        .where(ScanSnapshotItem.symbol.in_(symbols))
+        .group_by(ScanSnapshotItem.symbol)
+    )
+    last_signal_date_map = {r.symbol: r.lsd for r in lsd_result}
+
+    # Fallback: SignalHistory BUY state transition (prev_state != BUY) for symbols not in scan
+    missing = [s for s in symbols if not last_signal_date_map.get(s)]
+    watchlist_ids = [w.id for _, w in rows if w.symbol in missing]
+    id_to_symbol = {w.id: w.symbol for _, w in rows if w.symbol in missing}
+    if watchlist_ids:
+        hist_result = await session.execute(
+            select(SignalHistory.watchlist_id, func.max(SignalHistory.detected_at).label("lat"))
+            .where(
+                SignalHistory.watchlist_id.in_(watchlist_ids),
+                SignalHistory.signal_state == "BUY",
+                SignalHistory.prev_state != "BUY",
+            )
+            .group_by(SignalHistory.watchlist_id)
+        )
+        for r in hist_result:
+            if r.lat:
+                last_signal_date_map[id_to_symbol[r.watchlist_id]] = r.lat.strftime("%Y-%m-%d")
+
     signals = []
     for cs, w in rows:
         signals.append({
@@ -67,6 +93,7 @@ async def get_signals(
             "ema_50": cs.ema_50,
             "ema_200": cs.ema_200,
             "updated_at": cs.updated_at.isoformat() if cs.updated_at else None,
+            "last_signal_date": last_signal_date_map.get(w.symbol),
         })
 
     return {"signals": signals}
