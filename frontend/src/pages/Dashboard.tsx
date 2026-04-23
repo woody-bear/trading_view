@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, RefreshCw, Search, X } from 'lucide-react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { addSymbol, deleteSymbol, fetchBatchPrices, fetchFullScanLatest, fetchFullScanStatus, fetchScanStatus, fetchScanSymbols, fetchSentiment, fetchSignals, searchSymbols, triggerFullScan } from '../api/client'
 import FearGreedPanel from '../components/FearGreedPanel'
@@ -13,12 +13,21 @@ import { useAuthStore } from '../store/authStore'
 import { useToastStore } from '../stores/toastStore'
 import type { Signal } from '../types'
 import { fmt, fmtPrice, fmtSignalAge } from '../utils/format'
-import { indicatorBadges, marketBadge } from '../utils/indicatorLabels'
+import { indicatorBadges } from '../utils/indicatorLabels'
 import SignalCard from '../components/SignalCard'
-import MiniCandles from '../components/charts/MiniCandles'
-import Spark from '../components/charts/Spark'
-import { genCandles } from '../utils/chartDummy'
 import QuickBuyStrip from '../components/QuickBuyStrip'
+
+function tagStyle(tag: string): { bg: string; fg: string } {
+  if (tag === 'BUY' || tag === 'SQZ BUY' || tag === 'RSI 과매도')
+    return { bg: 'var(--up-bg)', fg: 'var(--up)' }
+  if (tag === 'SELL' || tag === 'SQZ SELL' || tag === 'RSI 과매수' || tag === 'BB 상단')
+    return { bg: 'var(--down-bg)', fg: 'var(--down)' }
+  if (tag.includes('SQ') || tag === 'MACD↑')
+    return { bg: 'var(--warn-bg)', fg: 'var(--warn)' }
+  if (tag === 'BB 하단' || tag.includes('거래량'))
+    return { bg: 'var(--accent-bg)', fg: 'var(--accent)' }
+  return { bg: 'var(--bg-2)', fg: 'var(--fg-3)' }
+}
 
 interface SearchResult {
   symbol: string; name: string; market: string; market_type: string; display: string
@@ -1052,8 +1061,8 @@ export const SectorGrouped = memo(function SectorGrouped({ items, livePrices, co
             <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
           </div>
           <div className={compact ? 'space-y-2' : 'grid grid-cols-1 md:grid-cols-3 gap-2'}>
-            {groups[sector].map((item: any, i: number) => (
-              <BuyCard key={item.symbol} item={item} index={i} livePrice={livePrices?.[item.symbol]} compact={compact} />
+            {groups[sector].map((item: any) => (
+              <BuyCard key={item.symbol} item={item} livePrice={livePrices?.[item.symbol]} />
             ))}
           </div>
         </div>
@@ -1062,7 +1071,7 @@ export const SectorGrouped = memo(function SectorGrouped({ items, livePrices, co
   )
 })
 
-export const BuyCard = memo(function BuyCard({ item, index, livePrice, compact }: { item: any; index: number; livePrice?: any; compact?: boolean }) {
+export const BuyCard = memo(function BuyCard({ item, livePrice }: { item: any; livePrice?: any }) {
   const price = livePrice?.price ?? item.price
   const pct = livePrice?.change_pct ?? item.change_pct
 
@@ -1079,7 +1088,7 @@ export const BuyCard = memo(function BuyCard({ item, index, livePrice, compact }
   }, [price])
   const flashColor = flashDir === 'up' ? 'var(--up)' : flashDir === 'down' ? 'var(--blue)' : 'var(--fg-0)'
 
-  const mktBadge = marketBadge(item.market_type || item.market)
+  const sigTag = item.last_signal === 'SQZ BUY' ? 'SQZ BUY' : item.last_signal === 'BUY' ? 'BUY' : null
   const indicators = indicatorBadges({
     squeeze_level: item.squeeze_level,
     rsi: item.rsi,
@@ -1087,134 +1096,67 @@ export const BuyCard = memo(function BuyCard({ item, index, livePrice, compact }
     volume_ratio: item.volume_ratio,
     macd_hist: item.macd_hist,
   })
+  const tags: string[] = []
+  if (sigTag) tags.push(sigTag)
+  for (const ind of indicators.slice(0, 4 - tags.length)) {
+    if (!tags.includes(ind.label)) tags.push(ind.label)
+  }
 
-  // SQZ Terminal 신호 칩
-  const signalChip = item.last_signal === 'SQZ BUY'
-    ? { label: 'SQZ BUY', cls: 'chip chip-mag' }
-    : item.last_signal === 'BUY'
-    ? { label: 'BUY', cls: 'chip chip-up' }
-    : { label: item.last_signal || '신호', cls: 'chip chip-ghost' }
-
-  // Trend 라벨
   const trend = item.trend === 'BULL'
     ? { label: '상승', color: 'var(--up)' }
     : item.trend === 'BEAR'
     ? { label: '하락', color: 'var(--down)' }
     : { label: '중립', color: 'var(--fg-2)' }
 
-  const candles = useMemo(() => {
-    const candleSeed = (item.symbol.charCodeAt(0) || 1) + (index + 1) * 7
-    return genCandles(20, candleSeed, 100, 0.03)
-  }, [item.symbol, index])
-  const sparkData = useMemo(() => candles.map(c => c.c), [candles])
-  const sparkUp = (pct ?? 0) >= 0
-
   return (
     <div
       onClick={() => window.open(`/${item.symbol.replace(/\//g, '_')}?market=${item.market_type || item.market}`, '_blank')}
-      className="panel cursor-pointer"
+      className="cursor-pointer"
       style={{
-        padding: 0,
+        padding: '10px 12px',
+        borderRadius: 4,
         background: 'var(--bg-1)',
+        border: '1px solid var(--border)',
         transition: 'border-color 0.1s',
       }}
       onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--border-strong)')}
       onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
     >
-      {/* Header */}
-      <div
-        className="flex items-center"
-        style={{ padding: '8px 12px', gap: 8, borderBottom: '1px solid var(--border)', minWidth: 0 }}
-      >
-        <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--fg-3)', width: 18, flexShrink: 0 }}>
-          {String(index + 1).padStart(2, '0')}
+      <div className="flex items-center" style={{ gap: 6, marginBottom: 6, minWidth: 0 }}>
+        <span style={{ fontSize: 10, color: 'var(--fg-4)', flexShrink: 0 }}>☆</span>
+        <span className="truncate flex-1" style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-0)' }}>
+          {item.display_name || item.name}
         </span>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="truncate" style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg-0)' }}>
-              {item.display_name || item.name}
-            </span>
-            <span style={{ fontSize: 10.5, color: 'var(--fg-3)', fontFamily: 'var(--font-mono)', flexShrink: 0 }}>
-              {item.symbol}
-            </span>
-            <span className="chip chip-ghost" style={{ flexShrink: 0 }}>{mktBadge.label}</span>
-          </div>
-        </div>
-        <span className={signalChip.cls} style={{ flexShrink: 0 }}>
-          {signalChip.label}
+        <span style={{ fontSize: 10, color: 'var(--fg-3)', fontFamily: 'var(--font-mono)', flexShrink: 0 }}>
+          {item.symbol}
         </span>
       </div>
-
-      {/* Body */}
-      {compact ? (
-        /* 모바일 compact: Spark(72) + 가격(14px) + RSI/Trend */
-        <div style={{ padding: '8px 12px' }}>
-          <div className="flex items-center" style={{ gap: 10 }}>
-            <div style={{ minWidth: 80 }}>
-              <div style={{ fontSize: 14, fontFamily: 'var(--font-mono)', fontWeight: 600, color: flashColor, transition: 'color 0.3s' }}>
-                {fmtPrice(price, item.market)}
-              </div>
-              <div style={{ fontSize: 11, color: sparkUp ? 'var(--up)' : 'var(--blue)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
-                {sparkUp ? '▲' : '▼'} {fmt.pct(pct ?? 0)}
-              </div>
-              {(() => { const age = fmtSignalAge(item.last_signal_date); return age ? (
-                <div style={{ fontSize: 9.5, color: age.fresh ? 'var(--up)' : 'var(--fg-3)', fontFamily: 'var(--font-mono)', marginTop: 1 }}>
-                  {age.label}
-                </div>
-              ) : null })()}
-            </div>
-            <Spark data={sparkData} w={72} h={28} color={sparkUp ? 'var(--up)' : 'var(--down)'} />
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center" style={{ gap: 8, fontSize: 10.5, fontFamily: 'var(--font-mono)', color: 'var(--fg-2)', flexWrap: 'wrap' }}>
-                {item.rsi != null && (
-                  <span>RSI <span style={{ color: item.rsi > 60 ? 'var(--warn)' : item.rsi < 30 ? 'var(--up)' : 'var(--fg-0)' }}>{item.rsi.toFixed(0)}</span></span>
-                )}
-                <span>Trend <span style={{ color: trend.color }}>{trend.label}</span></span>
-              </div>
-              {indicators.length > 0 && (
-                <div className="flex flex-wrap" style={{ gap: 3, marginTop: 4 }}>
-                  {indicators.map(t => (
-                    <span key={t.label} className="chip chip-ghost" style={{ fontSize: 9 }}>{t.label}</span>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : (
-        /* PC full: MiniCandles(140) + 가격(18px) */
-        <div className="flex items-center" style={{ padding: '10px 12px', gap: 14 }}>
-          <div style={{ minWidth: 95 }}>
-            <div style={{ fontSize: 18, fontFamily: 'var(--font-mono)', fontWeight: 600, color: flashColor, transition: 'color 0.3s' }}>
-              {fmtPrice(price, item.market)}
-            </div>
-            <div style={{ fontSize: 11, color: sparkUp ? 'var(--up)' : 'var(--blue)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
-              {sparkUp ? '▲' : '▼'} {fmt.pct(pct ?? 0)}
-            </div>
-            {(() => { const age = fmtSignalAge(item.last_signal_date); return age ? (
-              <div style={{ fontSize: 9.5, color: age.fresh ? 'var(--up)' : 'var(--fg-3)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
-                {age.label}
-              </div>
-            ) : null })()}
-          </div>
-          <MiniCandles data={candles} w={140} h={40} />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center" style={{ gap: 10, fontSize: 10.5, fontFamily: 'var(--font-mono)', color: 'var(--fg-2)' }}>
-              {item.rsi != null && (
-                <span>RSI <span style={{ color: item.rsi > 60 ? 'var(--warn)' : item.rsi < 30 ? 'var(--up)' : 'var(--fg-0)' }}>{item.rsi.toFixed(0)}</span></span>
-              )}
-              <span>Trend <span style={{ color: trend.color }}>{trend.label}</span></span>
-            </div>
-            {indicators.length > 0 && (
-              <div className="flex flex-wrap" style={{ gap: 4, marginTop: 6 }}>
-                {indicators.map(t => (
-                  <span key={t.label} className="chip chip-ghost" style={{ fontSize: 9.5 }}>{t.label}</span>
-                ))}
-              </div>
-            )}
-          </div>
+      <div className="flex items-baseline" style={{ gap: 8, marginBottom: 6 }}>
+        <span style={{ fontSize: 16, fontFamily: 'var(--font-mono)', fontWeight: 600, color: flashColor, transition: 'color 0.3s' }}>
+          {fmtPrice(price, item.market)}
+        </span>
+        <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', fontWeight: 600, color: pct > 0 ? 'var(--up)' : pct < 0 ? 'var(--blue)' : 'var(--fg-2)' }}>
+          {pct >= 0 ? '▲' : '▼'} {fmt.pct(pct ?? 0)}
+        </span>
+      </div>
+      {tags.length > 0 && (
+        <div className="flex flex-wrap" style={{ gap: 3 }}>
+          {tags.map(t => {
+            const st = tagStyle(t)
+            return (
+              <span key={t} style={{ padding: '1px 6px', borderRadius: 2, background: st.bg, color: st.fg, fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', fontFamily: 'var(--font-mono)' }}>
+                {t}
+              </span>
+            )
+          })}
         </div>
       )}
+      <div className="flex items-center" style={{ gap: 8, marginTop: 5, fontSize: 10.5, fontFamily: 'var(--font-mono)', color: 'var(--fg-2)' }}>
+        <span>Trend <span style={{ color: trend.color }}>{trend.label}</span></span>
+        {(() => { const age = fmtSignalAge(item.last_signal_date); return age ? (
+          <span style={{ color: age.fresh ? 'var(--up)' : 'var(--fg-3)' }}>{age.label}</span>
+        ) : null })()}
+      </div>
     </div>
   )
 })
