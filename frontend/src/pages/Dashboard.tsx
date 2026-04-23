@@ -12,7 +12,7 @@ import { useSignalStore } from '../stores/signalStore'
 import { useAuthStore } from '../store/authStore'
 import { useToastStore } from '../stores/toastStore'
 import type { Signal } from '../types'
-import { fmt, fmtPrice } from '../utils/format'
+import { fmt, fmtPrice, fmtSignalAge } from '../utils/format'
 import { indicatorBadges, marketBadge } from '../utils/indicatorLabels'
 import SignalCard from '../components/SignalCard'
 import MiniCandles from '../components/charts/MiniCandles'
@@ -1157,11 +1157,11 @@ export const BuyCard = memo(function BuyCard({ item, index, livePrice, compact }
               <div style={{ fontSize: 11, color: sparkUp ? 'var(--up)' : 'var(--blue)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
                 {sparkUp ? '▲' : '▼'} {fmt.pct(pct ?? 0)}
               </div>
-              {item.last_signal_date && (
-                <div style={{ fontSize: 9.5, color: 'var(--fg-3)', fontFamily: 'var(--font-mono)', marginTop: 1 }}>
-                  {item.last_signal_date}
+              {(() => { const age = fmtSignalAge(item.last_signal_date); return age ? (
+                <div style={{ fontSize: 9.5, color: age.fresh ? 'var(--up)' : 'var(--fg-3)', fontFamily: 'var(--font-mono)', marginTop: 1 }}>
+                  {age.label}
                 </div>
-              )}
+              ) : null })()}
             </div>
             <Spark data={sparkData} w={72} h={28} color={sparkUp ? 'var(--up)' : 'var(--down)'} />
             <div className="flex-1 min-w-0">
@@ -1191,11 +1191,11 @@ export const BuyCard = memo(function BuyCard({ item, index, livePrice, compact }
             <div style={{ fontSize: 11, color: sparkUp ? 'var(--up)' : 'var(--blue)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
               {sparkUp ? '▲' : '▼'} {fmt.pct(pct ?? 0)}
             </div>
-            {item.last_signal_date && (
-              <div style={{ fontSize: 9.5, color: 'var(--fg-3)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
-                {item.last_signal_date}
+            {(() => { const age = fmtSignalAge(item.last_signal_date); return age ? (
+              <div style={{ fontSize: 9.5, color: age.fresh ? 'var(--up)' : 'var(--fg-3)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
+                {age.label}
               </div>
-            )}
+            ) : null })()}
           </div>
           <MiniCandles data={candles} w={140} h={40} />
           <div className="flex-1 min-w-0">
