@@ -22,6 +22,34 @@ interface AuthEvent {
 // 중복 로그아웃 방지 잠금 — 컴포넌트 생명주기와 무관하게 앱 전체 단일 인스턴스 보장
 let _signingOut = false
 
+const _AUTH_LOG_KEY = '__auth_log'
+const _AUTH_LOG_MAX = 30
+
+function _persistLog(msg: string): void {
+  try {
+    const stored: string[] = JSON.parse(localStorage.getItem(_AUTH_LOG_KEY) ?? '[]')
+    stored.push(msg)
+    if (stored.length > _AUTH_LOG_MAX) stored.splice(0, stored.length - _AUTH_LOG_MAX)
+    localStorage.setItem(_AUTH_LOG_KEY, JSON.stringify(stored))
+  } catch { /* storage quota 등 무시 */ }
+}
+
+// DevTools 콘솔에서 showAuthLog() 로 최근 인증 이벤트 조회 (새로고침 후에도 유지)
+if (typeof window !== 'undefined') {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const w = window as any
+  w.showAuthLog = () => {
+    const logs: string[] = JSON.parse(localStorage.getItem(_AUTH_LOG_KEY) ?? '[]')
+    if (logs.length === 0) { console.log('[AUTH] 저장된 로그 없음'); return [] }
+    logs.forEach(l => console.log(l))
+    return logs
+  }
+  w.clearAuthLog = () => {
+    localStorage.removeItem(_AUTH_LOG_KEY)
+    console.log('[AUTH] 로그 초기화 완료')
+  }
+}
+
 export function logAuthEvent(event: AuthEvent): void {
   const parts = [`[AUTH] ${event.type}`]
   if (event.reason) parts.push(`reason=${event.reason}`)
@@ -31,7 +59,9 @@ export function logAuthEvent(event: AuthEvent): void {
     parts.push(`recovered=${event.recovered}`)
   }
   parts.push(`ts=${event.ts}`)
-  console.warn(parts.join(' | '))
+  const msg = parts.join(' | ')
+  console.warn(msg)
+  _persistLog(msg)
 }
 
 export async function signOutWithReason(

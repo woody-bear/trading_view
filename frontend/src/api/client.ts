@@ -5,16 +5,31 @@ import { useAuthStore } from '../store/authStore'
 
 const api = axios.create({ baseURL: '/api' })
 
-// Bearer 토큰 자동 주입 (Supabase 초기화 지연에도 블록되지 않도록 타임아웃 보호)
+// 동시 요청들이 getSession()을 각자 호출하면 Supabase 내부 락 경합 발생 →
+// 2초 타임아웃보다 락 대기(5초)가 길어져 토큰 없이 요청이 나가는 silent failure 유발.
+// 진행 중인 getSession() 프로미스를 공유해 락 경합을 제거한다.
+let _sessionPromise: ReturnType<typeof supabase.auth.getSession> | null = null
+
 api.interceptors.request.use(async (config) => {
   try {
+    if (!_sessionPromise) {
+      _sessionPromise = supabase.auth.getSession().finally(() => {
+        _sessionPromise = null
+      })
+    }
     const result = await Promise.race([
-      supabase.auth.getSession(),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000)),
+      _sessionPromise,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000)),
     ])
     const session = result && 'data' in result ? result.data.session : null
     if (session?.access_token) {
       config.headers.Authorization = `Bearer ${session.access_token}`
+    } else {
+      // 인증 초기화 완료 후 로그인 상태인데 토큰이 없으면 사일런트 실패
+      const { user, loading } = useAuthStore.getState()
+      if (user && !loading) {
+        logAuthEvent({ type: 'SILENT_FAILURE', source: 'request_interceptor', url: config.url, recovered: false, ts: new Date().toISOString() })
+      }
     }
   } catch {
     // auth 실패 시 토큰 없이 요청 진행
