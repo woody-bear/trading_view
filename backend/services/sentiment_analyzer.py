@@ -3,6 +3,7 @@
 import asyncio
 import json
 import math
+import time
 import urllib.request
 from datetime import datetime
 
@@ -80,6 +81,12 @@ async def fetch_market_indices() -> dict:
         }
 
 
+# CNN 마지막 정상값 캐시 — API/타임아웃 실패 시 사용 (10분 TTL)
+_fg_cache: dict | None = None
+_fg_cache_time: float = 0.0
+_FG_CACHE_TTL: float = 600.0
+
+
 def _fetch_cnn_fear_greed() -> dict | None:
     """CNN Fear & Greed Index API 조회 (동기)."""
     try:
@@ -109,11 +116,16 @@ def _fetch_cnn_fear_greed() -> dict | None:
                 "value": round(point["y"], 1),
             })
 
-        return {
+        result = {
             "score": round(score, 1),
             "label": label,
             "history": history,
         }
+        # 정상 응답은 캐시에 저장
+        global _fg_cache, _fg_cache_time
+        _fg_cache = result
+        _fg_cache_time = time.time()
+        return result
     except Exception as e:
         logger.warning(f"CNN Fear & Greed API 실패: {e}")
         return None
@@ -172,22 +184,30 @@ def determine_sentiment(fear_greed: float, sp500_pct: float, kospi_pct: float) -
 
 async def get_sentiment_overview() -> dict:
     """시장 방향성 종합 조회 — CNN Fear & Greed (우선) + 주요 지표 + 분위기."""
-    # 지수 조회 + CNN 공포지수를 동시에 실행, 전체 12초 timeout
+    # 지수 조회 + CNN 공포지수를 독립 타임아웃으로 병렬 실행
+    indices_task = asyncio.create_task(fetch_market_indices())
+    cnn_task = asyncio.create_task(asyncio.to_thread(_fetch_cnn_fear_greed))
+
     try:
-        indices, cnn = await asyncio.wait_for(
-            asyncio.gather(
-                fetch_market_indices(),
-                asyncio.to_thread(_fetch_cnn_fear_greed),
-            ),
-            timeout=12,
-        )
-    except asyncio.TimeoutError:
+        indices = await asyncio.wait_for(asyncio.shield(indices_task), timeout=15)
+    except (asyncio.TimeoutError, Exception):
         logger.warning("시장 지표 조회 timeout — 기본값 반환")
+        indices_task.cancel()
         indices = {
             k: {"name": n, "value": 0, "change": 0, "change_pct": 0, "direction": "flat"}
             for k, n in [(t[0], t[2]) for t in _INDEX_TICKERS]
         }
+
+    try:
+        cnn = await asyncio.wait_for(asyncio.shield(cnn_task), timeout=12)
+    except (asyncio.TimeoutError, Exception):
+        cnn_task.cancel()
         cnn = None
+
+    # CNN 실패 시 마지막 정상값 사용 (최대 10분)
+    if cnn is None and _fg_cache and time.time() - _fg_cache_time < _FG_CACHE_TTL:
+        cnn = _fg_cache
+        logger.debug("CNN API 실패 — 캐시된 공포탐욕 지수 사용")
 
     sp_pct = indices["sp500"].get("change_pct", 0)
     ks_pct = indices["kospi"].get("change_pct", 0)
