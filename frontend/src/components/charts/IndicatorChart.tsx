@@ -483,7 +483,8 @@ export default function IndicatorChart({ data, realtimePrice, buyPoint, onBuyMar
         todayCandleCreatedRef.current = true
         return
       }
-      const newCandle = { time: todayTs as any, open: price, high: price, low: price, close: price }
+      const openPrice = realtimePrice.open > 0 ? realtimePrice.open : price
+      const newCandle = { time: todayTs as any, open: openPrice, high: Math.max(openPrice, realtimePrice.high > 0 ? realtimePrice.high : price), low: Math.min(openPrice, realtimePrice.low > 0 ? realtimePrice.low : price), close: price }
       candleSeriesRef.current.update(newCandle)
       lastCandleRef.current = { ...newCandle, volume: realtimePrice.volume || 0 }
       todayCandleCreatedRef.current = true

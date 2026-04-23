@@ -69,12 +69,9 @@ async def _append_today_candle_if_missing(df: pd.DataFrame, symbol: str, market:
         if last_date == today:
             return df  # 이미 오늘 캔들 있음
 
-        # yfinance ticker 문자열 결정
-        ticker_str = symbol
-        if market in ("KR", "KOSPI"):
-            ticker_str = f"{symbol}.KS"
-        elif market == "KOSDAQ":
-            ticker_str = f"{symbol}.KQ"
+        # chart_cache._yf_ticker와 동일한 로직으로 ticker 결정 (KOSDAQ .KQ 처리 포함)
+        from services.chart_cache import _yf_ticker
+        ticker_str = _yf_ticker(symbol, market)
 
         import yfinance as yf
         info = await asyncio.to_thread(lambda: yf.Ticker(ticker_str).info or {})
