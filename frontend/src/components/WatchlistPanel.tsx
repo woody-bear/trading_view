@@ -5,8 +5,7 @@
 import { Minus } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { Signal } from '../types'
-import { fmt } from '../utils/format'
-import { fmtPrice } from '../utils/format'
+import { fmt, fmtPrice, fmtSignalAge } from '../utils/format'
 import { indicatorBadges } from '../utils/indicatorLabels'
 
 interface Props {
@@ -34,13 +33,6 @@ function deriveSignalTag(s: Signal): string | null {
   return null
 }
 
-function deriveTrendTag(s: Signal): string | null {
-  const bull = s.ema_20 > s.ema_50 && s.ema_50 > s.ema_200
-  const bear = s.ema_20 < s.ema_50 && s.ema_50 < s.ema_200
-  if (bull) return '상승'
-  if (bear) return '하락'
-  return null
-}
 
 function tagStyle(tag: string): { bg: string; fg: string } {
   if (tag === 'BUY' || tag === 'SQZ BUY' || tag === '추천' || tag === '상승' || tag === 'RSI 과매도')
@@ -80,7 +72,15 @@ function MiniWatchCard({
   const flashColor = flashDir === 'up' ? 'var(--up)' : flashDir === 'down' ? 'var(--blue)' : 'var(--fg-0)'
 
   const sigTag = deriveSignalTag(s)
-  const trendTag = deriveTrendTag(s)
+  const trendInfo = (() => {
+    const bull = s.ema_20 > s.ema_50 && s.ema_50 > s.ema_200
+    const bear = s.ema_20 < s.ema_50 && s.ema_50 < s.ema_200
+    return bull
+      ? { label: '상승', color: 'var(--up)' }
+      : bear
+      ? { label: '하락', color: 'var(--down)' }
+      : { label: '중립', color: 'var(--fg-2)' }
+  })()
   const indicators = indicatorBadges({
     squeeze_level: s.squeeze_level,
     rsi: s.rsi,
@@ -89,10 +89,9 @@ function MiniWatchCard({
     macd_hist: s.macd_hist,
   })
 
-  // Tag composition: primary signal → trend → top 2 indicators
+  // Tag composition: primary signal → top indicators (trend shown separately below)
   const tags: string[] = []
   if (sigTag) tags.push(sigTag)
-  if (trendTag) tags.push(trendTag)
   for (const ind of indicators.slice(0, 4 - tags.length)) {
     if (!tags.includes(ind.label)) tags.push(ind.label)
   }
@@ -181,6 +180,12 @@ function MiniWatchCard({
           })}
         </div>
       )}
+      <div className="flex items-center" style={{ gap: 8, marginTop: 5, fontSize: 10.5, fontFamily: 'var(--font-mono)', color: 'var(--fg-2)' }}>
+        <span>Trend <span style={{ color: trendInfo.color }}>{trendInfo.label}</span></span>
+        {s.signal_state === 'BUY' && (() => { const age = fmtSignalAge(s.last_signal_date); return age ? (
+          <span style={{ color: age.fresh ? 'var(--up)' : 'var(--fg-3)' }}>{age.label}</span>
+        ) : null })()}
+      </div>
 
       <button
         onClick={e => {
