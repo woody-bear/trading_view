@@ -26,6 +26,8 @@ html[data-theme="sqz"] {
   --up-bg: oklch(0.94 0.06 150);
   --down: oklch(0.55 0.22 25);          /* SELL / down / red */
   --down-bg: oklch(0.94 0.06 25);
+  --blue: oklch(0.60 0.18 240);         /* 목록 화면 하락/음수 색상 (한국 증권 관례) */
+  --blue-bg: oklch(0.94 0.06 240);
   --warn: oklch(0.62 0.16 65);          /* amber / warning */
   --warn-bg: oklch(0.95 0.08 80);
   --mag: oklch(0.55 0.2 320);           /* magenta accent */
