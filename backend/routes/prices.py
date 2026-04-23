@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import time as _time
 
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
@@ -10,9 +11,68 @@ from pydantic import BaseModel
 
 router = APIRouter(tags=["prices"])
 
+# 심볼별 (market:symbol → (timestamp, closes)) 메모리 캐시
+_sparkline_cache: dict[str, tuple[float, list[float]]] = {}
+_SPARKLINE_TTL = 900.0  # 15분
+
 
 class BatchPriceRequest(BaseModel):
     symbols: list[dict]  # [{"symbol": "005930", "market": "KR"}, ...]
+
+
+class SparklineRequest(BaseModel):
+    symbols: list[dict]  # [{"symbol": "005930", "market": "KR"}, ...]
+
+
+def _yf_batch_closes(yf_tickers: list[str], sym_map: dict[str, str]) -> dict[str, list[float]]:
+    """yfinance 배치 다운로드 → {original_symbol: [종가×최대5개]}."""
+    import pandas as pd
+    import yfinance as yf
+
+    result: dict[str, list[float]] = {}
+    try:
+        data = yf.download(yf_tickers, period="25d", interval="1d", progress=False, auto_adjust=True)
+        if data is None or data.empty:
+            return result
+
+        if isinstance(data.columns, pd.MultiIndex):
+            close = data["Close"]
+        else:
+            close = data.get("Close")
+        if close is None:
+            return result
+
+        if isinstance(close, pd.Series):
+            ticker = yf_tickers[0]
+            closes = [round(float(v), 6) for v in close.dropna().tail(10)]
+            if closes and ticker in sym_map:
+                result[sym_map[ticker]] = closes
+        else:
+            for ticker in yf_tickers:
+                if ticker not in close.columns:
+                    continue
+                closes = [round(float(v), 6) for v in close[ticker].dropna().tail(10)]
+                if closes and ticker in sym_map:
+                    result[sym_map[ticker]] = closes
+    except Exception as e:
+        logger.warning(f"sparkline yfinance 배치 실패: {e}")
+    return result
+
+
+def _pykrx_closes(symbol: str) -> list[float]:
+    """pykrx KR 종목 최근 10영업일 종가 반환."""
+    try:
+        from datetime import datetime, timedelta
+        from pykrx import stock
+        end = datetime.now().strftime("%Y%m%d")
+        start = (datetime.now() - timedelta(days=21)).strftime("%Y%m%d")
+        df = stock.get_market_ohlcv(start, end, symbol)
+        if df is None or df.empty:
+            return []
+        return [float(c) for c in df["종가"].tail(10).tolist()]
+    except Exception as e:
+        logger.warning(f"sparkline pykrx 실패 {symbol}: {e}")
+        return []
 
 
 @router.post("/prices/batch")
@@ -42,6 +102,70 @@ async def batch_prices(body: BatchPriceRequest):
             logger.debug(f"배치 가격 조회 실패 [{market}/{symbol}]: {e}")
 
     return {"prices": results}
+
+
+@router.post("/prices/sparkline")
+async def batch_sparklines(body: SparklineRequest):
+    """최근 5영업일 종가 배열 일괄 반환. 15분 캐시."""
+    now = _time.time()
+    result: dict[str, list[float]] = {}
+    pending_kr: list[str] = []
+    pending_us: list[str] = []
+    pending_crypto: list[str] = []
+
+    for item in body.symbols:
+        sym = item.get("symbol", "")
+        market = item.get("market", "KR")
+        if not sym:
+            continue
+        key = f"{market}:{sym}"
+        cached = _sparkline_cache.get(key)
+        if cached and now - cached[0] < _SPARKLINE_TTL:
+            result[sym] = cached[1]
+        elif market in ("KR", "KOSPI", "KOSDAQ"):
+            pending_kr.append(sym)
+        elif market == "CRYPTO":
+            pending_crypto.append(sym)
+        else:
+            pending_us.append(sym)
+
+    # US 배치 (yfinance)
+    if pending_us:
+        sym_map = {s: s for s in pending_us}
+        fetched = await asyncio.to_thread(_yf_batch_closes, pending_us, sym_map)
+        for sym, closes in fetched.items():
+            _sparkline_cache[f"US:{sym}"] = (now, closes)
+            result[sym] = closes
+
+    # CRYPTO 배치 (BTC/USDT → BTC-USDT)
+    if pending_crypto:
+        yf_tickers = [s.replace("/", "-") for s in pending_crypto]
+        sym_map = {yf: orig for yf, orig in zip(yf_tickers, pending_crypto)}
+        fetched = await asyncio.to_thread(_yf_batch_closes, yf_tickers, sym_map)
+        for sym, closes in fetched.items():
+            _sparkline_cache[f"CRYPTO:{sym}"] = (now, closes)
+            result[sym] = closes
+
+    # KR 배치 (yfinance .KS suffix, pykrx fallback)
+    if pending_kr:
+        yf_tickers = [f"{s}.KS" for s in pending_kr]
+        sym_map = {f"{s}.KS": s for s in pending_kr}
+        fetched = await asyncio.to_thread(_yf_batch_closes, yf_tickers, sym_map)
+        for sym, closes in fetched.items():
+            _sparkline_cache[f"KR:{sym}"] = (now, closes)
+            result[sym] = closes
+
+        # pykrx fallback (yfinance에서 누락된 KR 종목)
+        missing = [s for s in pending_kr if s not in result]
+        if missing:
+            tasks = [asyncio.to_thread(_pykrx_closes, s) for s in missing]
+            pykrx_results = await asyncio.gather(*tasks, return_exceptions=True)
+            for sym, closes in zip(missing, pykrx_results):
+                if isinstance(closes, list) and closes:
+                    _sparkline_cache[f"KR:{sym}"] = (now, closes)
+                    result[sym] = closes
+
+    return {"sparklines": result}
 
 
 @router.get("/stocks/{symbol}/detail")

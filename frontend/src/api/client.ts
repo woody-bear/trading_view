@@ -83,6 +83,9 @@ export const testTelegram = () => api.post('/settings/telegram/test').then(r => 
 export const fetchBatchPrices = (symbols: { symbol: string; market: string }[]) =>
   api.post('/prices/batch', { symbols }).then(r => r.data.prices)
 
+export const fetchSparklines = (symbols: { symbol: string; market: string }[]) =>
+  api.post('/prices/sparkline', { symbols }).then(r => r.data.sparklines as Record<string, number[]>)
+
 // 시장 상태 (개장전/장중/장종료/휴장)
 export type MarketStatusDTO = {
   status: 'holiday' | 'pre_open' | 'open' | 'closed' | 'crypto_24h'
