@@ -240,7 +240,8 @@ def _analyze_ticker(df: pd.DataFrame, info: dict) -> dict | None:
         last_vol = float(vol.iloc[-1]) if not pd.isna(vol.iloc[-1]) else 1.0
         price = float(df["close"].iloc[-1])
         open_price = float(df["open"].iloc[-1])
-        change = ((price - open_price) / open_price * 100) if open_price != 0 else 0
+        prev_close = float(df["close"].iloc[-2]) if len(df) >= 2 else open_price
+        change = ((price - prev_close) / prev_close * 100) if prev_close != 0 else 0
 
         # 점수
         score = last_sq * 25
