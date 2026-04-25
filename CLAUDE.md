@@ -290,7 +290,7 @@ main
 
 ---
 
-*Last updated: 2026-04-23*
+*Last updated: 2026-04-25*
 *Version: 2.0 — Strategy A (trigger table)*
 
 ## Active Technologies
@@ -309,6 +309,8 @@ main
 - 신규 테이블 없음. `ScanSnapshotItem.last_signal_date` 기존 컬럼 활용 (031-signal-days-label)
 - TypeScript 5 / React 18 + React Query (`@tanstack/react-query`), Tailwind CSS, Vite (032-scan-buy-strip-pc)
 - N/A — 신규 테이블 없음, 기존 스냅샷 API 재사용 (032-scan-buy-strip-pc)
+- Python 3.11 (backend), TypeScript 5 / React 18 (frontend) + FastAPI, numpy, pandas (backend) · lightweight-charts, React Query, Zustand (frontend) (033-chart-trendlines)
+- 신규 DB 테이블 없음. 서버 in-memory 캐시 60s TTL + React Query staleTime 60s (033-chart-trendlines)
 
 ## Recent Changes
 - 022-stock-detail-layered-analysis: Added Python 3.11 (backend), TypeScript 5 / React 18 (frontend) + FastAPI, SQLAlchemy, pydantic-settings, yfinance, pykrx (backend) · React Router, React Query, Zustand, lightweight-charts, Tailwind (frontend)
