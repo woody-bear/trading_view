@@ -47,8 +47,8 @@ export const fetchSignalBySymbol = (symbol: string) =>
   api.get(`/signals/by-symbol/${symbol}`).then(r => r.data)
 export const fetchChartBySymbol = (symbol: string, timeframe?: string) =>
   api.get(`/chart/by-symbol/${symbol}`, { params: { timeframe } }).then(r => r.data)
-export const fetchQuickChart = (symbol: string, market: string, timeframe?: string) =>
-  api.get('/chart/quick', { params: { symbol, market, timeframe: timeframe || '1d' } }).then(r => r.data)
+export const fetchQuickChart = (symbol: string, market: string, timeframe?: string, limit?: number) =>
+  api.get('/chart/quick', { params: { symbol, market, timeframe: timeframe || '1d', ...(limit !== undefined ? { limit } : {}) } }).then(r => r.data)
 export const fetchHealth = () => api.get('/health').then(r => r.data)
 
 // 통합 스캔
@@ -205,6 +205,52 @@ export interface TrendAnalysisResponse {
 }
 export const fetchTrendAnalysis = (symbol: string, market: string): Promise<TrendAnalysisResponse> =>
   api.get(`/trend-analysis/${symbol}`, { params: { market } }).then(r => r.data)
+
+// 추세선 채널 (033-chart-trendlines)
+export interface TrendChannelLine {
+  kind: 'downtrend_main' | 'downtrend_parallel' | 'uptrend_main' | 'uptrend_parallel'
+  start: { time: number; price: number }
+  end: { time: number; price: number }
+  style: { color: string; dashed: boolean }
+}
+export interface TrendPhaseStep {
+  stage: number
+  label: string
+  completed: boolean
+  completed_time: number | null
+  completed_price: number | null
+  volume_ratio: number | null
+}
+export interface TrendPeriodResult {
+  lines: TrendChannelLine[]
+  current_line_prices: {
+    downtrend_main: number | null
+    downtrend_parallel: number | null
+    uptrend_main: number | null
+    uptrend_parallel: number | null
+  }
+  phase: {
+    current_stage: number
+    steps: TrendPhaseStep[]
+    inflection_times: number[]
+    insufficient: boolean
+    message: string | null
+  }
+  candle_count: number
+}
+export interface TrendlineChannelsResponse {
+  symbol: string
+  market: string
+  evaluated_at: string
+  periods: {
+    '1m': TrendPeriodResult
+    '3m': TrendPeriodResult
+    '6m': TrendPeriodResult
+    '12m': TrendPeriodResult
+  }
+}
+export const fetchTrendlineChannels = (symbol: string, market: string): Promise<TrendlineChannelsResponse> =>
+  api.get(`/trendline-channels/${symbol}`, { params: { market } }).then(r => r.data)
 
 // BUY 사인조회 — 전체 스캔 대상 종목 목록 (인증 불필요, 인터셉터 우회)
 export const fetchScanSymbols = () => fetch('/api/scan/symbols').then(r => r.json())
