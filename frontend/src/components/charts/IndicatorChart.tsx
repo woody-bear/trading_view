@@ -43,9 +43,11 @@ interface Props {
   scrapedDates?: Set<string>
   onScrapSave?: (markerTime: number, date: string) => void
   trendLines?: import('../../api/client').TrendLine[]
+  highlightedVolumeTimes?: number[]
+  visibleFromTs?: number
 }
 
-export default function IndicatorChart({ data, realtimePrice, buyPoint, onBuyMarkerClick, scrapedDates, onScrapSave, trendLines }: Props) {
+export default function IndicatorChart({ data, realtimePrice, buyPoint, onBuyMarkerClick, scrapedDates, onScrapSave, trendLines, highlightedVolumeTimes, visibleFromTs }: Props) {
   const mainRef = useRef<HTMLDivElement>(null)
   const mainChartRef = useRef<any>(null)
   const rsiRef = useRef<HTMLDivElement>(null)
@@ -519,37 +521,58 @@ export default function IndicatorChart({ data, realtimePrice, buyPoint, onBuyMar
     }
   }, [realtimePrice])
 
-  // 추세선 오버레이 (024) — trendLines prop이 비어있으면 아무것도 안 그림
+  // 추세선 오버레이 (024)
   useEffect(() => {
     const chart = mainChartRef.current
     if (!chart) return
-    // 이전 추세선 시리즈 제거
-    const prev = (chart as any).__trendLineSeries as any[] | undefined
-    if (prev) {
-      for (const s of prev) { try { chart.removeSeries(s) } catch {} }
-    }
+    const prev: any[] = (chart as any).__trendLineSeries ?? []
+    for (const s of prev) { try { chart.removeSeries(s) } catch {} }
     const series: any[] = []
-    if (trendLines && trendLines.length > 0) {
-      for (const line of trendLines) {
-        try {
-          const s = chart.addSeries(LineSeries, {
-            color: line.style.color,
-            lineWidth: 1 as any,
-            lineStyle: line.style.dashed ? 2 : 0,
-            lastValueVisible: false,
-            priceLineVisible: false,
-            crosshairMarkerVisible: false,
-          })
-          s.setData([
-            { time: line.start.time as any, value: line.start.price },
-            { time: line.end.time as any, value: line.end.price },
-          ])
-          series.push(s)
-        } catch {}
-      }
+    for (const line of trendLines ?? []) {
+      try {
+        // 평행선 제외 — 상승/하락 메인선만 표시
+        if (line.kind?.endsWith('_parallel')) continue
+        const s = chart.addSeries(LineSeries, {
+          color: '#000000',
+          lineWidth: 1.5 as any,
+          lineStyle: 0,
+          lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false,
+        })
+        s.setData([
+          { time: line.start.time as any, value: line.start.price },
+          { time: line.end.time   as any, value: line.end.price   },
+        ])
+        series.push(s)
+      } catch {}
     }
     ;(chart as any).__trendLineSeries = series
   }, [trendLines])
+
+  // 볼륨 바 하이라이트 (033) — 추세 변곡점 타임스탬프에 노란색 적용
+  useEffect(() => {
+    const volSeries = volSeriesRef.current
+    if (!volSeries || !data.candles?.length) return
+    const highlightSet = new Set(highlightedVolumeTimes ?? [])
+    volSeries.setData(data.candles.map(c => ({
+      time: c.time as any,
+      value: c.volume,
+      color: highlightSet.has(c.time as number)
+        ? 'rgba(251,191,36,0.8)'
+        : c.close >= c.open ? 'rgba(255,75,106,0.30)' : 'rgba(66,133,244,0.28)',
+    })))
+  }, [highlightedVolumeTimes, data.candles])
+
+  // 차트 시간 범위 설정 (033) — 기간 탭 전환 시 가시 범위 변경
+  useEffect(() => {
+    const chart = mainChartRef.current
+    if (!chart || !visibleFromTs) return
+    try {
+      chart.timeScale().setVisibleRange({
+        from: visibleFromTs as any,
+        to: Math.floor(Date.now() / 1000) as any,
+      })
+    } catch {}
+  }, [visibleFromTs])
 
   return (
     <div>

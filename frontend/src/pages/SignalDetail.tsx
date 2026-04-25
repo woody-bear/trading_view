@@ -5,6 +5,8 @@ import { useLocation, useParams, useSearchParams } from 'react-router-dom'
 import BuySignalBanner from '../components/BuySignalBanner'
 import type { NavigateState } from '../utils/buyReason'
 import { addSymbol, checkPatternCaseDuplicate, createPatternCase, fetchIndicatorsAt, fetchPatternCases, fetchQuickChart, fetchSignalBySymbol, fetchSignals, getSensitivity, setSensitivity } from '../api/client'
+import TrendPeriodTabs from '../components/charts/TrendPeriodTabs'
+import { useTrendlineChannels } from '../hooks/useTrendlineChannels'
 import { useDetailViewStore, buildDetailKey } from '../stores/detailViewStore'
 import { fmtPrice as _fmtPrice } from '../utils/format'
 import ChartEmptyState from '../components/charts/ChartEmptyState'
@@ -162,7 +164,7 @@ export default function SignalDetail() {
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 10000)
       if (signal) signal.addEventListener('abort', () => controller.abort())
-      return fetchQuickChart(lookupSymbol, guessMarket, globalTf).finally(() => clearTimeout(timeout))
+      return fetchQuickChart(lookupSymbol, guessMarket, globalTf, 260).finally(() => clearTimeout(timeout))
     },
     enabled: !!urlSymbol,
     retry: 1,
@@ -293,6 +295,17 @@ export default function SignalDetail() {
   // 추세 분석 (024) — 오버레이 토글과 연결
   const showTrendLines = useTrendOverlayStore((s) => s.showLines)
   const { data: trendData } = useTrendAnalysis(lookupSymbol, normalizedMarket)
+
+  // 추세선 채널 (033) — 기간 탭 + 4선 오버레이 + 단계 패널
+  const [selectedPeriod, setSelectedPeriod] = useState<'1m' | '3m' | '6m' | '12m'>('12m')
+  const { data: channelData } = useTrendlineChannels(lookupSymbol, normalizedMarket)
+  const periodData = channelData?.periods[selectedPeriod]
+
+  const periodFromTs = (p: '1m' | '3m' | '6m' | '12m'): number => {
+    const now = Math.floor(Date.now() / 1000)
+    const days: Record<string, number> = { '1m': 30, '3m': 90, '6m': 180, '12m': 365 }
+    return now - (days[p] ?? 90) * 86400
+  }
 
   // 민감도 설정 (매수조건 임계값)
   const detailKey = buildDetailKey(s.market || guessMarket, lookupSymbol)
@@ -547,6 +560,7 @@ export default function SignalDetail() {
           {chartError && !chartTimeout && <ChartEmptyState status="error" onRetry={() => refetchChart()} />}
           {chartData && chartSymbolMatch && !chartEmpty && !chartError && !chartFetching && (
             <ChartErrorBoundary onReset={() => refetchChart()}>
+              <TrendPeriodTabs selected={selectedPeriod} onChange={setSelectedPeriod} />
               <IndicatorChart
                 data={chartData}
                 realtimePrice={livePrice}
@@ -561,7 +575,12 @@ export default function SignalDetail() {
                 }}
                 scrapedDates={scrapedDates}
                 onScrapSave={user ? handleScrapSave : undefined}
-                trendLines={showTrendLines ? trendData?.lines : undefined}
+                trendLines={[
+                  ...(showTrendLines ? (trendData?.lines ?? []) : []),
+                  ...(periodData?.lines ?? []),
+                ] as import('../api/client').TrendLine[]}
+                highlightedVolumeTimes={undefined}
+                visibleFromTs={periodFromTs(selectedPeriod)}
               />
               {/* EMA 전용 보조 차트 — 5/20/60/120만 일봉 기준 */}
               <EmaOnlyChart data={chartData} />
