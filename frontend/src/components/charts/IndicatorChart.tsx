@@ -595,7 +595,7 @@ export default function IndicatorChart({ data, realtimePrice, buyPoint, onBuyMar
           style={{ display: 'none', minWidth: 120 }}
         />
         {/* 좌상단 범례 그룹 — EMA + 추세선 (탭으로 접기/펼치기) */}
-        <div className="absolute top-2 left-2 z-40 flex gap-1.5" style={{ pointerEvents: 'none' }}>
+        <div className="absolute top-2 left-2 z-40 flex gap-1.5 items-start" style={{ pointerEvents: 'none' }}>
           {/* EMA 범례 */}
           <div
             className="backdrop-blur-sm rounded"
