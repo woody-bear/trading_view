@@ -43,11 +43,13 @@ interface Props {
   scrapedDates?: Set<string>
   onScrapSave?: (markerTime: number, date: string) => void
   trendLines?: import('../../api/client').TrendLine[]
+  shortTrendPivots?: import('../../api/client').TrendPeriodResult['swing_pivots']
+  longTrendPivots?: import('../../api/client').TrendPeriodResult['swing_pivots']
   highlightedVolumeTimes?: number[]
   visibleFromTs?: number
 }
 
-export default function IndicatorChart({ data, realtimePrice, buyPoint, onBuyMarkerClick, scrapedDates, onScrapSave, trendLines, highlightedVolumeTimes, visibleFromTs }: Props) {
+export default function IndicatorChart({ data, realtimePrice, buyPoint, onBuyMarkerClick, scrapedDates, onScrapSave, trendLines, shortTrendPivots, longTrendPivots, highlightedVolumeTimes, visibleFromTs }: Props) {
   const mainRef = useRef<HTMLDivElement>(null)
   const mainChartRef = useRef<any>(null)
   const rsiRef = useRef<HTMLDivElement>(null)
@@ -65,6 +67,9 @@ export default function IndicatorChart({ data, realtimePrice, buyPoint, onBuyMar
   const scrapedDatesRef = useRef(scrapedDates)
   scrapedDatesRef.current = scrapedDates
   const [markerWarning, setMarkerWarning] = useState(false)
+  const [emaCollapsed, setEmaCollapsed] = useState(false)
+  const [shortCollapsed, setShortCollapsed] = useState(false)
+  const [longCollapsed, setLongCollapsed] = useState(false)
   const overlayRef = useRef<HTMLDivElement>(null)
   const alignmentRef = useRef<HTMLDivElement>(null)
   const overlayStateRef = useRef<OverlayState>({ visible: false, x: 0, y: 0, markerTime: 0, date: '', isScraped: false })
@@ -530,10 +535,15 @@ export default function IndicatorChart({ data, realtimePrice, buyPoint, onBuyMar
     const series: any[] = []
     for (const line of trendLines ?? []) {
       try {
-        // 평행선 제외 — 상승/하락 메인선만 표시
+        // 평행선 제외
         if (line.kind?.endsWith('_parallel')) continue
+        const colorMap: Record<string, string> = {
+          hh_main: '#15803d', hl_main: '#000000',
+          lh_main: '#b8860b', ll_main: '#b91c1c',
+        }
+        const lineColor = colorMap[(line as any).kind] ?? '#000000'
         const s = chart.addSeries(LineSeries, {
-          color: '#000000',
+          color: lineColor,
           lineWidth: 1.5 as any,
           lineStyle: 0,
           lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false,
@@ -584,27 +594,152 @@ export default function IndicatorChart({ data, realtimePrice, buyPoint, onBuyMar
           className="absolute z-30 px-2 py-1.5 rounded bg-black/85 backdrop-blur-sm border border-[var(--border)] pointer-events-none shadow-lg"
           style={{ display: 'none', minWidth: 120 }}
         />
-        {/* EMA 범례 — 메인 차트 좌상단 오버레이 (SQZ Terminal 라이트 테마) */}
-        <div
-          className="absolute top-2 left-2 z-40 backdrop-blur-sm rounded px-2 py-1.5 text-xs pointer-events-none"
-          style={{
-            lineHeight: 1.3,
-            background: 'color-mix(in oklch, var(--bg-1), transparent 10%)',
-            border: '1px solid var(--border)',
-          }}
-        >
-          <div className="text-[10px] mb-1" style={{ color: 'var(--fg-3)' }}>EMA</div>
-          {[
-            { label: '5',   color: '#06b6d4', width: 1 },
-            { label: '20',  color: '#3b82f6', width: 1 },
-            { label: '60',  color: '#a855f7', width: 1 },
-            { label: '120', color: '#ec4899', width: 2 },
-          ].map((e) => (
-            <div key={e.label} className="flex items-center gap-1.5">
-              <div style={{ width: 18, height: e.width, background: e.color }} />
-              <span className="font-mono text-[11px]" style={{ color: 'var(--fg-1)' }}>{e.label}</span>
+        {/* 좌상단 범례 그룹 — EMA + 추세선 (탭으로 접기/펼치기) */}
+        <div className="absolute top-2 left-2 z-40 flex gap-1.5" style={{ pointerEvents: 'none' }}>
+          {/* EMA 범례 */}
+          <div
+            className="backdrop-blur-sm rounded"
+            style={{
+              lineHeight: 1.3,
+              background: 'color-mix(in oklch, var(--bg-1), transparent 10%)',
+              border: '1px solid var(--border)',
+              pointerEvents: 'auto',
+              cursor: 'pointer',
+              userSelect: 'none',
+            }}
+            onClick={() => setEmaCollapsed(c => !c)}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: emaCollapsed ? '4px 8px' : '4px 8px 2px' }}>
+              <span className="text-[10px]" style={{ color: 'var(--fg-3)' }}>EMA</span>
+              <span style={{ fontSize: 8, color: 'var(--fg-4)', lineHeight: 1 }}>{emaCollapsed ? '▶' : '▼'}</span>
             </div>
-          ))}
+            {!emaCollapsed && (
+              <div style={{ padding: '0 8px 6px' }}>
+                {[
+                  { label: '5',   color: '#06b6d4', width: 1 },
+                  { label: '20',  color: '#3b82f6', width: 1 },
+                  { label: '60',  color: '#a855f7', width: 1 },
+                  { label: '120', color: '#ec4899', width: 2 },
+                ].map((e) => (
+                  <div key={e.label} className="flex items-center gap-1.5">
+                    <div style={{ width: 18, height: e.width, background: e.color }} />
+                    <span className="font-mono text-[11px]" style={{ color: 'var(--fg-1)' }}>{e.label}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 추세선 범례 — 단기(3m) / 장기(12m) */}
+          {(shortTrendPivots || longTrendPivots) && (() => {
+            const rowStyle = (color: string, active: boolean) => ({
+              color: active ? color : 'var(--fg-4)',
+              fontFamily: 'monospace',
+              fontSize: 10,
+            })
+            const fmtPrice = (p: number) =>
+              p >= 10000 ? `${Math.round(p).toLocaleString()}` : p.toLocaleString()
+
+            const Section = ({
+              label, direction, count, points, lineColor,
+            }: {
+              label: string
+              direction: string
+              count: number
+              points: Array<{ date: string; price: number }>
+              lineColor: string
+            }) => {
+              const isUp = direction === 'up'
+              const isDown = direction === 'down'
+              const active = isUp || isDown
+              const arrow = isUp ? '↑' : isDown ? '↓' : '—'
+              const dirLabel = isUp ? '높아짐' : isDown ? '낮아짐' : '—'
+              return (
+                <div style={{ marginBottom: 5 }}>
+                  <div className="flex items-center gap-1" style={{ marginBottom: 2 }}>
+                    <div style={{ width: 14, height: 1.5, background: active ? lineColor : 'var(--fg-4)', flexShrink: 0 }} />
+                    <span style={rowStyle(lineColor, active)}>
+                      {label} {count}개
+                    </span>
+                  </div>
+                  <div style={{ paddingLeft: 6 }}>
+                    <div style={{ ...rowStyle(lineColor, active), marginBottom: 1 }}>
+                      {arrow} {label} {dirLabel}
+                    </div>
+                    {points.map((pt, i) => (
+                      <div key={i} style={{ ...rowStyle('var(--fg-1)', active), paddingLeft: 8, lineHeight: 1.6 }}>
+                        {pt.date}  {fmtPrice(pt.price)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            }
+
+            const TrendBox = ({
+              title, pivots, useOverall, collapsed, onToggle,
+            }: {
+              title: string
+              pivots: typeof shortTrendPivots
+              useOverall?: boolean
+              collapsed: boolean
+              onToggle: () => void
+            }) => {
+              if (!pivots) return null
+              const { high, low } = pivots
+              const hDir = useOverall ? high.overall_direction : high.direction
+              const lDir = useOverall ? low.overall_direction : low.direction
+              const hPts = useOverall ? high.overall_points : high.points
+              const lPts = useOverall ? low.overall_points : low.points
+              return (
+                <div
+                  className="backdrop-blur-sm rounded"
+                  style={{
+                    lineHeight: 1.4,
+                    background: 'color-mix(in oklch, var(--bg-1), transparent 10%)',
+                    border: '1px solid var(--border)',
+                    minWidth: collapsed ? 0 : 140,
+                    pointerEvents: 'auto',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                  }}
+                  onClick={onToggle}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: collapsed ? '4px 8px' : '4px 8px 2px' }}>
+                    <span style={{ fontSize: 10, color: 'var(--fg-3)' }}>{title}</span>
+                    <span style={{ fontSize: 8, color: 'var(--fg-4)', lineHeight: 1 }}>{collapsed ? '▶' : '▼'}</span>
+                  </div>
+                  {!collapsed && (
+                    <div style={{ padding: '0 8px 6px' }}>
+                      <Section
+                        label="고점" direction={hDir}
+                        count={high.count} points={hPts}
+                        lineColor={hDir === 'up' ? '#15803d' : '#b8860b'}
+                      />
+                      <Section
+                        label="저점" direction={lDir}
+                        count={low.count} points={lPts}
+                        lineColor={lDir === 'up' ? '#000000' : '#b91c1c'}
+                      />
+                    </div>
+                  )}
+                </div>
+              )
+            }
+
+            return (
+              <>
+                <TrendBox
+                  title="단기 추세선" pivots={shortTrendPivots} useOverall={false}
+                  collapsed={shortCollapsed} onToggle={() => setShortCollapsed(c => !c)}
+                />
+                <TrendBox
+                  title="장기 추세선" pivots={longTrendPivots} useOverall={true}
+                  collapsed={longCollapsed} onToggle={() => setLongCollapsed(c => !c)}
+                />
+              </>
+            )
+          })()}
         </div>
         {/* 스크랩 오버레이 — DOM ref로 직접 제어 (React re-render 우회) */}
         <div

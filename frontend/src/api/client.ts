@@ -208,7 +208,7 @@ export const fetchTrendAnalysis = (symbol: string, market: string): Promise<Tren
 
 // 추세선 채널 (033-chart-trendlines)
 export interface TrendChannelLine {
-  kind: 'downtrend_main' | 'downtrend_parallel' | 'uptrend_main' | 'uptrend_parallel'
+  kind: 'hh_main' | 'hl_main' | 'lh_main' | 'll_main'
   start: { time: number; price: number }
   end: { time: number; price: number }
   style: { color: string; dashed: boolean }
@@ -221,13 +221,22 @@ export interface TrendPhaseStep {
   completed_price: number | null
   volume_ratio: number | null
 }
+export interface SwingPivotInfo {
+  direction: 'up' | 'down' | 'none'
+  overall_direction: 'up' | 'down' | 'none'
+  count: number
+  points: Array<{ date: string; price: number }>
+  overall_points: Array<{ date: string; price: number }>
+}
 export interface TrendPeriodResult {
   lines: TrendChannelLine[]
+  swing_counts: { high: number; low: number }
+  swing_pivots: { high: SwingPivotInfo; low: SwingPivotInfo }
   current_line_prices: {
-    downtrend_main: number | null
-    downtrend_parallel: number | null
-    uptrend_main: number | null
-    uptrend_parallel: number | null
+    hh_main: number | null
+    hl_main: number | null
+    lh_main: number | null
+    ll_main: number | null
   }
   phase: {
     current_stage: number
