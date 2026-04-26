@@ -6,6 +6,7 @@ import BuySignalBanner from '../components/BuySignalBanner'
 import type { NavigateState } from '../utils/buyReason'
 import { addSymbol, checkPatternCaseDuplicate, createPatternCase, fetchIndicatorsAt, fetchPatternCases, fetchQuickChart, fetchSignalBySymbol, fetchSignals, getSensitivity, setSensitivity } from '../api/client'
 import TrendPeriodTabs from '../components/charts/TrendPeriodTabs'
+import TrendlineGlossaryPanel from '../components/charts/TrendlineGlossaryPanel'
 import { useTrendlineChannels } from '../hooks/useTrendlineChannels'
 import { useDetailViewStore, buildDetailKey } from '../stores/detailViewStore'
 import { fmtPrice as _fmtPrice } from '../utils/format'
@@ -579,6 +580,8 @@ export default function SignalDetail() {
                   ...(showTrendLines ? (trendData?.lines ?? []) : []),
                   ...(periodData?.lines ?? []),
                 ] as import('../api/client').TrendLine[]}
+                shortTrendPivots={channelData?.periods['3m']?.swing_pivots}
+                longTrendPivots={channelData?.periods['12m']?.swing_pivots}
                 highlightedVolumeTimes={undefined}
                 visibleFromTs={periodFromTs(selectedPeriod)}
               />
@@ -670,6 +673,24 @@ export default function SignalDetail() {
               </div>
             </div>
           </div>
+
+          {/* 단기 추세선 가이드 (3m, 최근 2개 스윙) */}
+          <TrendlineGlossaryPanel
+            high={channelData?.periods['3m']?.swing_pivots?.high}
+            low={channelData?.periods['3m']?.swing_pivots?.low}
+            useOverall={false}
+            termLabel="단기"
+            periodLabel="3m"
+          />
+          {/* 장기 추세선 가이드 (12m, 첫~마지막 스윙) */}
+          <TrendlineGlossaryPanel
+            high={channelData?.periods['12m']?.swing_pivots?.high}
+            low={channelData?.periods['12m']?.swing_pivots?.low}
+            useOverall={true}
+            termLabel="장기"
+            periodLabel="12m"
+            footnote="* 첫 번째 vs 마지막 스윙 포인트 방향 기준"
+          />
 
           {/* 지표 게이지 — 6종 세로 정렬 */}
           {gauges.map((g) => <MiniGauge key={g.label} g={g} />)}
