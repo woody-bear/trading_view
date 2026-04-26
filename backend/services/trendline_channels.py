@@ -151,61 +151,96 @@ def _today_ts() -> int:
     ).timestamp())
 
 
-def _build_downtrend_channel(df: pd.DataFrame) -> TrendChannel | None:
-    """하락채널: 최근 2 고점 + 두 고점 사이 최저 저점으로 평행선.
-    저점(swing low)이 3개 미만이면 추세 신뢰도 부족으로 미표시."""
+def _pivot_points(df: pd.DataFrame, swing_idx: np.ndarray, prices: np.ndarray) -> list[dict]:
+    """마지막 2개 스윙 포인트의 날짜·가격 반환 (오래된 순)."""
+    result = []
+    for si in swing_idx[-2:]:
+        result.append({
+            "date": df.index[int(si)].strftime("%-m/%-d"),
+            "price": float(round(prices[int(si)], 0)),
+        })
+    return result
+
+
+def _pivot_points_first_last(df: pd.DataFrame, swing_idx: np.ndarray, prices: np.ndarray) -> list[dict]:
+    """첫 번째·마지막 스윙 포인트의 날짜·가격 반환 (장기 방향용)."""
+    if len(swing_idx) == 0:
+        return []
+    indices = [swing_idx[0]] if len(swing_idx) == 1 else [swing_idx[0], swing_idx[-1]]
+    return [
+        {"date": df.index[int(si)].strftime("%-m/%-d"), "price": float(round(prices[int(si)], 0))}
+        for si in indices
+    ]
+
+
+def _build_hh_channel(df: pd.DataFrame) -> TrendChannel | None:
+    """고점 상승(HH): 최근 2 스윙 고점이 우상향."""
     timestamps = np.array([int(idx.timestamp()) for idx in df.index])
     highs = df["high"].values.astype(float)
-    lows = df["low"].values.astype(float)
-    n = len(df)
-
-    idx_arr = np.arange(n)
+    lows  = df["low"].values.astype(float)
+    idx_arr = np.arange(len(df))
     swing_idx = _find_swing_highs(highs)
     if len(swing_idx) < 2:
         return None
-
-    # 저점 3개 이상 확인 — 신뢰도 조건
-    if len(_find_swing_lows(lows)) < 3:
-        return None
-
     i1, i2 = int(swing_idx[-2]), int(swing_idx[-1])
+    if highs[i2] <= highs[i1]:
+        return None
     mask = (idx_arr >= i1) & (idx_arr <= i2)
-
-    return _build_channel(
-        timestamps=timestamps,
-        pivot_indices=swing_idx,
-        pivot_prices=highs[swing_idx],
-        offset_prices=lows[mask],
-        offset_ts=timestamps[mask],
-        today_ts=_today_ts(),
-        kind="downtrend",
-    )
+    return _build_channel(timestamps, swing_idx, highs[swing_idx],
+                          lows[mask], timestamps[mask], _today_ts(), "hh")
 
 
-def _build_uptrend_channel(df: pd.DataFrame) -> TrendChannel | None:
-    """상승채널: 최근 2 저점 + 두 저점 사이 최고 고점으로 평행선."""
+def _build_hl_channel(df: pd.DataFrame) -> TrendChannel | None:
+    """저점 상승(HL): 최근 2 스윙 저점이 우상향."""
     timestamps = np.array([int(idx.timestamp()) for idx in df.index])
     highs = df["high"].values.astype(float)
-    lows = df["low"].values.astype(float)
-    n = len(df)
-
-    idx_arr = np.arange(n)
+    lows  = df["low"].values.astype(float)
+    idx_arr = np.arange(len(df))
     swing_idx = _find_swing_lows(lows)
     if len(swing_idx) < 2:
         return None
-
     i1, i2 = int(swing_idx[-2]), int(swing_idx[-1])
+    if lows[i2] <= lows[i1]:
+        return None
     mask = (idx_arr >= i1) & (idx_arr <= i2)
+    return _build_channel(timestamps, swing_idx, lows[swing_idx],
+                          highs[mask], timestamps[mask], _today_ts(), "hl")
 
-    return _build_channel(
-        timestamps=timestamps,
-        pivot_indices=swing_idx,
-        pivot_prices=lows[swing_idx],
-        offset_prices=highs[mask],
-        offset_ts=timestamps[mask],
-        today_ts=_today_ts(),
-        kind="uptrend",
-    )
+
+def _build_lh_channel(df: pd.DataFrame) -> TrendChannel | None:
+    """고점 하락(LH): 최근 2 스윙 고점이 우하향. 저점 3개 이상 신뢰도 조건."""
+    timestamps = np.array([int(idx.timestamp()) for idx in df.index])
+    highs = df["high"].values.astype(float)
+    lows  = df["low"].values.astype(float)
+    idx_arr = np.arange(len(df))
+    swing_idx = _find_swing_highs(highs)
+    if len(swing_idx) < 2:
+        return None
+    if len(_find_swing_lows(lows)) < 3:
+        return None
+    i1, i2 = int(swing_idx[-2]), int(swing_idx[-1])
+    if highs[i2] >= highs[i1]:
+        return None
+    mask = (idx_arr >= i1) & (idx_arr <= i2)
+    return _build_channel(timestamps, swing_idx, highs[swing_idx],
+                          lows[mask], timestamps[mask], _today_ts(), "lh")
+
+
+def _build_ll_channel(df: pd.DataFrame) -> TrendChannel | None:
+    """저점 하락(LL): 최근 2 스윙 저점이 우하향."""
+    timestamps = np.array([int(idx.timestamp()) for idx in df.index])
+    highs = df["high"].values.astype(float)
+    lows  = df["low"].values.astype(float)
+    idx_arr = np.arange(len(df))
+    swing_idx = _find_swing_lows(lows)
+    if len(swing_idx) < 2:
+        return None
+    i1, i2 = int(swing_idx[-2]), int(swing_idx[-1])
+    if lows[i2] >= lows[i1]:
+        return None
+    mask = (idx_arr >= i1) & (idx_arr <= i2)
+    return _build_channel(timestamps, swing_idx, lows[swing_idx],
+                          highs[mask], timestamps[mask], _today_ts(), "ll")
 
 
 # ── Phase Detection ─────────────────────────────────────────────────────────
@@ -334,55 +369,49 @@ def _detect_phase(
 
 # ── Period Result Builder ───────────────────────────────────────────────────
 
+_KIND_COLOR: dict[str, str] = {
+    "hh_main": "#15803d",  # 고점 상승 — 진초록
+    "hl_main": "#000000",  # 저점 상승 — 검정
+    "lh_main": "#b8860b",  # 고점 하락 — 황금
+    "ll_main": "#b91c1c",  # 저점 하락 — 진빨강
+}
+
+
 def _build_lines_list(
-    down_ch: TrendChannel | None,
-    up_ch: TrendChannel | None,
+    hh_ch: TrendChannel | None,
+    hl_ch: TrendChannel | None,
+    lh_ch: TrendChannel | None,
+    ll_ch: TrendChannel | None,
 ) -> list[dict]:
     lines: list[dict] = []
-    if down_ch and down_ch.valid:
-        lines.append({
-            "kind": "downtrend_main",
-            "start": {"time": down_ch.main.start_time, "price": down_ch.main.start_price},
-            "end": {"time": down_ch.main.end_time, "price": down_ch.main.end_price},
-            "style": {"color": COLOR_DOWN, "dashed": False},
-        })
-        lines.append({
-            "kind": "downtrend_parallel",
-            "start": {"time": down_ch.parallel.start_time, "price": down_ch.parallel.start_price},
-            "end": {"time": down_ch.parallel.end_time, "price": down_ch.parallel.end_price},
-            "style": {"color": COLOR_DOWN, "dashed": True},
-        })
-    if up_ch and up_ch.valid:
-        lines.append({
-            "kind": "uptrend_main",
-            "start": {"time": up_ch.main.start_time, "price": up_ch.main.start_price},
-            "end": {"time": up_ch.main.end_time, "price": up_ch.main.end_price},
-            "style": {"color": COLOR_UP, "dashed": False},
-        })
-        lines.append({
-            "kind": "uptrend_parallel",
-            "start": {"time": up_ch.parallel.start_time, "price": up_ch.parallel.start_price},
-            "end": {"time": up_ch.parallel.end_time, "price": up_ch.parallel.end_price},
-            "style": {"color": COLOR_UP, "dashed": True},
-        })
+    for ch, kind in [(hh_ch, "hh_main"), (hl_ch, "hl_main"),
+                     (lh_ch, "lh_main"), (ll_ch, "ll_main")]:
+        if ch and ch.valid:
+            lines.append({
+                "kind": kind,
+                "start": {"time": ch.main.start_time, "price": ch.main.start_price},
+                "end":   {"time": ch.main.end_time,   "price": ch.main.end_price},
+                "style": {"color": _KIND_COLOR[kind], "dashed": False},
+            })
     return lines
 
 
 def _current_line_prices(
-    down_ch: TrendChannel | None,
-    up_ch: TrendChannel | None,
+    hh_ch: TrendChannel | None,
+    hl_ch: TrendChannel | None,
+    lh_ch: TrendChannel | None,
+    ll_ch: TrendChannel | None,
     today: int,
 ) -> dict:
-    def safe(line: ChannelLine | None) -> float | None:
-        if line is None:
+    def safe(ch: TrendChannel | None) -> float | None:
+        if ch is None:
             return None
-        return round(_line_at(line.slope, line.intercept, today), 2)
-
+        return round(_line_at(ch.main.slope, ch.main.intercept, today), 2)
     return {
-        "downtrend_main":     safe(down_ch.main if down_ch else None),
-        "downtrend_parallel": safe(down_ch.parallel if down_ch else None),
-        "uptrend_main":       safe(up_ch.main if up_ch else None),
-        "uptrend_parallel":   safe(up_ch.parallel if up_ch else None),
+        "hh_main": safe(hh_ch),
+        "hl_main": safe(hl_ch),
+        "lh_main": safe(lh_ch),
+        "ll_main": safe(ll_ch),
     }
 
 
@@ -391,36 +420,75 @@ def _compute_period(df: pd.DataFrame) -> dict:
     n = len(df)
     today = _today_ts()
 
+    _empty_pivot = {"direction": "none", "count": 0, "points": []}
     if n < MIN_CANDLES:
         return {
             "candle_count": n,
             "lines": [],
-            "current_line_prices": {
-                "downtrend_main": None, "downtrend_parallel": None,
-                "uptrend_main": None, "uptrend_parallel": None,
-            },
+            "swing_counts": {"high": 0, "low": 0},
+            "swing_pivots": {"high": _empty_pivot, "low": _empty_pivot},
+            "current_line_prices": {"hh_main": None, "hl_main": None, "lh_main": None, "ll_main": None},
             "phase": {
-                "current_stage": 0,
-                "steps": [],
-                "inflection_times": [],
+                "current_stage": 0, "steps": [], "inflection_times": [],
                 "insufficient": True,
                 "message": f"분석 불가 — 데이터 부족 (최소 {MIN_CANDLES} 거래일 필요)",
             },
         }
 
-    down_ch = _build_downtrend_channel(df)
-    up_ch = _build_uptrend_channel(df)
+    highs = df["high"].values.astype(float)
+    lows  = df["low"].values.astype(float)
+    high_swing_idx = _find_swing_highs(highs)
+    low_swing_idx  = _find_swing_lows(lows)
 
-    current_stage, steps, inflection_times = _detect_phase(df, down_ch, up_ch)
-    lines = _build_lines_list(down_ch, up_ch)
+    hh_ch = _build_hh_channel(df)
+    hl_ch = _build_hl_channel(df)
+    lh_ch = _build_lh_channel(df)
+    ll_ch = _build_ll_channel(df)
+
+    # 단기 방향: 최근 2개 스윙 포인트 비교
+    if len(high_swing_idx) >= 2:
+        h_dir = "up" if highs[int(high_swing_idx[-1])] > highs[int(high_swing_idx[-2])] else "down"
+    else:
+        h_dir = "none"
+    if len(low_swing_idx) >= 2:
+        l_dir = "up" if lows[int(low_swing_idx[-1])] > lows[int(low_swing_idx[-2])] else "down"
+    else:
+        l_dir = "none"
+
+    # 장기 방향: 첫 번째 vs 마지막 스윙 포인트 비교 (전체 기간의 실제 추세)
+    if len(high_swing_idx) >= 2:
+        h_overall_dir = "up" if highs[int(high_swing_idx[-1])] > highs[int(high_swing_idx[0])] else "down"
+    else:
+        h_overall_dir = h_dir
+    if len(low_swing_idx) >= 2:
+        l_overall_dir = "up" if lows[int(low_swing_idx[-1])] > lows[int(low_swing_idx[0])] else "down"
+    else:
+        l_overall_dir = l_dir
+
+    swing_pivots = {
+        "high": {
+            "direction": h_dir,
+            "overall_direction": h_overall_dir,
+            "count": int(len(high_swing_idx)),
+            "points": _pivot_points(df, high_swing_idx, highs),
+            "overall_points": _pivot_points_first_last(df, high_swing_idx, highs),
+        },
+        "low": {
+            "direction": l_dir,
+            "overall_direction": l_overall_dir,
+            "count": int(len(low_swing_idx)),
+            "points": _pivot_points(df, low_swing_idx, lows),
+            "overall_points": _pivot_points_first_last(df, low_swing_idx, lows),
+        },
+    }
+
+    current_stage, steps, inflection_times = _detect_phase(df, lh_ch, hl_ch)
+    lines = _build_lines_list(hh_ch, hl_ch, lh_ch, ll_ch)
 
     steps_list = [
         {
-            "stage": s.stage,
-            "label": s.label,
-            "completed": s.completed,
-            "completed_time": s.completed_time,
-            "completed_price": s.completed_price,
+            "stage": s.stage, "label": s.label, "completed": s.completed,
+            "completed_time": s.completed_time, "completed_price": s.completed_price,
             "volume_ratio": s.volume_ratio,
         }
         for s in steps
@@ -429,7 +497,9 @@ def _compute_period(df: pd.DataFrame) -> dict:
     return {
         "candle_count": n,
         "lines": lines,
-        "current_line_prices": _current_line_prices(down_ch, up_ch, today),
+        "swing_counts": {"high": int(len(high_swing_idx)), "low": int(len(low_swing_idx))},
+        "swing_pivots": swing_pivots,
+        "current_line_prices": _current_line_prices(hh_ch, hl_ch, lh_ch, ll_ch, today),
         "phase": {
             "current_stage": current_stage,
             "steps": steps_list,
@@ -441,19 +511,16 @@ def _compute_period(df: pd.DataFrame) -> dict:
 
 
 def _empty_period(msg: str = "분석 불가 — 서비스 오류") -> dict:
+    _ep = {"direction": "none", "count": 0, "points": []}
     return {
         "candle_count": 0,
         "lines": [],
-        "current_line_prices": {
-            "downtrend_main": None, "downtrend_parallel": None,
-            "uptrend_main": None, "uptrend_parallel": None,
-        },
+        "swing_counts": {"high": 0, "low": 0},
+        "swing_pivots": {"high": _ep, "low": _ep},
+        "current_line_prices": {"hh_main": None, "hl_main": None, "lh_main": None, "ll_main": None},
         "phase": {
-            "current_stage": 0,
-            "steps": [],
-            "inflection_times": [],
-            "insufficient": True,
-            "message": msg,
+            "current_stage": 0, "steps": [], "inflection_times": [],
+            "insufficient": True, "message": msg,
         },
     }
 
